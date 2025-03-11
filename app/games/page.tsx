@@ -26,6 +26,8 @@ const SnakeGame = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [scoreFlash, setScoreFlash] = useState(false);
   const [selectedSpeedIndex, setSelectedSpeedIndex] = useState(1); // Default to medium
+  const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
+  const [wallCollision, setWallCollision] = useState(false); // New state for wall collision mode
 
   // Load high score from localStorage
   useEffect(() => {
@@ -53,10 +55,20 @@ const SnakeGame = () => {
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Add pause functionality on 'p' or 'Escape' key press
+      if (e.key === 'p' || e.key === 'Escape') {
+        if (gameStarted && !gameOver) {
+          setIsPaused(prev => !prev);
+          return;
+        }
+      }
+      
       // Only respond to arrow keys
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       
       if (!gameStarted && !gameOver) setGameStarted(true);
+      if (isPaused) setIsPaused(false); // Resume game if paused
+      
       switch (e.key) {
         case 'ArrowUp':
           if (direction.y !== 1) setDirection({ x: 0, y: -1 });
@@ -76,7 +88,7 @@ const SnakeGame = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [direction, gameStarted, gameOver]);
+  }, [direction, gameStarted, gameOver, isPaused]);
 
   // Mobile swipe handling
   useEffect(() => {
@@ -126,6 +138,9 @@ const SnakeGame = () => {
         }
       }
       
+      // Resume game if paused when swiped
+      if (isPaused) setIsPaused(false);
+      
       if (touchStartX === null || touchStartY === null) return;
       
       const touch = e.changedTouches[0];
@@ -158,31 +173,43 @@ const SnakeGame = () => {
       canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [direction, gameStarted, gameOver]);
+  }, [direction, gameStarted, gameOver, isPaused]);
 
   // Main game loop
   useEffect(() => {
-    if (gameOver || !gameStarted) return;
+    if (gameOver || !gameStarted || isPaused) return;
     const interval = setInterval(() => moveSnake(), speed);
     return () => clearInterval(interval);
-  }, [snake, direction, gameOver, speed, gameStarted]);
+  }, [snake, direction, gameOver, speed, gameStarted, isPaused]);
 
-  // Move snake and handle logic - updated with wall passing
+  // Move snake and handle logic - updated with conditional wall collision
   const moveSnake = () => {
     const head = snake[0];
     const newHead = { x: head.x + direction.x, y: head.y + direction.y };
 
-    // Handle wall passing
-    if (newHead.x < 0) {
-      newHead.x = Math.floor(canvasWidth / scale) - 1; // Appear on right side
-    } else if (newHead.x >= canvasWidth / scale) {
-      newHead.x = 0; // Appear on left side
-    }
-    
-    if (newHead.y < 0) {
-      newHead.y = Math.floor(canvasHeight / scale) - 1; // Appear on bottom
-    } else if (newHead.y >= canvasHeight / scale) {
-      newHead.y = 0; // Appear on top
+    // Handle wall collision based on mode
+    if (!wallCollision) {
+      // Portal walls mode
+      if (newHead.x < 0) {
+        newHead.x = Math.floor(canvasWidth / scale) - 1; // Appear on right side
+      } else if (newHead.x >= canvasWidth / scale) {
+        newHead.x = 0; // Appear on left side
+      }
+      
+      if (newHead.y < 0) {
+        newHead.y = Math.floor(canvasHeight / scale) - 1; // Appear on bottom
+      } else if (newHead.y >= canvasHeight / scale) {
+        newHead.y = 0; // Appear on top
+      }
+    } else {
+      // Wall collision mode
+      if (newHead.x < 0 || 
+          newHead.x >= canvasWidth / scale || 
+          newHead.y < 0 || 
+          newHead.y >= canvasHeight / scale) {
+        handleGameOver();
+        return;
+      }
     }
 
     // Check self-collision
@@ -274,8 +301,8 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw grid
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = wallCollision ? '#FF4040' : '#222';
+    ctx.lineWidth = wallCollision ? 2 : 0.5;
     for (let x = 0; x <= canvasWidth; x += scale) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -376,6 +403,20 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
     setSelectedSpeedIndex(index);
     setSpeed(speedOptions[index].value);
   };
+  
+  // Toggle pause state
+  const togglePause = () => {
+    if (gameStarted && !gameOver) {
+      setIsPaused(prev => !prev);
+    }
+  };
+  
+  // Toggle wall collision mode
+  const toggleWallCollision = () => {
+    if (!gameStarted || gameOver) {
+      setWallCollision(prev => !prev);
+    }
+  };
 
   // Reset game with updated settings
   const resetGame = () => {
@@ -384,8 +425,9 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
     setDirection({ x: 0, y: 0 });
     setGameOver(false);
     setGameStarted(false);
+    setIsPaused(false);
     setScore(0);
-    // Don't reset speed here - keep user's preferred speed
+    // Don't reset speed and wall collision mode - keep user's preferred settings
     if (canvasRef.current) drawGame([{ x: 5, y: 5 }], { x: 10, y: 10 });
   };
 
@@ -406,33 +448,71 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
           </div>
         </div>
         
-        {/* Speed settings */}
-        <div className="mb-4">
-          <p className="text-sm text-gray-300 mb-2">Game Speed:</p>
-          <div className="flex space-x-2">
-            {speedOptions.map((option, index) => (
-              <button
-                key={option.label}
-                onClick={() => changeSpeed(index)}
-                disabled={gameStarted && !gameOver}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                  selectedSpeedIndex === index
-                    ? 'bg-cyan-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                } ${(gameStarted && !gameOver) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                {option.label}
-              </button>
-            ))}
+        {/* Game controls */}
+        <div className="flex justify-between mb-4 space-x-2">
+          {/* Speed settings */}
+          <div className="flex-1">
+            <p className="text-sm text-gray-300 mb-2">Game Speed:</p>
+            <div className="flex flex-wrap gap-1">
+              {speedOptions.map((option, index) => (
+                <button
+                  key={option.label}
+                  onClick={() => changeSpeed(index)}
+                  disabled={gameStarted && !gameOver}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                    selectedSpeedIndex === index
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  } ${(gameStarted && !gameOver && !isPaused) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
-          {gameStarted && !gameOver && (
-            <p className="text-xs text-gray-400 mt-1 italic">Speed can only be changed before game starts or after game over</p>
-          )}
+          
+          {/* Wall collision toggle */}
+          <div className="flex-1">
+            <p className="text-sm text-gray-300 mb-2">Wall Collision:</p>
+            <button
+              onClick={toggleWallCollision}
+              disabled={gameStarted && !gameOver && !isPaused}
+              className={`px-3 py-1 text-xs rounded-md transition-colors w-full ${
+                wallCollision
+                  ? 'bg-red-600 text-white'
+                  : 'bg-green-600 text-white'
+              } ${(gameStarted && !gameOver && !isPaused) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {wallCollision ? 'ON (Deadly)' : 'OFF (Portal)'}
+            </button>
+          </div>
         </div>
+        
+        {gameStarted && !gameOver && (
+          <div className="mb-4">
+            <button
+              onClick={togglePause}
+              className={`w-full py-2 rounded-md transition-colors ${
+                isPaused
+                  ? 'bg-green-600 text-white'
+                  : 'bg-amber-600 text-white'
+              }`}
+            >
+              {isPaused ? 'Resume Game' : 'Pause Game'}
+            </button>
+          </div>
+        )}
         
         {!gameStarted && !gameOver && (
           <div className="my-3 p-3 bg-gray-800 bg-opacity-50 rounded-md text-gray-300 italic text-center">
             Press arrow keys or swipe to start
+          </div>
+        )}
+        
+        {isPaused && (
+          <div className="my-3 p-3 bg-gray-800 bg-opacity-50 rounded-md text-gray-300 text-center">
+            <span className="font-bold text-amber-400">GAME PAUSED</span><br/>
+            <span className="text-sm italic">Press any arrow key, swipe, or click Resume to continue</span>
           </div>
         )}
         
@@ -443,6 +523,12 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
             height={canvasHeight}
             className="border-2 border-gray-700 rounded-md bg-gray-900 shadow-[0_0_15px_rgba(0,255,255,0.15)] mx-auto touch-none"
           />
+          
+          {isPaused && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-md animate-pulse">
+              <div className="text-4xl font-bold text-white">PAUSED</div>
+            </div>
+          )}
           
           {gameOver && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded-md animate-fade-in">
@@ -463,7 +549,10 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
         <div className="mt-6 text-sm text-gray-400 space-y-1">
           <p>Use arrow keys to navigate</p>
           <p>Mobile users can swipe to change direction</p>
-          <p className="text-cyan-400">Portal Walls: Snake can pass through walls!</p>
+          <p>Press P or ESC to pause the game</p>
+          <p className={`${wallCollision ? 'text-red-400' : 'text-cyan-400'}`}>
+            Wall Mode: {wallCollision ? 'Collision (walls kill)' : 'Portal (pass through walls)'}
+          </p>
         </div>
       </div>
     </div>
