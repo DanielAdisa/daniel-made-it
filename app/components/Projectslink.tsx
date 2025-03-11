@@ -1,10 +1,11 @@
+import React from 'react';
 import { PROJECTSDEV } from "../constants";
 import { motion } from "framer-motion";
 import { FiGithub, FiExternalLink, FiLink } from "react-icons/fi";
 import { SiTypescript, SiTailwindcss, SiThreedotjs, SiFigma, SiAdobexd, SiReact, SiNextdotjs } from "react-icons/si";
 
 // Tech icon mapping for visual enhancement
-const TECH_ICONS: { [key: string]: JSX.Element } = {
+const TECH_ICONS: { [key: string]: React.ReactElement } = {
   "TypeScript": <SiTypescript className="text-blue-400" />,
   "Tailwind": <SiTailwindcss className="text-cyan-400" />,
   "Three.js": <SiThreedotjs className="text-emerald-400" />,
