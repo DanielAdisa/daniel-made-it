@@ -382,7 +382,7 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
         <Navbar />
       <h2 style={{ 
         fontSize: '28px',
-        marginBottom: '15px',
+        marginBottom: '20px',
         background: 'linear-gradient(45deg, #00BFFF, #7B68EE)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
