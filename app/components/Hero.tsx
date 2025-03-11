@@ -115,7 +115,7 @@ const Hero = () => {
               variants={childVariants}
               className="relative pb-2 text-4xl font-bold tracking-tighter lg:text-7xl xl:text-8xl"
             >
-              <span className="text-transparent bg-gradient-to-r from-stone-100 to-stone-400 bg-clip-text">
+              <span className="text-transparent whitespace-nowrap bg-gradient-to-r from-stone-100 to-stone-400 bg-clip-text">
                 Daniel Adisa
               </span>
               <span className="absolute left-0 w-1/4 h-1 -bottom-1 bg-gradient-to-r from-stone-300 to-transparent" />

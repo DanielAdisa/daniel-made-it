@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { FaGithub, FaInstagram, FaLinkedin, FaWhatsapp } from "react-icons/fa";
 import { HiMenuAlt4 } from "react-icons/hi";
 import { IoClose } from "react-icons/io5";
-// import Asset from "../assets/Asset.webp";
+import Asset from "@/public/assets/Asset.webp";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
@@ -85,13 +85,13 @@ const Navbar = () => {
                     duration: 8,
                   }}
                 />
-                {/* <Image 
+                <Image 
                   src={Asset} 
                   alt={"Daniel Adisa"} 
                   width={48} 
                   height={48} 
                   className="relative z-10"
-                /> */}
+                />
               </div>
               <div className="ml-3">
                 <span className="text-lg font-semibold text-white">Daniel Adisa</span>

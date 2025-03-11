@@ -6,17 +6,26 @@ const canvasWidth = 400;
 const canvasHeight = 400;
 const scale = 20; // Grid cell size in pixels
 
+// Define speed options with labels and millisecond values
+const speedOptions = [
+  { label: "Slow", value: 200 },
+  { label: "Medium", value: 150 },
+  { label: "Fast", value: 100 },
+  { label: "Very Fast", value: 70 }
+];
+
 const SnakeGame = () => {
   const canvasRef = useRef(null);
   const [snake, setSnake] = useState([{ x: 5, y: 5 }]);
   const [food, setFood] = useState({ x: 10, y: 10 });
   const [direction, setDirection] = useState({ x: 0, y: 0 });
-  const [speed, setSpeed] = useState(200); // Update interval in ms
+  const [speed, setSpeed] = useState(speedOptions[1].value); // Default to medium speed
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const [scoreFlash, setScoreFlash] = useState(false);
+  const [selectedSpeedIndex, setSelectedSpeedIndex] = useState(1); // Default to medium
 
   // Load high score from localStorage
   useEffect(() => {
@@ -158,21 +167,25 @@ const SnakeGame = () => {
     return () => clearInterval(interval);
   }, [snake, direction, gameOver, speed, gameStarted]);
 
-  // Move snake and handle logic
+  // Move snake and handle logic - updated with wall passing
   const moveSnake = () => {
     const head = snake[0];
     const newHead = { x: head.x + direction.x, y: head.y + direction.y };
 
-    if (
-      newHead.x < 0 ||
-      newHead.x >= canvasWidth / scale ||
-      newHead.y < 0 ||
-      newHead.y >= canvasHeight / scale
-    ) {
-      handleGameOver();
-      return;
+    // Handle wall passing
+    if (newHead.x < 0) {
+      newHead.x = Math.floor(canvasWidth / scale) - 1; // Appear on right side
+    } else if (newHead.x >= canvasWidth / scale) {
+      newHead.x = 0; // Appear on left side
+    }
+    
+    if (newHead.y < 0) {
+      newHead.y = Math.floor(canvasHeight / scale) - 1; // Appear on bottom
+    } else if (newHead.y >= canvasHeight / scale) {
+      newHead.y = 0; // Appear on top
     }
 
+    // Check self-collision
     for (let segment of snake) {
       if (newHead.x === segment.x && newHead.y === segment.y) {
         handleGameOver();
@@ -189,7 +202,8 @@ const SnakeGame = () => {
       setTimeout(() => setScoreFlash(false), 500);
       
       if (newSnake.length % 5 === 0) {
-        setSpeed((prevSpeed) => Math.max(prevSpeed - 10, 50));
+        // Only auto-increase speed if it's not already very fast
+        setSpeed((prevSpeed) => Math.max(prevSpeed - 5, 50));
       }
     } else {
       newSnake.pop();
@@ -352,7 +366,13 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
     if (canvasRef.current) drawGame(snake, food);
   }, [canvasRef]);
 
-  // Reset game
+  // Change speed setting
+  const changeSpeed = (index) => {
+    setSelectedSpeedIndex(index);
+    setSpeed(speedOptions[index].value);
+  };
+
+  // Reset game with updated settings
   const resetGame = () => {
     setSnake([{ x: 5, y: 5 }]);
     setFood({ x: 10, y: 10 });
@@ -360,124 +380,86 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
     setGameOver(false);
     setGameStarted(false);
     setScore(0);
-    setSpeed(200);
+    // Don't reset speed here - keep user's preferred speed
     if (canvasRef.current) drawGame([{ x: 5, y: 5 }], { x: 10, y: 10 });
   };
 
   return (
-    
-    <div className=" snake-game-container" style={{ 
-      textAlign: 'center', 
-      maxWidth: '500px', 
-      margin: '0 auto',
-      padding: '15px',
-      backgroundColor: '#1e1e1e',
-      borderRadius: '10px',
-      boxShadow: '0 5px 15px rgba(0, 0, 0, 0.5)',
-      color: '#fff',
-      marginTop: '50px',
-      gap: '15px',
-      paddingTop: '20px'
-    }}>
-        <Navbar />
-      <h2 style={{ 
-        fontSize: '28px',
-        marginBottom: '20px',
-        background: 'linear-gradient(45deg, #00BFFF, #7B68EE)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        textShadow: '0 1px 3px rgba(0,0,0,0.3)'
-      }}>Snake Game</h2>
-      
-      <div className="score-board" style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '8px 15px',
-        backgroundColor: '#2a2a2a',
-        borderRadius: '5px',
-        marginBottom: '15px',
-        fontFamily: 'monospace',
-        fontSize: '18px'
-      }}>
-        <div className={`current-score ${scoreFlash ? 'score-flash' : ''}`} style={{
-          transition: 'transform 0.2s',
-          transform: scoreFlash ? 'scale(1.3)' : 'scale(1)',
-          color: scoreFlash ? '#00FFFF' : '#ffffff'
-        }}>
-          Score: {score}
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900">
+      <Navbar />
+      <div className="w-full max-w-md mx-auto p-6 bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl text-white border border-gray-700">
+        <h2 className="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
+          Snake Game
+        </h2>
+        
+        <div className="flex justify-between items-center p-3 bg-gray-800 rounded-lg mb-4 font-mono text-lg border-l-4 border-cyan-500">
+          <div className={`transition-transform duration-300 ${scoreFlash ? 'scale-125 text-cyan-400' : 'text-white'}`}>
+            Score: {score}
+          </div>
+          <div className="text-yellow-500">
+            High Score: {highScore}
+          </div>
         </div>
-        <div className="high-score" style={{ color: '#FFA500' }}>High Score: {highScore}</div>
-      </div>
-      
-      {!gameStarted && !gameOver && (
-        <div style={{ 
-          margin: '10px 0', 
-          padding: '8px', 
-          backgroundColor: 'rgba(0,0,0,0.2)',
-          borderRadius: '5px',
-          color: '#aaa' 
-        }}>
-          Press arrow keys or swipe to start
+        
+        {/* Speed settings */}
+        <div className="mb-4">
+          <p className="text-sm text-gray-300 mb-2">Game Speed:</p>
+          <div className="flex space-x-2">
+            {speedOptions.map((option, index) => (
+              <button
+                key={option.label}
+                onClick={() => changeSpeed(index)}
+                disabled={gameStarted && !gameOver}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  selectedSpeedIndex === index
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                } ${(gameStarted && !gameOver) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {gameStarted && !gameOver && (
+            <p className="text-xs text-gray-400 mt-1 italic">Speed can only be changed before game starts or after game over</p>
+          )}
         </div>
-      )}
-      
-      <canvas
-        ref={canvasRef}
-        width={canvasWidth}
-        height={canvasHeight}
-        style={{
-          border: '3px solid #333',
-          borderRadius: '5px',
-          background: '#121212',
-          display: 'block',
-          margin: '0 auto',
-          touchAction: 'none',
-          boxShadow: '0 0 10px rgba(0, 255, 255, 0.2)'
-        }}
-      />
-      
-      {gameOver && (
-        <div className="game-over" style={{ 
-          marginTop: '15px',
-          padding: '10px',
-          backgroundColor: 'rgba(0,0,0,0.3)',
-          borderRadius: '8px',
-          animation: 'fadeIn 0.5s'
-        }}>
-          <h3 style={{ color: score > highScore ? '#00FFFF' : '#ff5555' }}>
-            Game Over! Final Score: {score}
-            {score > highScore - 10 && score === highScore && <span style={{ color: '#FFA500' }}> - New High Score!</span>}
-          </h3>
-          <button
-            onClick={resetGame}
-            style={{
-              padding: '10px 20px',
-              background: 'linear-gradient(45deg, #4CAF50, #2E8B57)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-              transition: 'all 0.2s ease',
-              margin: '10px 0',
-            }}
-            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            Play Again
-          </button>
+        
+        {!gameStarted && !gameOver && (
+          <div className="my-3 p-3 bg-gray-800 bg-opacity-50 rounded-md text-gray-300 italic text-center">
+            Press arrow keys or swipe to start
+          </div>
+        )}
+        
+        <div className="relative mx-auto w-full aspect-square max-w-[400px]">
+          <canvas
+            ref={canvasRef}
+            width={canvasWidth}
+            height={canvasHeight}
+            className="border-2 border-gray-700 rounded-md bg-gray-900 shadow-[0_0_15px_rgba(0,255,255,0.15)] mx-auto touch-none"
+          />
+          
+          {gameOver && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded-md animate-fade-in">
+              <h3 className={`text-xl font-bold mb-4 ${score > highScore - 10 && score === highScore ? 'text-yellow-400' : score > highScore ? 'text-cyan-400' : 'text-red-400'}`}>
+                Game Over! Final Score: {score}
+                {score > highScore - 10 && score === highScore && <span className="text-yellow-400 ml-2">New High Score!</span>}
+              </h3>
+              <button
+                onClick={resetGame}
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-700 text-white font-bold rounded-lg shadow-md hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+              >
+                Play Again
+              </button>
+            </div>
+          )}
         </div>
-      )}
-      
-      <div className="game-controls" style={{ 
-        marginTop: '15px', 
-        fontSize: '14px',
-        color: '#888'
-      }}>
-        <p>Use arrow keys to navigate</p>
-        <p>Mobile users can swipe to change direction</p>
+        
+        <div className="mt-6 text-sm text-gray-400 space-y-1">
+          <p>Use arrow keys to navigate</p>
+          <p>Mobile users can swipe to change direction</p>
+          <p className="text-cyan-400">Portal Walls: Snake can pass through walls!</p>
+        </div>
       </div>
     </div>
   );
