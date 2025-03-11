@@ -367,7 +367,12 @@ const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
   }, [canvasRef]);
 
   // Change speed setting
-  const changeSpeed = (index) => {
+  interface SpeedOption {
+    label: string;
+    value: number;
+  }
+
+  const changeSpeed = (index: number): void => {
     setSelectedSpeedIndex(index);
     setSpeed(speedOptions[index].value);
   };
