@@ -71,6 +71,13 @@ export default function GamesPage() {
       description: 'Shoot bubbles to match three or more of the same color and clear the board.',
       image: '/images/games/bubble-shooter.jpg',
       href: '/games/bubble-pop',
+    },
+    {
+      id: 'Platform Game',
+      title: 'Platform Game',
+      description: 'Jump and run through levels to reach the end and defeat the boss.',
+      image: '/images/games/platform-game.jpg',
+      href: '/games/platform-game',
     }
   ];
 
