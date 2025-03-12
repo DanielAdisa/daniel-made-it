@@ -66,11 +66,11 @@ export default function GamesPage() {
       href: '/games/tic-tac-toe',
     },
     {
-      id: 'puzzle',
-      title: 'Puzzle Game',
-      description: 'Arrange the pieces to complete the picture in this challenging puzzle game.',
-      image: '/images/games/puzzle.jpg',
-      href: '/games/puzzle',
+      id: 'Bubble Shooter',
+      title: 'Bubble Shooter',
+      description: 'Shoot bubbles to match three or more of the same color and clear the board.',
+      image: '/images/games/bubble-shooter.jpg',
+      href: '/games/bubble-pop',
     }
   ];
 
