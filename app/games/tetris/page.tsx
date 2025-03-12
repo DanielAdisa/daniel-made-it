@@ -7,6 +7,9 @@ import { motion } from 'framer-motion';
 // Tetris piece shapes
 type TetrominoKey = 'I' | 'J' | 'L' | 'O' | 'S' | 'T' | 'Z' | '0';
 
+// Change brick color to deep red
+const BRICK_COLOR = 'rgb(178, 34, 34)'; // Deep red brick color (FireBrick)
+
 const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color: string } } = {
   0: { shape: [[0]], color: '0, 0, 0' },
   I: {
@@ -16,7 +19,7 @@ const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color
       [0, 'I', 0, 0],
       [0, 'I', 0, 0]
     ],
-    color: '80, 227, 230',
+    color: BRICK_COLOR,
   },
   J: {
     shape: [
@@ -24,7 +27,7 @@ const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color
       [0, 'J', 0],
       ['J', 'J', 0]
     ],
-    color: '36, 95, 223',
+    color: BRICK_COLOR,
   },
   L: {
     shape: [
@@ -32,14 +35,14 @@ const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color
       [0, 'L', 0],
       [0, 'L', 'L']
     ],
-    color: '223, 173, 36',
+    color: BRICK_COLOR,
   },
   O: {
     shape: [
       ['O', 'O'],
       ['O', 'O']
     ],
-    color: '223, 217, 36',
+    color: BRICK_COLOR,
   },
   S: {
     shape: [
@@ -47,7 +50,7 @@ const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color
       ['S', 'S', 0],
       [0, 0, 0]
     ],
-    color: '48, 211, 56',
+    color: BRICK_COLOR,
   },
   T: {
     shape: [
@@ -55,7 +58,7 @@ const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color
       ['T', 'T', 'T'],
       [0, 'T', 0]
     ],
-    color: '132, 61, 198',
+    color: BRICK_COLOR,
   },
   Z: {
     shape: [
@@ -63,7 +66,7 @@ const TETROMINOS: { [key in TetrominoKey]: { shape: (string | number)[][], color
       [0, 'Z', 'Z'],
       [0, 0, 0]
     ],
-    color: '227, 78, 78',
+    color: BRICK_COLOR,
   },
 };
 
@@ -133,7 +136,9 @@ const TetrisGame = () => {
   const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
   const [showControls, setShowControls] = useState(false);
   const [gameSpeed, setGameSpeed] = useState<'slow' | 'medium' | 'fast'>('medium');
-  const [isShaking, setIsShaking] = useState(false); // State to track collision animation
+  const [isShaking, setIsShaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [savedDropTime, setSavedDropTime] = useState<number | null>(null);
 
   const gameAreaRef = useRef<HTMLDivElement>(null);
 
@@ -149,10 +154,28 @@ const TetrisGame = () => {
     return (baseSpeed / (level)) * speedMultipliers[gameSpeed] + 200;
   }, [level, gameSpeed]);
 
+  // Toggle pause state
+  const togglePause = useCallback(() => {
+    if (!gameOver) {
+      if (isPaused) {
+        // Resume the game - Important: Use the saved drop time
+        setDropTime(savedDropTime || calculateDropTime());
+        setIsPaused(false);
+      } else {
+        // Pause the game
+        setSavedDropTime(dropTime);
+        setDropTime(null);
+        setIsPaused(true);
+      }
+    }
+  }, [gameOver, isPaused, dropTime, savedDropTime, calculateDropTime]);
+
   // Reset everything
   const startGame = () => {
     setStage(createStage());
-    setDropTime(calculateDropTime());
+    const newDropTime = calculateDropTime();
+    setDropTime(newDropTime);
+    setSavedDropTime(newDropTime); // Also save initial drop time
     resetPlayer();
     setGameOver(false);
     setScore(0);
@@ -160,6 +183,7 @@ const TetrisGame = () => {
     setRows(0);
     setRotationDegree(0);
     setIsRotating(false);
+    setIsPaused(false);
   };
 
   // Update the stage
@@ -275,11 +299,16 @@ const TetrisGame = () => {
         console.log("GAME OVER!");
         setGameOver(true);
         setDropTime(null);
+        
+        // Trigger shake on game over
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 300);
+      } else if (checkCollision(player, stage, { x: 0, y: 2 })) {
+        // Only shake when landing on bottom or another piece at the bottom
+        // (not on every side collision)
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 300);
       }
-      
-      // Trigger shake animation on collision
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 300);
       
       setPlayer(prev => ({
         ...prev,
@@ -295,36 +324,38 @@ const TetrisGame = () => {
   };
 
   // Handle key presses with inverted controls based on rotation
-  const move = (e: KeyboardEvent) => {
-    if (!gameOver && !isRotating) {
-      // Prevent the default behavior to stop scrolling
-      if([37, 38, 39, 40].includes(e.keyCode)) {
-        e.preventDefault();
-      }
-      
-      // Determine if controls should be inverted based on rotation
-      const isInverted = (rotationDegree === 180);
-
-      if (e.keyCode === 37) { // Left arrow
-        movePlayer(isInverted ? 1 : -1);
-      } else if (e.keyCode === 39) { // Right arrow
-        movePlayer(isInverted ? -1 : 1);
-      } else if (e.keyCode === 40) { // Down arrow
-        dropPlayer();
-      } else if (e.keyCode === 38) { // Up arrow
-        playerRotate(stage, 1);
-      }
+  const move = useCallback((e: KeyboardEvent) => {
+    if (gameOver || isRotating || isPaused) return; // Don't allow moves while paused
+    
+    // Prevent the default behavior to stop scrolling
+    if([32, 37, 38, 39, 40].includes(e.keyCode)) {
+      e.preventDefault();
     }
-  };
+    
+    // Determine if controls should be inverted based on rotation
+    const isInverted = (rotationDegree === 180);
+
+    if (e.keyCode === 37) { // Left arrow
+      movePlayer(isInverted ? 1 : -1);
+    } else if (e.keyCode === 39) { // Right arrow
+      movePlayer(isInverted ? -1 : 1);
+    } else if (e.keyCode === 40) { // Down arrow
+      dropPlayer();
+    } else if (e.keyCode === 38) { // Up arrow
+      playerRotate(stage, 1);
+    } else if (e.keyCode === 32) { // Space bar - toggle pause
+      togglePause();
+    }
+  }, [gameOver, isRotating, isPaused, rotationDegree, stage, togglePause]);
 
   // Handle key release
-  const keyUp = (e: KeyboardEvent) => {
-    if (!gameOver) {
+  const keyUp = useCallback((e: KeyboardEvent) => {
+    if (!gameOver && !isPaused) {
       if (e.keyCode === 40) {
         setDropTime(calculateDropTime());
       }
     }
-  };
+  }, [gameOver, isPaused, calculateDropTime]);
 
   // Prevent default touchmove behavior to disable page refresh on swipe down
   useEffect(() => {
@@ -343,7 +374,7 @@ const TetrisGame = () => {
 
   // Handle touch events for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!gameOver) {
+    if (!gameOver && !isPaused) {
       const touchPoint = e.touches[0];
       setTouchStart({
         x: touchPoint.clientX,
@@ -450,7 +481,7 @@ const TetrisGame = () => {
     }
   }, [updateStage, gameOver]);
 
-  // Set up event listeners
+  // Set up event listeners with proper dependencies
   useEffect(() => {
     window.addEventListener('keydown', move);
     window.addEventListener('keyup', keyUp);
@@ -458,7 +489,7 @@ const TetrisGame = () => {
       window.removeEventListener('keydown', move);
       window.removeEventListener('keyup', keyUp);
     };
-  }, [move, keyUp, rotationDegree]);
+  }, [move, keyUp]);
 
   // Reset drop time when game speed changes
   useEffect(() => {
@@ -482,10 +513,10 @@ const TetrisGame = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen bg-gray-900 py-4 px-2 overflow-x-hidden max-w-screen">
+    <div className="flex flex-col items-center justify-start min-h-screen bg-gray-900 py-4 px-2 overflow-hidden">
       <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">Tetris with a Twist</h1>
 
-      <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-4xl gap-4">
+      <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-6xl gap-4">
         {/* Game Controls Panel */}
         <div className="w-full md:w-1/3 bg-gray-800 p-4 rounded-lg mb-4 md:mb-0 order-1 md:order-1">
           <div className="grid grid-cols-3 gap-2 text-center text-white mb-4">
@@ -535,7 +566,7 @@ const TetrisGame = () => {
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <button 
               className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded focus:outline-none transition"
               onClick={startGame}
@@ -544,12 +575,20 @@ const TetrisGame = () => {
             </button>
             
             <button 
-              className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-3 rounded focus:outline-none transition"
-              onClick={toggleControls}
+              className={`flex-1 ${isPaused ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700'} text-white py-2 px-4 rounded focus:outline-none transition`}
+              onClick={togglePause}
+              disabled={gameOver || dropTime === null}
             >
-              {showControls ? 'Hide' : 'Help'}
+              {isPaused ? 'Resume' : 'Pause'}
             </button>
           </div>
+          
+          <button 
+            className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-3 rounded focus:outline-none transition mb-2"
+            onClick={toggleControls}
+          >
+            {showControls ? 'Hide Controls' : 'Show Controls'}
+          </button>
           
           {rotationDegree === 180 && (
             <div className="mt-3 bg-yellow-800 text-yellow-100 p-2 rounded text-center text-sm">
@@ -572,6 +611,10 @@ const TetrisGame = () => {
                 <div className="flex justify-between">
                   <span className="bg-gray-600 px-2 py-1 rounded">↓</span>
                   <span>Drop</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="bg-gray-600 px-2 py-1 rounded">Space</span>
+                  <span>Pause</span>
                 </div>
                 
                 <h4 className="font-bold mt-2">Mobile:</h4>
@@ -596,15 +639,11 @@ const TetrisGame = () => {
           )}
         </div>
 
-        {/* Game Area */}
+        {/* Game Area - Fixed sizing for better visibility */}
         <motion.div 
           ref={gameAreaRef}
-          className={`relative border-4 border-gray-700 bg-black/50 order-2 md:order-2 transition-transform`}
+          className="relative border-4 border-gray-700 bg-black/50 order-2 md:order-2 transition-transform w-[280px] sm:w-[320px] md:w-[300px] lg:w-[380px] h-[560px] sm:h-[640px] md:h-[600px] lg:h-[760px]"
           variants={shakeVariants}
-          style={{ 
-            width: 'min(100%, 300px)', 
-            height: 'min(70vh, 600px)' 
-          }}
           animate={isShaking ? "shaking" : {
             rotate: rotationDegree,
             x: 0,
@@ -617,30 +656,43 @@ const TetrisGame = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="w-full h-full grid grid-rows-20" style={{ aspectRatio: '1/2' }}>
+          <div className="grid grid-rows-20 h-full w-full">
             {stage.map((row, y) => (
-              <div key={y} className="flex">
+              <div key={y} className="flex h-full">
                 {row.map((cell, x) => {
                   const isFilled = cell[0] !== 0;
-                  const tetrominoKey = cell[0] as TetrominoKey;
-                  const color = isFilled ? TETROMINOS[tetrominoKey].color : '';
                   
                   return (
                     <div
                       key={x}
                       className={`
-                        aspect-square
-                        ${isFilled ? `border-4 border-opacity-10 border-black` : 'border border-opacity-20 border-gray-500'}
+                        aspect-square h-full
+                        ${isFilled 
+                          ? `bg-[firebrick] border border-opacity-20 border-rose-800` 
+                          : 'border border-opacity-20 border-gray-500'}
                       `}
-                      style={{
-                        backgroundColor: isFilled ? `rgba(${color}, 1)` : 'transparent'
-                      }}
                     />
                   );
                 })}
               </div>
             ))}
           </div>
+
+          {/* Pause Overlay */}
+          {isPaused && (
+            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
+              <div className="text-white text-center">
+                <h2 className="text-2xl font-bold mb-2">PAUSED</h2>
+                <p className="mb-4">Press Space or tap Resume to continue</p>
+                <button
+                  className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded focus:outline-none transition"
+                  onClick={togglePause}
+                >
+                  Resume Game
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
@@ -649,7 +701,7 @@ const TetrisGame = () => {
 
 export default function TetrisPage() {
   return (
-    <div className="max-h-screen overflow-hidden">
+    <div className="h-fit max-h-fit overflow-hidden">
       <TetrisGame />
     </div>
   );
