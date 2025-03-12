@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { FaVolumeUp, FaVolumeMute } from "react-icons/fa";
+import { FaBomb } from "react-icons/fa";
 
 const GRID_ROWS = 8;
 const GRID_COLS = 8;
@@ -13,11 +14,14 @@ const LEVEL_CLEAR_BONUS = 100;
 const LEVEL_SCORE_INCREMENT = 1000; // 1000 points difference between levels
 const STARTING_MOVES = 80; // Start with 80 moves
 const MOVES_DECREASE_RATE = 5; // Decrease by 5 moves each level
+const BOMB_MIN_MATCH = 7; // Minimum blocks to clear for bomb power-up
+const BOMB_RADIUS = 3; // Explosion radius - covers a 6x6 area (3 in each direction)
 
 interface BrickType {
   id: string;
   color: string;
   matched: boolean;
+  isBomb?: boolean;
 }
 
 const BrickPop = () => {
@@ -28,6 +32,7 @@ const BrickPop = () => {
   const gameOverSoundRef = useRef<HTMLAudioElement | null>(null);
   const levelUpSoundRef = useRef<HTMLAudioElement | null>(null);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  const explosionSoundRef = useRef<HTMLAudioElement | null>(null);
   
   const [grid, setGrid] = useState<BrickType[][]>([]);
   const [score, setScore] = useState(0);
@@ -46,6 +51,7 @@ const BrickPop = () => {
     gameOverSoundRef.current = new Audio("/sounds/game-over.mp3");
     levelUpSoundRef.current = new Audio("/sounds/level-up.mp3");
     bgMusicRef.current = new Audio("/sounds/bg-music.mp3");
+    explosionSoundRef.current = new Audio("/sounds/explosion.mp3");
     
     if (bgMusicRef.current) {
       bgMusicRef.current.loop = true;
@@ -72,6 +78,7 @@ const BrickPop = () => {
     if (gameOverSoundRef.current) gameOverSoundRef.current.muted = isMuted;
     if (levelUpSoundRef.current) levelUpSoundRef.current.muted = isMuted;
     if (bgMusicRef.current) bgMusicRef.current.muted = isMuted;
+    if (explosionSoundRef.current) explosionSoundRef.current.muted = isMuted;
   }, [isMuted]);
 
   // Play sound helper functions
@@ -100,6 +107,13 @@ const BrickPop = () => {
     if (levelUpSoundRef.current && !isMuted) {
       levelUpSoundRef.current.currentTime = 0;
       levelUpSoundRef.current.play().catch(e => console.log("Error playing level up sound:", e));
+    }
+  };
+
+  const playExplosionSound = () => {
+    if (explosionSoundRef.current && !isMuted) {
+      explosionSoundRef.current.currentTime = 0;
+      explosionSoundRef.current.play().catch(e => console.log("Error playing explosion sound:", e));
     }
   };
 
@@ -244,7 +258,15 @@ const BrickPop = () => {
   const handleBrickTap = (row: number, col: number) => {
     if (gameStatus !== "playing" || isShuffling) return;
     
-    const color = grid[row][col].color;
+    const brick = grid[row][col];
+    
+    // If this is a bomb, detonate it
+    if (brick.isBomb) {
+      detonateBomb(row, col);
+      return;
+    }
+    
+    const color = brick.color;
     const connectedBricks = findConnectedBricks(grid, row, col, color);
     
     // If we have at least MIN_MATCH connected bricks, pop them
@@ -273,7 +295,12 @@ const BrickPop = () => {
       
       // After a short delay, remove matched bricks and let new ones fall
       setTimeout(() => {
-        removeMatches(connectedBricks);
+        // Check if a bomb should be created
+        if (connectedBricks.length >= BOMB_MIN_MATCH) {
+          removeMatchesWithBomb(connectedBricks);
+        } else {
+          removeMatches(connectedBricks);
+        }
         
         // Decrement moves left
         setMovesLeft(prev => {
@@ -290,6 +317,84 @@ const BrickPop = () => {
           checkAndShuffleIfNeeded();
         }, 500);
       }, 300);
+    }
+  };
+
+  // Detonate a bomb, affecting a 6x6 area around it
+  const detonateBomb = (row: number, col: number) => {
+    playExplosionSound();
+    
+    // Determine explosion area
+    const affectedBricks: {row: number, col: number}[] = [];
+    
+    for (let r = Math.max(0, row - BOMB_RADIUS); r <= Math.min(GRID_ROWS - 1, row + BOMB_RADIUS); r++) {
+      for (let c = Math.max(0, col - BOMB_RADIUS); c <= Math.min(GRID_COLS - 1, col + BOMB_RADIUS); c++) {
+        affectedBricks.push({row: r, col: c});
+      }
+    }
+    
+    // Mark affected bricks as matched with explosion animation
+    setGrid(prevGrid => {
+      const newGrid = prevGrid.map(row => row.map(brick => ({...brick})));
+      affectedBricks.forEach(({row, col}) => {
+        newGrid[row][col].matched = true;
+      });
+      return newGrid;
+    });
+    
+    // Calculate points - bombs give extra points
+    const points = affectedBricks.length * POINTS_PER_BRICK * 1.5;
+    
+    // Update score
+    setScore(prev => {
+      const newScore = prev + points;
+      // Check if level target reached
+      if (newScore >= getLevelTarget() && gameStatus === "playing") {
+        setTimeout(() => completeLevel(), 500);
+      }
+      return newScore;
+    });
+    
+    // After a short delay, remove matched bricks and let new ones fall
+    setTimeout(() => {
+      removeMatches(affectedBricks);
+      
+      // Bomb doesn't use a move
+      // Check if we need to shuffle after removing matches
+      setTimeout(() => {
+        checkAndShuffleIfNeeded();
+      }, 500);
+    }, 500);
+    
+    // Visual effect for explosion
+    triggerExplosion(row, col);
+  };
+  
+  // Visual effect for explosion
+  const triggerExplosion = (row: number, col: number) => {
+    // Get the brick's position in the viewport
+    const brickElements = document.querySelectorAll('.brick');
+    const index = row * GRID_COLS + col;
+    const brickElement = brickElements[index];
+    
+    if (brickElement) {
+      const rect = brickElement.getBoundingClientRect();
+      const x = (rect.left + rect.right) / 2;
+      const y = (rect.top + rect.bottom) / 2;
+      
+      // Custom confetti for explosion effect
+      confetti({
+        particleCount: 100,
+        startVelocity: 30,
+        spread: 360,
+        origin: {
+          x: x / window.innerWidth,
+          y: y / window.innerHeight
+        },
+        colors: ['#ff0000', '#ffa500', '#ffff00', '#ff4500'],
+        gravity: 0.5,
+        scalar: 1.2,
+      });
     }
   };
 
@@ -327,6 +432,73 @@ const BrickPop = () => {
           newGrid[row][col] = updatedColumn[row];
         }
       });
+      
+      return newGrid;
+    });
+    
+    // Update matches needed counter
+    setMatchesNeeded(prev => {
+      const remaining = Math.max(0, prev - matchedBricks.length);
+      if (remaining === 0 && score >= getLevelTarget()) {
+        completeLevel();
+      }
+      return remaining;
+    });
+  };
+
+  // Remove matched bricks and add a bomb in one of the cleared positions
+  const removeMatchesWithBomb = (matchedBricks: {row: number, col: number}[]) => {
+    // Choose a position for the bomb
+    const bombIndex = Math.floor(Math.random() * matchedBricks.length);
+    const bombPosition = matchedBricks[bombIndex];
+    
+    setGrid((prevGrid) => {
+      const levelColors = COLORS.slice(0, Math.max(3, Math.min(COLORS.length, 3 + Math.floor((level - 1) / 2))));
+      const newGrid = JSON.parse(JSON.stringify(prevGrid));
+      
+      // For each column affected by the matches
+      const affectedCols = new Set(matchedBricks.map(brick => brick.col));
+      
+      affectedCols.forEach(col => {
+        // Get all non-matched bricks in this column
+        const nonMatchedBricks: BrickType[] = [];
+        for (let row = GRID_ROWS - 1; row >= 0; row--) {
+          if (!matchedBricks.some(brick => brick.row === row && brick.col === col)) {
+            nonMatchedBricks.push(prevGrid[row][col]);
+          }
+        }
+        
+        // Create new bricks to fill the top
+        const numNewBricks = GRID_ROWS - nonMatchedBricks.length;
+        const newBricks = Array.from({ length: numNewBricks }, () => ({
+          id: `brick-${Date.now()}-${Math.random()}`,
+          color: levelColors[Math.floor(Math.random() * levelColors.length)],
+          matched: false,
+        }));
+        
+        // Combine new bricks with existing non-matched ones
+        const updatedColumn = [...newBricks, ...nonMatchedBricks];
+        
+        // Update the column in the grid
+        for (let row = 0; row < GRID_ROWS; row++) {
+          newGrid[row][col] = updatedColumn[row];
+        }
+      });
+      
+      // Place the bomb in one of the positions where a new brick was added
+      if (bombPosition) {
+        // Find the new position of where the bomb should be (because bricks have shifted)
+        const newBrickCount = matchedBricks.filter(b => b.col === bombPosition.col && b.row <= bombPosition.row).length;
+        const newBombRow = newBrickCount - 1; // compensate for zero indexing
+        
+        if (newGrid[newBombRow] && newGrid[newBombRow][bombPosition.col]) {
+          newGrid[newBombRow][bombPosition.col] = {
+            ...newGrid[newBombRow][bombPosition.col],
+            isBomb: true,
+            color: '#333', // Give it a dark base color
+          };
+        }
+      }
       
       return newGrid;
     });
@@ -501,9 +673,9 @@ const BrickPop = () => {
                           damping: 20,
                           delay: (rowIndex * 0.03) + (colIndex * 0.02)
                         }}
-                        className={`w-full h-full aspect-square cursor-pointer relative rounded-[15%] shadow-md ${
+                        className={`w-full h-full aspect-square cursor-pointer relative rounded-[15%] shadow-md brick ${
                           brick.matched ? "opacity-50 scale-90" : "hover:scale-105 active:scale-95"
-                        }`}
+                        } ${brick.isBomb ? "overflow-hidden" : ""}`}
                         style={{ 
                           backgroundColor: brick.color,
                           boxShadow: brick.matched ? 'none' : 'inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.15)'
@@ -511,6 +683,34 @@ const BrickPop = () => {
                         onClick={() => handleBrickTap(rowIndex, colIndex)}
                       >
                         <div className="absolute inset-0 rounded-[15%] bg-white/30 opacity-0 hover:opacity-20 transition-opacity"></div>
+                        
+                        {brick.isBomb && (
+                          <motion.div 
+                            className="absolute inset-0 flex items-center justify-center"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1, rotate: [0, 5, -5, 0] }}
+                            transition={{ 
+                              scale: { duration: 0.3 },
+                              rotate: { 
+                                repeat: Infinity, 
+                                duration: 1.5,
+                                ease: "easeInOut" 
+                              }
+                            }}
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-br from-yellow-500 to-red-600 rounded-[15%] opacity-80"></div>
+                            <FaBomb className="text-black text-3xl z-10 drop-shadow-md" />
+                            <motion.div 
+                              className="absolute inset-0 bg-white/30 rounded-[15%]"
+                              animate={{ opacity: [0.1, 0.3, 0.1] }}
+                              transition={{ 
+                                duration: 1.5, 
+                                repeat: Infinity,
+                                ease: "easeInOut" 
+                              }}
+                            />
+                          </motion.div>
+                        )}
                       </motion.div>
                     ))
                   )}
@@ -706,6 +906,8 @@ const BrickPop = () => {
           <li>Tap on groups of 3 or more connected bricks of the same color</li>
           <li>Connected bricks will pop and new ones will fall from the top</li>
           <li>Score points for each brick popped ({POINTS_PER_BRICK} per brick)</li>
+          <li>Clearing 7 or more bricks at once creates a bomb power-up</li>
+          <li>Tap a bomb to clear a 6×6 area around it without using a move</li>
           <li>Reach the target score of {LEVEL_SCORE_INCREMENT} points per level</li>
           <li>Starting with {STARTING_MOVES} moves, each level reduces available moves by {MOVES_DECREASE_RATE}</li>
           <li>If no valid moves are available, the grid will automatically shuffle</li>
