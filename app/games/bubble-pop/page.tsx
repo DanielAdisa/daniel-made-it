@@ -9,7 +9,7 @@ const COLORS = ["#FF5252", "#4CAF50", "#2196F3", "#FFEB3B", "#FF9800"];
 const MIN_MATCH = 3;
 const POINTS_PER_BRICK = 10;
 const LEVEL_CLEAR_BONUS = 100;
-const LEVEL_SCORE_INCREMENT = 500; // 500 points difference between levels
+const LEVEL_SCORE_INCREMENT = 1000; // 1000 points difference between levels
 const STARTING_MOVES = 80; // Start with 80 moves
 const MOVES_DECREASE_RATE = 5; // Decrease by 5 moves each level
 
