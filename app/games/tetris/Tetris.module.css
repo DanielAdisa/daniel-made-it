@@ -1,0 +1,233 @@
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 20px;
+}
+
+.tetrisContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.gameTitle {
+  color: #4ecca3;
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(78, 204, 163, 0.3);
+}
+
+.gameWrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  gap: 30px;
+}
+
+.gameArea {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.stage {
+  display: grid;
+  grid-template-rows: repeat(20, 1fr);
+  width: 100%;
+  aspect-ratio: 1/2;
+  border: 2px solid rgba(78, 204, 163, 0.5);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+}
+
+.cell {
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.gameInfo {
+  min-width: 250px;
+  background-color: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  padding: 20px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.statsPanel {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 15px;
+  border-left: 4px solid #4ecca3;
+}
+
+.statsPanel h2 {
+  margin: 10px 0;
+  font-size: 1.2rem;
+  color: #eeeeee;
+}
+
+.statValue {
+  color: #4ecca3;
+  font-weight: bold;
+}
+
+.gameOver {
+  background-color: rgba(255, 82, 82, 0.2);
+  border: 2px solid rgba(255, 82, 82, 0.5);
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+}
+
+.gameOver h2 {
+  color: #ff5252;
+  margin: 0 0 10px 0;
+}
+
+.startButton, .controlsButton {
+  background: linear-gradient(to bottom, #4ecca3 0%, #2e8b57 100%);
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(78, 204, 163, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.controlsButton {
+  background: linear-gradient(to bottom, #5f85db 0%, #3f6ad8 100%);
+  box-shadow: 0 4px 10px rgba(95, 133, 219, 0.3);
+}
+
+.startButton:hover, .controlsButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(78, 204, 163, 0.5);
+}
+
+.startButton:active, .controlsButton:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(78, 204, 163, 0.5);
+}
+
+.controlsButton:hover {
+  box-shadow: 0 6px 12px rgba(95, 133, 219, 0.5);
+}
+
+.controlsButton:active {
+  box-shadow: 0 2px 5px rgba(95, 133, 219, 0.5);
+}
+
+.controls {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+.controls h3 {
+  color: #4ecca3;
+  margin-top: 0;
+  border-bottom: 1px solid rgba(78, 204, 163, 0.3);
+  padding-bottom: 5px;
+}
+
+.controlsTable {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.controlRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.controlKey {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-family: monospace;
+  color: #4ecca3;
+}
+
+.controlDesc {
+  color: #eeeeee;
+}
+
+.mobileControls {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.mobileControls h4 {
+  color: #5f85db;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.rotationNotice {
+  background-color: rgba(255, 193, 7, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.rotationNotice p {
+  color: #ffc107;
+  margin: 0;
+  font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .gameWrapper {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .gameArea {
+    max-width: 300px;
+  }
+  
+  .gameInfo {
+    width: 100%;
+    max-width: 300px;
+    margin-top: 20px;
+  }
+  
+  .gameTitle {
+    font-size: 2rem;
+  }
+}
