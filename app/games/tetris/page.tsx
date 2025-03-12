@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useInterval } from '@/hooks/useInterval';
+import { motion } from 'framer-motion';
 
 // Tetris piece shapes
 type TetrominoKey = 'I' | 'J' | 'L' | 'O' | 'S' | 'T' | 'Z' | '0';
@@ -132,6 +133,7 @@ const TetrisGame = () => {
   const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
   const [showControls, setShowControls] = useState(false);
   const [gameSpeed, setGameSpeed] = useState<'slow' | 'medium' | 'fast'>('medium');
+  const [isShaking, setIsShaking] = useState(false); // State to track collision animation
 
   const gameAreaRef = useRef<HTMLDivElement>(null);
 
@@ -274,6 +276,11 @@ const TetrisGame = () => {
         setGameOver(true);
         setDropTime(null);
       }
+      
+      // Trigger shake animation on collision
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 300);
+      
       setPlayer(prev => ({
         ...prev,
         collided: true,
@@ -460,6 +467,20 @@ const TetrisGame = () => {
     }
   }, [gameSpeed, calculateDropTime]);
 
+  // Framer motion variants for shake animation
+  const shakeVariants = {
+    shaking: {
+      x: [0, -5, 5, -3, 3, 0],
+      transition: {
+        duration: 0.3,
+        ease: "easeInOut",
+      }
+    },
+    idle: {
+      x: 0,
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-gray-900 py-4 px-2 overflow-x-hidden max-w-screen">
       <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">Tetris with a Twist</h1>
@@ -576,14 +597,21 @@ const TetrisGame = () => {
         </div>
 
         {/* Game Area */}
-        <div 
+        <motion.div 
           ref={gameAreaRef}
-          className="relative border-4 border-gray-700 bg-black/50 order-2 md:order-2"
-          style={{
-            width: 'min(100%, 300px)',
-            height: 'min(70vh, 600px)',
-            transform: `rotate(${rotationDegree}deg)`,
-            transition: isRotating ? 'transform 1s ease' : 'none'
+          className={`relative border-4 border-gray-700 bg-black/50 order-2 md:order-2 transition-transform`}
+          variants={shakeVariants}
+          style={{ 
+            width: 'min(100%, 300px)', 
+            height: 'min(70vh, 600px)' 
+          }}
+          animate={isShaking ? "shaking" : {
+            rotate: rotationDegree,
+            x: 0,
+            transition: {
+              duration: isRotating ? 1 : 0,
+              ease: "easeInOut"
+            }
           }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
@@ -592,24 +620,28 @@ const TetrisGame = () => {
           <div className="w-full h-full grid grid-rows-20" style={{ aspectRatio: '1/2' }}>
             {stage.map((row, y) => (
               <div key={y} className="flex">
-                {row.map((cell, x) => (
-                  <div
-                    key={x}
-                    className="aspect-square"
-                    style={{
-                      backgroundColor: cell[0] !== 0
-                        ? `rgba(${TETROMINOS[cell[0] as TetrominoKey].color}, 1)`
-                        : 'transparent',
-                      borderStyle: 'solid',
-                      borderWidth: cell[0] !== 0 ? '4px' : '1px',
-                      borderColor: cell[0] !== 0 ? 'rgba(0,0,0,0.1)' : 'rgba(50,50,50,0.2)'
-                    }}
-                  />
-                ))}
+                {row.map((cell, x) => {
+                  const isFilled = cell[0] !== 0;
+                  const tetrominoKey = cell[0] as TetrominoKey;
+                  const color = isFilled ? TETROMINOS[tetrominoKey].color : '';
+                  
+                  return (
+                    <div
+                      key={x}
+                      className={`
+                        aspect-square
+                        ${isFilled ? `border-4 border-opacity-10 border-black` : 'border border-opacity-20 border-gray-500'}
+                      `}
+                      style={{
+                        backgroundColor: isFilled ? `rgba(${color}, 1)` : 'transparent'
+                      }}
+                    />
+                  );
+                })}
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
