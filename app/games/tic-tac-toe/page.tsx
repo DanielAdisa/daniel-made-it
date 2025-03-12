@@ -232,14 +232,15 @@ const TicTacToe = () => {
     let height = '4px';
     let top = '';
     let left = '';
+    let originX = 'center';
+    let originY = 'center';
     
     if (firstRow === lastRow) {
       // Horizontal line
       width = '100%';
-      top = `calc(${firstRow * (100 / gridSize) + (50 / gridSize)}%)`;
+      top = `calc(${(firstRow + 0.5) * 100 / gridSize}%)`;
       left = '0';
       angle = 0;
-    } else if (firstCol === lastCol) {
       // Vertical line
       width = '4px';
       height = '100%';
@@ -380,7 +381,11 @@ const TicTacToe = () => {
                 duration: 0.6, 
                 ease: "easeOut" 
               }}
-              style={calculateLineStyle()}
+              style={{
+                ...calculateLineStyle(),
+                transformOrigin: `${calculateLineStyle().originX} ${calculateLineStyle().originY}`,
+                transform: `rotate(${calculateLineStyle().rotate}deg) translateY(${calculateLineStyle().y}) translateX(${calculateLineStyle().x})`,
+              }}
             />
           )}
         </div>
