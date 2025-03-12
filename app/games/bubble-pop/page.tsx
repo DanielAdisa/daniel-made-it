@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
+import { FaVolumeUp, FaVolumeMute } from "react-icons/fa";
 
 const GRID_ROWS = 8;
 const GRID_COLS = 8;
@@ -20,6 +21,14 @@ interface BrickType {
 }
 
 const BrickPop = () => {
+  // Audio state
+  const [isMuted, setIsMuted] = useState(false);
+  const popSoundRef = useRef<HTMLAudioElement | null>(null);
+  const shuffleSoundRef = useRef<HTMLAudioElement | null>(null);
+  const gameOverSoundRef = useRef<HTMLAudioElement | null>(null);
+  const levelUpSoundRef = useRef<HTMLAudioElement | null>(null);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  
   const [grid, setGrid] = useState<BrickType[][]>([]);
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
@@ -28,6 +37,75 @@ const BrickPop = () => {
   const [matchesNeeded, setMatchesNeeded] = useState(0);
   const [isShuffling, setIsShuffling] = useState(false);
   const validMovesRef = useRef<number>(0);
+
+  // Initialize audio elements
+  useEffect(() => {
+    // Create audio elements
+    popSoundRef.current = new Audio("/sounds/pop.mp3");
+    shuffleSoundRef.current = new Audio("/sounds/shuffle.mp3");
+    gameOverSoundRef.current = new Audio("/sounds/game-over.mp3");
+    levelUpSoundRef.current = new Audio("/sounds/level-up.mp3");
+    bgMusicRef.current = new Audio("/sounds/bg-music.mp3");
+    
+    if (bgMusicRef.current) {
+      bgMusicRef.current.loop = true;
+      bgMusicRef.current.volume = 0.4;
+      
+      const playMusic = () => {
+        bgMusicRef.current?.play().catch(e => console.log("Auto-play prevented:", e));
+      };
+      
+      // Try to play music on interaction
+      document.addEventListener('click', playMusic, { once: true });
+      
+      return () => {
+        document.removeEventListener('click', playMusic);
+        bgMusicRef.current?.pause();
+      };
+    }
+  }, []);
+
+  // Handle mute/unmute
+  useEffect(() => {
+    if (popSoundRef.current) popSoundRef.current.muted = isMuted;
+    if (shuffleSoundRef.current) shuffleSoundRef.current.muted = isMuted;
+    if (gameOverSoundRef.current) gameOverSoundRef.current.muted = isMuted;
+    if (levelUpSoundRef.current) levelUpSoundRef.current.muted = isMuted;
+    if (bgMusicRef.current) bgMusicRef.current.muted = isMuted;
+  }, [isMuted]);
+
+  // Play sound helper functions
+  const playPopSound = () => {
+    if (popSoundRef.current && !isMuted) {
+      popSoundRef.current.currentTime = 0;
+      popSoundRef.current.play().catch(e => console.log("Error playing pop sound:", e));
+    }
+  };
+
+  const playShuffleSound = () => {
+    if (shuffleSoundRef.current && !isMuted) {
+      shuffleSoundRef.current.currentTime = 0;
+      shuffleSoundRef.current.play().catch(e => console.log("Error playing shuffle sound:", e));
+    }
+  };
+
+  const playGameOverSound = () => {
+    if (gameOverSoundRef.current && !isMuted) {
+      gameOverSoundRef.current.currentTime = 0;
+      gameOverSoundRef.current.play().catch(e => console.log("Error playing game over sound:", e));
+    }
+  };
+
+  const playLevelUpSound = () => {
+    if (levelUpSoundRef.current && !isMuted) {
+      levelUpSoundRef.current.currentTime = 0;
+      levelUpSoundRef.current.play().catch(e => console.log("Error playing level up sound:", e));
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
 
   // Create a new grid
   const initializeGrid = useCallback(() => {
@@ -117,6 +195,7 @@ const BrickPop = () => {
     
     setIsShuffling(true);
     setGameStatus("shuffling");
+    playShuffleSound();
     
     // Prepare for shuffle animation
     setTimeout(() => {
@@ -170,6 +249,7 @@ const BrickPop = () => {
     
     // If we have at least MIN_MATCH connected bricks, pop them
     if (connectedBricks.length >= MIN_MATCH) {
+      playPopSound();
       const points = connectedBricks.length * POINTS_PER_BRICK;
       
       // Mark bricks as matched
@@ -200,6 +280,7 @@ const BrickPop = () => {
           const newMoves = prev - 1;
           if (newMoves <= 0 && gameStatus === "playing") {
             setGameStatus("gameOver");
+            playGameOverSound();
           }
           return newMoves;
         });
@@ -264,6 +345,7 @@ const BrickPop = () => {
     setGameStatus("levelComplete");
     setScore(prev => prev + LEVEL_CLEAR_BONUS);
     triggerConfetti();
+    playLevelUpSound();
     setTimeout(() => {
       const nextLevel = level + 1;
       setLevel(nextLevel);
@@ -305,59 +387,77 @@ const BrickPop = () => {
   const getProgressPercentage = () => Math.min(100, (score / getLevelTarget()) * 100);
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-blue-900 to-purple-900 p-4 overflow-hidden">
-      <div className="text-center mb-4">
-        <h1 className="text-4xl font-bold text-white mb-2">Brick Pop Grid</h1>
-        <p className="text-lg text-blue-200">Tap groups of 3 or more bricks to pop them!</p>
+    <div className="relative min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-violet-800 p-4 overflow-hidden">
+      {/* Audio elements loading message - hidden */}
+      <div className="sr-only">
+        Loading game sounds...
+      </div>
+      
+      <div className="text-center mb-6">
+        <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 to-blue-300 mb-2">Brick Pop Grid</h1>
+        <p className="text-lg text-blue-200 font-light tracking-wide">Tap groups of 3 or more bricks to pop them!</p>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between mb-4 px-4 gap-2 max-w-4xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between mb-6 px-4 gap-3 max-w-4xl mx-auto">
         <motion.div 
-          className="bg-white/20 p-3 rounded-lg backdrop-blur-sm flex-1 text-center shadow-lg"
+          className="bg-white/10 p-4 rounded-xl backdrop-blur-md flex-1 text-center shadow-lg border border-white/20"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <span className="text-xl text-white font-bold">Score: {score}</span>
+          <span className="text-2xl text-white font-bold">Score: {score}</span>
         </motion.div>
         <motion.div 
-          className="bg-white/20 p-3 rounded-lg backdrop-blur-sm flex-1 text-center shadow-lg"
+          className="bg-white/10 p-4 rounded-xl backdrop-blur-md flex-1 text-center shadow-lg border border-white/20"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <span className="text-xl text-white font-bold">Level: {level}</span>
+          <span className="text-2xl text-white font-bold">Level: {level}</span>
         </motion.div>
         <motion.div 
-          className="bg-white/20 p-3 rounded-lg backdrop-blur-sm flex-1 text-center shadow-lg"
+          className="bg-white/10 p-4 rounded-xl backdrop-blur-md flex-1 text-center shadow-lg border border-white/20"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <span className="text-xl text-white font-bold">Moves Left: {movesLeft}</span>
+          <span className="text-2xl text-white font-bold">Moves: {movesLeft}</span>
         </motion.div>
       </div>
 
-      <div className="mb-4 px-4 max-w-4xl mx-auto">
-        <div className="w-full bg-gray-700 h-5 rounded-full overflow-hidden shadow-inner">
+      <div className="mb-6 px-4 max-w-4xl mx-auto">
+        <div className="w-full bg-gray-800/50 h-6 rounded-full overflow-hidden shadow-inner border border-white/10">
           <motion.div
-            className="h-full bg-gradient-to-r from-green-400 to-green-600"
+            className="h-full bg-gradient-to-r from-green-400 via-green-300 to-teal-400"
             initial={{ width: "0%" }}
             animate={{ width: `${getProgressPercentage()}%` }}
             transition={{ duration: 0.5 }}
           />
         </div>
-        <div className="flex justify-between text-sm text-white mt-1">
+        <div className="flex justify-between text-sm text-white/90 mt-1 px-1">
           <span>0</span>
           <span>Target: {getLevelTarget()}</span>
         </div>
       </div>
 
+      {/* Sound toggle button */}
+      <motion.button
+        onClick={toggleMute}
+        className="absolute top-4 right-4 bg-white/20 p-3 rounded-full backdrop-blur-sm shadow-lg border border-white/10 hover:bg-white/30 transition-all z-10"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        {isMuted ? 
+          <FaVolumeMute className="text-white text-xl" /> : 
+          <FaVolumeUp className="text-white text-xl" />
+        }
+      </motion.button>
+
       {/* Shuffle notification */}
       <AnimatePresence>
         {isShuffling && (
           <motion.div 
-            className="absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-600/90 px-6 py-3 rounded-xl text-white font-bold text-xl shadow-lg"
+            className="absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-600/90 px-8 py-4 rounded-2xl text-white font-bold text-2xl shadow-lg border border-purple-400/30"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
@@ -368,9 +468,9 @@ const BrickPop = () => {
         )}
       </AnimatePresence>
       
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-8">
         <motion.div 
-          className="bg-blue-800/30 p-3 md:p-4 rounded-xl backdrop-blur-sm border border-white/20 w-full max-w-[90vmin] mx-auto shadow-lg"
+          className="bg-blue-900/30 p-4 md:p-6 rounded-2xl backdrop-blur-sm border border-white/20 w-full max-w-[90vmin] mx-auto shadow-xl"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
@@ -404,9 +504,14 @@ const BrickPop = () => {
                         className={`w-full h-full aspect-square cursor-pointer relative rounded-[15%] shadow-md ${
                           brick.matched ? "opacity-50 scale-90" : "hover:scale-105 active:scale-95"
                         }`}
-                        style={{ backgroundColor: brick.color }}
+                        style={{ 
+                          backgroundColor: brick.color,
+                          boxShadow: brick.matched ? 'none' : 'inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.15)'
+                        }}
                         onClick={() => handleBrickTap(rowIndex, colIndex)}
-                      />
+                      >
+                        <div className="absolute inset-0 rounded-[15%] bg-white/30 opacity-0 hover:opacity-20 transition-opacity"></div>
+                      </motion.div>
                     ))
                   )}
                 </motion.div>
@@ -442,8 +547,11 @@ const BrickPop = () => {
                           },
                           exit: { opacity: 0 }
                         }}
-                        className="w-full h-full aspect-square cursor-pointer relative rounded-[15%] shadow-md"
-                        style={{ backgroundColor: brick.color }}
+                        className="w-full h-full aspect-square cursor-pointer relative rounded-[15%] shadow-lg"
+                        style={{ 
+                          backgroundColor: brick.color,
+                          boxShadow: 'inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.15)'
+                        }}
                       />
                     ))
                   )}
@@ -460,20 +568,41 @@ const BrickPop = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-20"
+            className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-20"
           >
             <motion.div 
-              className="text-center bg-purple-900/80 p-8 rounded-xl max-w-[90%] shadow-2xl border border-purple-500/30"
+              className="text-center bg-gradient-to-br from-purple-700 to-violet-900 p-10 rounded-2xl max-w-[90%] shadow-2xl border border-purple-500/50"
               initial={{ scale: 0.8, y: 50 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.8, y: 50 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              <h2 className="text-4xl font-bold text-white mb-2">Level {level} Complete!</h2>
-              <p className="text-xl text-blue-200">Bonus: {LEVEL_CLEAR_BONUS} points</p>
-              <p className="text-xl text-blue-200 mt-2">Get ready for level {level + 1}...</p>
+              <motion.h2 
+                className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 to-blue-300 mb-3"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                Level {level} Complete!
+              </motion.h2>
+              <motion.p 
+                className="text-2xl text-blue-200 mb-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                Bonus: {LEVEL_CLEAR_BONUS} points
+              </motion.p>
+              <motion.p 
+                className="text-xl text-blue-200 mt-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                Get ready for level {level + 1}...
+              </motion.p>
               <motion.div 
-                className="mt-4 mx-auto w-16 h-16 border-t-4 border-b-4 border-white rounded-full"
+                className="mt-6 mx-auto w-16 h-16 border-t-4 border-b-4 border-white rounded-full"
                 animate={{ rotate: 360 }}
                 transition={{ 
                   repeat: Infinity, 
@@ -490,23 +619,47 @@ const BrickPop = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-20"
+            className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-md z-20"
           >
             <motion.div 
-              className="text-center bg-red-900/80 p-8 rounded-xl max-w-[90%] shadow-2xl border border-red-500/30"
+              className="text-center bg-gradient-to-br from-red-800 to-red-900 p-10 rounded-2xl max-w-[90%] shadow-2xl border border-red-500/30"
               initial={{ scale: 0.8, y: 50 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.8, y: 50 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              <h2 className="text-4xl font-bold text-white mb-2">Game Over!</h2>
-              <p className="text-xl text-blue-200">You ran out of moves</p>
-              <p className="text-xl text-blue-200 mt-2">Final Score: {score}</p>
+              <motion.h2 
+                className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-300 to-orange-300 mb-3"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                Game Over!
+              </motion.h2>
+              <motion.p 
+                className="text-2xl text-blue-200"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                You ran out of moves
+              </motion.p>
+              <motion.p 
+                className="text-2xl text-blue-200 mt-3 font-semibold"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                Final Score: {score}
+              </motion.p>
               <motion.button
                 onClick={resetGame}
-                className="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
+                className="mt-8 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-10 rounded-full text-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 }}
               >
                 Play Again
               </motion.button>
@@ -515,10 +668,10 @@ const BrickPop = () => {
         )}
       </AnimatePresence>
 
-      <div className="mt-6 flex justify-center gap-4">
+      <div className="mt-8 flex justify-center gap-5">
         <motion.button
           onClick={resetGame}
-          className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
+          className="bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           initial={{ opacity: 0, y: 20 }}
@@ -530,7 +683,7 @@ const BrickPop = () => {
         
         <motion.button
           onClick={() => !isShuffling && gameStatus === "playing" && shuffleGrid()}
-          className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           whileHover={{ scale: isShuffling || gameStatus !== "playing" ? 1 : 1.05 }}
           whileTap={{ scale: isShuffling || gameStatus !== "playing" ? 1 : 0.95 }}
           initial={{ opacity: 0, y: 20 }}
@@ -543,13 +696,13 @@ const BrickPop = () => {
       </div>
 
       <motion.div 
-        className="mt-6 bg-white/10 p-4 rounded-lg backdrop-blur-sm max-w-2xl mx-auto shadow-lg border border-white/10"
+        className="mt-8 bg-white/10 p-6 rounded-2xl backdrop-blur-sm max-w-2xl mx-auto shadow-lg border border-white/20"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
       >
-        <h3 className="text-lg font-bold text-white mb-2">How to Play:</h3>
-        <ul className="text-blue-100 list-disc pl-5">
+        <h3 className="text-xl font-bold text-white mb-3">How to Play:</h3>
+        <ul className="text-blue-100 list-disc pl-6 space-y-1.5">
           <li>Tap on groups of 3 or more connected bricks of the same color</li>
           <li>Connected bricks will pop and new ones will fall from the top</li>
           <li>Score points for each brick popped ({POINTS_PER_BRICK} per brick)</li>
