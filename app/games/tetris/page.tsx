@@ -420,7 +420,7 @@ const TetrisGame = () => {
 
       // Rotate the game area when rows are cleared
       setIsRotating(true);
-      setRotationDegree(prev => (prev + 90) % 360);
+      setRotationDegree(prev => (prev + 180) % 360);
 
       // Reset rotation flag after animation
       setTimeout(() => {
