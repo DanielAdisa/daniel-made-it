@@ -59,11 +59,11 @@ export default function GamesPage() {
       href: '/games/tetris',
     },
     {
-      id: 'memory',
-      title: 'Memory Match',
-      description: 'Test your memory by matching pairs of cards in this fun concentration game.',
-      image: '/images/games/memory.jpg',
-      href: '/games/memory',
+      id: 'tic-tac-toe',
+      title: 'Tic Tac Toe',
+      description: 'Play the classic game of Tic Tac Toe against a friend or the computer.',
+      image: '/images/games/tic-tac-toe.jpg',
+      href: '/games/tic-tac-toe',
     },
     {
       id: 'puzzle',

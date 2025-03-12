@@ -101,7 +101,6 @@ const App = () => {
 
         {/* Main content container with increased max width */}
         <div className="container max-w-6xl px-6 mx-auto md:px-8">
-          <Navbar />
           
           <Suspense fallback={<LoadingSpinner />}>
             {isLoaded && (

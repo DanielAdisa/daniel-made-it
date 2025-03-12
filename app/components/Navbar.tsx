@@ -1,3 +1,4 @@
+"use client";
 import { useState, useEffect } from "react";
 import { FaGithub, FaInstagram, FaLinkedin, FaWhatsapp } from "react-icons/fa";
 import { HiMenuAlt4 } from "react-icons/hi";
