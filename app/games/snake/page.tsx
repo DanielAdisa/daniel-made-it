@@ -40,6 +40,96 @@ const SnakeGame = () => {
   const [selectedSpeedIndex, setSelectedSpeedIndex] = useState(1); // Default to medium
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
   const [wallCollision, setWallCollision] = useState(false); // New state for wall collision mode
+  const [isMuted, setIsMuted] = useState(false); // New state for audio mute control
+
+  // Audio references
+  const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
+  const foodSoundRef = useRef<HTMLAudioElement | null>(null);
+  const gameOverSoundRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio elements
+  useEffect(() => {
+    // Check if we're in the browser environment
+    if (typeof window !== 'undefined') {
+      // Create audio elements
+      backgroundMusicRef.current = new Audio('/audio/snake-background.mp3');
+      foodSoundRef.current = new Audio('/audio/snake-eat.mp3');
+      gameOverSoundRef.current = new Audio('/audio/snake-gameover.mp3');
+      
+      // Configure background music to loop
+      if (backgroundMusicRef.current) {
+        backgroundMusicRef.current.loop = true;
+        backgroundMusicRef.current.volume = 0.5; // Set to 50% volume
+      }
+      
+      // Load mute preference from localStorage if available
+      const savedMuteState = localStorage.getItem('snakeMuteState');
+      if (savedMuteState) {
+        setIsMuted(savedMuteState === 'true');
+      }
+    }
+    
+    // Cleanup function
+    return () => {
+      if (backgroundMusicRef.current) {
+        backgroundMusicRef.current.pause();
+      }
+    };
+  }, []);
+
+  // Handle mute state changes
+  useEffect(() => {
+    if (backgroundMusicRef.current) {
+      backgroundMusicRef.current.muted = isMuted;
+    }
+    if (foodSoundRef.current) {
+      foodSoundRef.current.muted = isMuted;
+    }
+    if (gameOverSoundRef.current) {
+      gameOverSoundRef.current.muted = isMuted;
+    }
+    
+    // Save mute preference to localStorage
+    localStorage.setItem('snakeMuteState', isMuted.toString());
+  }, [isMuted]);
+
+  // Play/pause background music based on game state
+  useEffect(() => {
+    if (backgroundMusicRef.current) {
+      if (gameStarted && !gameOver && !isPaused) {
+        backgroundMusicRef.current.play().catch(err => {
+          console.log('Auto-play prevented:', err);
+        });
+      } else {
+        backgroundMusicRef.current.pause();
+      }
+    }
+  }, [gameStarted, gameOver, isPaused]);
+
+  // Function to play the food sound
+  const playFoodSound = () => {
+    if (foodSoundRef.current && !isMuted) {
+      // Reset the audio to start
+      foodSoundRef.current.currentTime = 0;
+      foodSoundRef.current.play().catch(err => {
+        console.log('Could not play food sound:', err);
+      });
+    }
+  };
+
+  // Function to play the game over sound
+  const playGameOverSound = () => {
+    if (gameOverSoundRef.current && !isMuted) {
+      gameOverSoundRef.current.play().catch(err => {
+        console.log('Could not play game over sound:', err);
+      });
+    }
+  };
+
+  // Toggle mute function
+  const toggleMute = () => {
+    setIsMuted(prev => !prev);
+  };
 
   // Resize canvas to fit container
   useEffect(() => {
@@ -268,6 +358,9 @@ const SnakeGame = () => {
       setScoreFlash(true);
       setTimeout(() => setScoreFlash(false), 500);
       
+      // Play food sound when food is eaten
+      playFoodSound();
+      
       if (newSnake.length % 5 === 0) {
         // Only auto-increase speed if it's not already very fast
         setSpeed((prevSpeed) => Math.max(prevSpeed - 5, 50));
@@ -282,6 +375,9 @@ const SnakeGame = () => {
   // Handle game over state
   const handleGameOver = () => {
     setGameOver(true);
+    // Play game over sound
+    playGameOverSound();
+    
     // Update high score if current score is higher
     if (score > highScore) {
       setHighScore(score);
@@ -442,7 +538,7 @@ const SnakeGame = () => {
     setGameStarted(false);
     setIsPaused(false);
     setScore(0);
-    // Don't reset speed and wall collision mode - keep user's preferred settings
+    // Don't reset speed, wall collision mode, and audio settings - keep user's preferred settings
     if (canvasRef.current) drawGame([{ x: 5, y: 5 }], { x: 10, y: 10 });
   };
 
@@ -500,6 +596,20 @@ const SnakeGame = () => {
               {wallCollision ? 'ON (Deadly)' : 'OFF (Portal)'}
             </button>
           </div>
+        </div>
+        
+        {/* Sound control */}
+        <div className="mb-3 sm:mb-4">
+          <button
+            onClick={toggleMute}
+            className={`w-full py-1.5 sm:py-2 rounded-md transition-colors ${
+              isMuted
+                ? 'bg-gray-700 text-white'
+                : 'bg-indigo-600 text-white'
+            }`}
+          >
+            {isMuted ? '🔇 Sound Off' : '🔊 Sound On'}
+          </button>
         </div>
         
         {gameStarted && !gameOver && (
