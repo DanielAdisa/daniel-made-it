@@ -131,13 +131,26 @@ const TetrisGame = () => {
   const [isRotating, setIsRotating] = useState(false);
   const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
   const [showControls, setShowControls] = useState(false);
+  const [gameSpeed, setGameSpeed] = useState<'slow' | 'medium' | 'fast'>('medium');
 
-  const gameAreaRef = useRef(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
+
+  // Get drop time based on level and selected game speed
+  const calculateDropTime = useCallback(() => {
+    const baseSpeed = 1000; // Base speed in ms
+    const speedMultipliers = {
+      slow: 1.5,
+      medium: 1.0,
+      fast: 0.6
+    };
+    
+    return (baseSpeed / (level)) * speedMultipliers[gameSpeed] + 200;
+  }, [level, gameSpeed]);
 
   // Reset everything
   const startGame = () => {
     setStage(createStage());
-    setDropTime(1000);
+    setDropTime(calculateDropTime());
     resetPlayer();
     setGameOver(false);
     setScore(0);
@@ -283,7 +296,7 @@ const TetrisGame = () => {
       }
       
       // Determine if controls should be inverted based on rotation
-      const isInverted = (rotationDegree === 90 || rotationDegree === 270);
+      const isInverted = (rotationDegree === 180);
 
       if (e.keyCode === 37) { // Left arrow
         movePlayer(isInverted ? 1 : -1);
@@ -301,10 +314,25 @@ const TetrisGame = () => {
   const keyUp = (e: KeyboardEvent) => {
     if (!gameOver) {
       if (e.keyCode === 40) {
-        setDropTime(1000 / level + 200);
+        setDropTime(calculateDropTime());
       }
     }
   };
+
+  // Prevent default touchmove behavior to disable page refresh on swipe down
+  useEffect(() => {
+    const handleTouchMoveGlobal = (e: TouchEvent) => {
+      if (gameAreaRef.current && gameAreaRef.current.contains(e.target as Node)) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', handleTouchMoveGlobal, { passive: false });
+    
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMoveGlobal);
+    };
+  }, []);
 
   // Handle touch events for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -329,7 +357,7 @@ const TetrisGame = () => {
       const diffX = touchEndX - touchStart.x;
       const diffY = touchEndY - touchStart.y;
 
-      const isInverted = (rotationDegree === 90 || rotationDegree === 270);
+      const isInverted = (rotationDegree === 180);
 
       // Require minimum movement to count as swipe
       const minSwipeDistance = 30;
@@ -346,6 +374,8 @@ const TetrisGame = () => {
       else if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > minSwipeDistance) {
         if (diffY > 0) { // Down swipe
           dropPlayer();
+          // Reset drop time after swipe down to ensure the piece keeps falling
+          setDropTime(calculateDropTime());
         } else { // Up swipe
           playerRotate(stage, 1);
         }
@@ -423,6 +453,13 @@ const TetrisGame = () => {
     };
   }, [move, keyUp, rotationDegree]);
 
+  // Reset drop time when game speed changes
+  useEffect(() => {
+    if (dropTime !== null) {
+      setDropTime(calculateDropTime());
+    }
+  }, [gameSpeed, calculateDropTime]);
+
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-gray-900 py-4 px-2 overflow-x-hidden max-w-screen">
       <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">Tetris with a Twist</h1>
@@ -452,6 +489,31 @@ const TetrisGame = () => {
             </div>
           )}
           
+          {/* Game Speed Selection */}
+          <div className="mb-4">
+            <label className="block text-white text-sm mb-2">Game Speed:</label>
+            <div className="flex gap-2">
+              <button 
+                className={`flex-1 py-1 px-2 rounded text-white text-sm ${gameSpeed === 'slow' ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => setGameSpeed('slow')}
+              >
+                Slow
+              </button>
+              <button 
+                className={`flex-1 py-1 px-2 rounded text-white text-sm ${gameSpeed === 'medium' ? 'bg-blue-600' : 'bg-gray-600'}`}
+                onClick={() => setGameSpeed('medium')}
+              >
+                Medium
+              </button>
+              <button 
+                className={`flex-1 py-1 px-2 rounded text-white text-sm ${gameSpeed === 'fast' ? 'bg-red-600' : 'bg-gray-600'}`}
+                onClick={() => setGameSpeed('fast')}
+              >
+                Fast
+              </button>
+            </div>
+          </div>
+          
           <div className="flex gap-2">
             <button 
               className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded focus:outline-none transition"
@@ -468,9 +530,9 @@ const TetrisGame = () => {
             </button>
           </div>
           
-          {rotationDegree !== 0 && (
+          {rotationDegree === 180 && (
             <div className="mt-3 bg-yellow-800 text-yellow-100 p-2 rounded text-center text-sm">
-              <p>⚠️ Controls have {rotationDegree === 180 ? 'reversed' : 'changed'} due to rotation</p>
+              <p>⚠️ Controls have reversed due to rotation</p>
             </div>
           )}
           
