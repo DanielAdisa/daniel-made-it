@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
 const GRID_ROWS = 8;
@@ -171,6 +172,12 @@ const BrickPop = () => {
       setGrid(initializeGrid());
       setMatchesNeeded(5 + (level + 1) * 3);
       setMovesLeft(MOVES_PER_LEVEL[Math.min(level, MOVES_PER_LEVEL.length - 1)]);
+      // Reset progress bar visually by temporarily setting score to 0
+      setScore(prev => {
+        const newScore = prev;
+        setTimeout(() => setScore(newScore), 50);
+        return 0;
+      });
     }, 2000);
   };
 
@@ -202,22 +209,39 @@ const BrickPop = () => {
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between mb-4 px-4 gap-2">
-        <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+        <motion.div 
+          className="bg-white/20 p-3 rounded-lg backdrop-blur-sm"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
           <span className="text-xl text-white font-bold">Score: {score}</span>
-        </div>
-        <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+        </motion.div>
+        <motion.div 
+          className="bg-white/20 p-3 rounded-lg backdrop-blur-sm"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
           <span className="text-xl text-white font-bold">Level: {level}</span>
-        </div>
-        <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+        </motion.div>
+        <motion.div 
+          className="bg-white/20 p-3 rounded-lg backdrop-blur-sm"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
           <span className="text-xl text-white font-bold">Moves Left: {movesLeft}</span>
-        </div>
+        </motion.div>
       </div>
 
       <div className="mb-4 px-4">
         <div className="w-full bg-gray-700 h-4 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-green-500 transition-all duration-500"
-            style={{ width: `${getProgressPercentage()}%` }}
+          <motion.div
+            className="h-full bg-green-500"
+            initial={{ width: "0%" }}
+            animate={{ width: `${getProgressPercentage()}%` }}
+            transition={{ duration: 0.5 }}
           />
         </div>
         <div className="flex justify-between text-sm text-white mt-1">
@@ -227,62 +251,120 @@ const BrickPop = () => {
       </div>
 
       <div className="flex justify-center mb-6">
-        <div className="bg-blue-800/30 p-2 rounded-xl backdrop-blur-sm border border-white/20">
+        <motion.div 
+          className="bg-blue-800/30 p-2 rounded-xl backdrop-blur-sm border border-white/20"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
           <div className="grid grid-cols-8 gap-1">
-            {grid.map((row, rowIndex) =>
-              row.map((brick, colIndex) => (
-                <div
-                  key={brick.id}
-                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 cursor-pointer relative transition-all duration-200"
-                  style={{ 
-                    backgroundColor: brick.color,
-                    transform: brick.matched ? 'scale(0.8)' : 'scale(1)',
-                    opacity: brick.matched ? 0.5 : 1
-                  }}
-                  onClick={() => handleBrickTap(rowIndex, colIndex)}
-                />
-              ))
-            )}
+            <AnimatePresence>
+              {grid.map((row, rowIndex) =>
+                row.map((brick, colIndex) => (
+                  <motion.div
+                    key={brick.id}
+                    layout
+                    initial={{ opacity: 0, y: -30 }}
+                    animate={{ 
+                      opacity: brick.matched ? 0.5 : 1, 
+                      y: 0,
+                      scale: brick.matched ? 0.8 : 1
+                    }}
+                    exit={{ opacity: 0, scale: 0 }}
+                    transition={{ 
+                      type: "spring", 
+                      stiffness: 300, 
+                      damping: 20,
+                      delay: (rowIndex * 0.05) + (colIndex * 0.03)
+                    }}
+                    className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 cursor-pointer relative"
+                    style={{ 
+                      backgroundColor: brick.color,
+                      borderRadius: "15%" // Rounded corners for bricks
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleBrickTap(rowIndex, colIndex)}
+                  />
+                ))
+              )}
+            </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {gameStatus === "levelComplete" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="text-center bg-purple-900/80 p-8 rounded-xl">
-            <h2 className="text-4xl font-bold text-white mb-2">Level {level} Complete!</h2>
-            <p className="text-xl text-blue-200">Bonus: {LEVEL_CLEAR_BONUS} points</p>
-            <p className="text-xl text-blue-200 mt-2">Get ready for level {level + 1}...</p>
-          </div>
-        </div>
-      )}
-
-      {gameStatus === "gameOver" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="text-center bg-red-900/80 p-8 rounded-xl">
-            <h2 className="text-4xl font-bold text-white mb-2">Game Over!</h2>
-            <p className="text-xl text-blue-200">You ran out of moves</p>
-            <p className="text-xl text-blue-200 mt-2">Final Score: {score}</p>
-            <button
-              onClick={resetGame}
-              className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg transition-colors shadow-lg"
+      <AnimatePresence>
+        {gameStatus === "levelComplete" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div 
+              className="text-center bg-purple-900/80 p-8 rounded-xl"
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              Play Again
-            </button>
-          </div>
-        </div>
-      )}
+              <h2 className="text-4xl font-bold text-white mb-2">Level {level} Complete!</h2>
+              <p className="text-xl text-blue-200">Bonus: {LEVEL_CLEAR_BONUS} points</p>
+              <p className="text-xl text-blue-200 mt-2">Get ready for level {level + 1}...</p>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {gameStatus === "gameOver" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div 
+              className="text-center bg-red-900/80 p-8 rounded-xl"
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <h2 className="text-4xl font-bold text-white mb-2">Game Over!</h2>
+              <p className="text-xl text-blue-200">You ran out of moves</p>
+              <p className="text-xl text-blue-200 mt-2">Final Score: {score}</p>
+              <motion.button
+                onClick={resetGame}
+                className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg transition-colors shadow-lg"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Play Again
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-6 flex justify-center">
-        <button
+        <motion.button
           onClick={resetGame}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full text-lg transition-colors shadow-lg"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
           Restart Game
-        </button>
+        </motion.button>
       </div>
 
-      <div className="mt-6 bg-white/10 p-4 rounded-lg backdrop-blur-sm max-w-2xl mx-auto">
+      <motion.div 
+        className="mt-6 bg-white/10 p-4 rounded-lg backdrop-blur-sm max-w-2xl mx-auto"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+      >
         <h3 className="text-lg font-bold text-white mb-2">How to Play:</h3>
         <ul className="text-blue-100 list-disc pl-5">
           <li>Tap on groups of 3 or more connected bricks of the same color</li>
@@ -291,7 +373,7 @@ const BrickPop = () => {
           <li>Reach the target score before running out of moves</li>
           <li>Level bonus: {LEVEL_CLEAR_BONUS} points</li>
         </ul>
-      </div>
+      </motion.div>
     </div>
   );
 };
