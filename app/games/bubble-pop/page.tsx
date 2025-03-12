@@ -22,6 +22,8 @@ interface BrickType {
   color: string;
   matched: boolean;
   isBomb?: boolean;
+  positionKey?: string; // Used for tracking position during animations
+  fallDistance?: number; // Distance the brick will fall (for animation)
 }
 
 const BrickPop = () => {
@@ -121,18 +123,28 @@ const BrickPop = () => {
     setIsMuted(!isMuted);
   };
 
+  // Helper to generate a new brick
+  const generateNewBrick = useCallback((rowIndex: number, colIndex: number) => {
+    const levelColors = COLORS.slice(0, Math.max(3, Math.min(COLORS.length, 3 + Math.floor((level - 1) / 2))));
+    return {
+      id: `brick-${Date.now()}-${Math.random()}`,
+      color: levelColors[Math.floor(Math.random() * levelColors.length)],
+      matched: false,
+      positionKey: `pos-${rowIndex}-${colIndex}`,
+      fallDistance: rowIndex + 1 // Add fall distance property
+    };
+  }, [level]);
+  
   // Create a new grid
   const initializeGrid = useCallback(() => {
-    const levelColors = COLORS.slice(0, Math.max(3, Math.min(COLORS.length, 3 + Math.floor((level - 1) / 2))));
-    const newGrid: BrickType[][] = Array.from({ length: GRID_ROWS }, () =>
-      Array.from({ length: GRID_COLS }, () => ({
-        id: `brick-${Date.now()}-${Math.random()}`,
-        color: levelColors[Math.floor(Math.random() * levelColors.length)],
-        matched: false,
+    const newGrid: BrickType[][] = Array.from({ length: GRID_ROWS }, (_, rowIndex) =>
+      Array.from({ length: GRID_COLS }, (_, colIndex) => ({
+        ...generateNewBrick(rowIndex, colIndex),
+        positionKey: `pos-${rowIndex}-${colIndex}`
       }))
     );
     return newGrid;
-  }, [level]);
+  }, [generateNewBrick]);
 
   // Find all connected bricks of the same color
   const findConnectedBricks = useCallback((grid: BrickType[][], row: number, col: number, color: string) => {
@@ -398,40 +410,76 @@ const BrickPop = () => {
     }
   };
 
-  // Remove matched bricks and let new ones fall in from the top
+  // Remove matched bricks and let bricks above slide down
   const removeMatches = (matchedBricks: {row: number, col: number}[]) => {
     setGrid((prevGrid) => {
-      const levelColors = COLORS.slice(0, Math.max(3, Math.min(COLORS.length, 3 + Math.floor((level - 1) / 2))));
+      // Create a deep copy of the current grid
       const newGrid = JSON.parse(JSON.stringify(prevGrid));
       
-      // For each column affected by the matches
-      const affectedCols = new Set(matchedBricks.map(brick => brick.col));
+      // Group by columns for processing
+      const matchesByCol = new Map<number, number[]>();
       
-      affectedCols.forEach(col => {
-        // Get all non-matched bricks in this column
-        const nonMatchedBricks: BrickType[] = [];
-        for (let row = GRID_ROWS - 1; row >= 0; row--) {
-          if (!matchedBricks.some(brick => brick.row === row && brick.col === col)) {
-            nonMatchedBricks.push(prevGrid[row][col]);
+      // Initialize the map with empty arrays for each column
+      for (let col = 0; col < GRID_COLS; col++) {
+        matchesByCol.set(col, []);
+      }
+      
+      // Group matched bricks by column
+      matchedBricks.forEach(({row, col}) => {
+        const rowsInCol = matchesByCol.get(col) || [];
+        rowsInCol.push(row);
+        matchesByCol.set(col, rowsInCol);
+      });
+      
+      // Process each column with matches
+      for (let col = 0; col < GRID_COLS; col++) {
+        const matchedRows = matchesByCol.get(col) || [];
+        
+        if (matchedRows.length > 0) {
+          // Sort rows in descending order (bottom to top)
+          matchedRows.sort((a, b) => b - a);
+          
+          // Process column from bottom to top
+          let bricksToShift = [...matchedRows];
+          let lastCheckedRow = GRID_ROWS - 1;
+          
+          for (let rowIndex = GRID_ROWS - 1; rowIndex >= 0; rowIndex--) {
+            // Skip if this is a matched brick
+            if (bricksToShift.includes(rowIndex)) {
+              continue;
+            }
+            
+            // Find the next position for this brick
+            if (lastCheckedRow > rowIndex) {
+              // Calculate fall distance for the animation
+              const fallDistance = lastCheckedRow - rowIndex;
+              
+              // Move this brick down to fill the gap
+              newGrid[lastCheckedRow][col] = {
+                ...prevGrid[rowIndex][col],
+                positionKey: `pos-${lastCheckedRow}-${col}`, // Update position key for animation
+                fallDistance: fallDistance // Store fall distance for animation
+              };
+              
+              // Clear the original position
+              newGrid[rowIndex][col] = null as any;
+              lastCheckedRow--;
+            }
+          }
+          
+          // Fill the top with new bricks
+          for (let rowIndex = lastCheckedRow; rowIndex >= 0; rowIndex--) {
+            // Calculate how far this brick needs to fall
+            const fallDistance = rowIndex + 1 + (GRID_ROWS - lastCheckedRow - 1);
+            
+            newGrid[rowIndex][col] = {
+              ...generateNewBrick(rowIndex, col),
+              positionKey: `pos-${rowIndex}-${col}`,
+              fallDistance: fallDistance // New bricks fall from above the grid
+            };
           }
         }
-        
-        // Create new bricks to fill the top
-        const numNewBricks = GRID_ROWS - nonMatchedBricks.length;
-        const newBricks = Array.from({ length: numNewBricks }, () => ({
-          id: `brick-${Date.now()}-${Math.random()}`,
-          color: levelColors[Math.floor(Math.random() * levelColors.length)],
-          matched: false,
-        }));
-        
-        // Combine new bricks with existing non-matched ones
-        const updatedColumn = [...newBricks, ...nonMatchedBricks];
-        
-        // Update the column in the grid
-        for (let row = 0; row < GRID_ROWS; row++) {
-          newGrid[row][col] = updatedColumn[row];
-        }
-      });
+      }
       
       return newGrid;
     });
@@ -446,57 +494,111 @@ const BrickPop = () => {
     });
   };
 
-  // Remove matched bricks and add a bomb in one of the cleared positions
+  // Remove matched bricks, add a bomb, and let bricks above slide down
   const removeMatchesWithBomb = (matchedBricks: {row: number, col: number}[]) => {
     // Choose a position for the bomb
     const bombIndex = Math.floor(Math.random() * matchedBricks.length);
     const bombPosition = matchedBricks[bombIndex];
     
     setGrid((prevGrid) => {
-      const levelColors = COLORS.slice(0, Math.max(3, Math.min(COLORS.length, 3 + Math.floor((level - 1) / 2))));
+      // Create a deep copy of the current grid
       const newGrid = JSON.parse(JSON.stringify(prevGrid));
       
-      // For each column affected by the matches
-      const affectedCols = new Set(matchedBricks.map(brick => brick.col));
+      // Group by columns for processing
+      const matchesByCol = new Map<number, number[]>();
       
-      affectedCols.forEach(col => {
-        // Get all non-matched bricks in this column
-        const nonMatchedBricks: BrickType[] = [];
-        for (let row = GRID_ROWS - 1; row >= 0; row--) {
-          if (!matchedBricks.some(brick => brick.row === row && brick.col === col)) {
-            nonMatchedBricks.push(prevGrid[row][col]);
-          }
-        }
-        
-        // Create new bricks to fill the top
-        const numNewBricks = GRID_ROWS - nonMatchedBricks.length;
-        const newBricks = Array.from({ length: numNewBricks }, () => ({
-          id: `brick-${Date.now()}-${Math.random()}`,
-          color: levelColors[Math.floor(Math.random() * levelColors.length)],
-          matched: false,
-        }));
-        
-        // Combine new bricks with existing non-matched ones
-        const updatedColumn = [...newBricks, ...nonMatchedBricks];
-        
-        // Update the column in the grid
-        for (let row = 0; row < GRID_ROWS; row++) {
-          newGrid[row][col] = updatedColumn[row];
-        }
+      // Initialize the map with empty arrays for each column
+      for (let col = 0; col < GRID_COLS; col++) {
+        matchesByCol.set(col, []);
+      }
+      
+      // Group matched bricks by column
+      matchedBricks.forEach(({row, col}) => {
+        const rowsInCol = matchesByCol.get(col) || [];
+        rowsInCol.push(row);
+        matchesByCol.set(col, rowsInCol);
       });
       
-      // Place the bomb in one of the positions where a new brick was added
-      if (bombPosition) {
-        // Find the new position of where the bomb should be (because bricks have shifted)
-        const newBrickCount = matchedBricks.filter(b => b.col === bombPosition.col && b.row <= bombPosition.row).length;
-        const newBombRow = newBrickCount - 1; // compensate for zero indexing
+      // Keep track of where we'll place the bomb
+      let bombPlaced = false;
+      let targetCol = bombPosition.col;
+      
+      // Process each column with matches
+      for (let col = 0; col < GRID_COLS; col++) {
+        const matchedRows = matchesByCol.get(col) || [];
         
-        if (newGrid[newBombRow] && newGrid[newBombRow][bombPosition.col]) {
-          newGrid[newBombRow][bombPosition.col] = {
-            ...newGrid[newBombRow][bombPosition.col],
-            isBomb: true,
-            color: '#333', // Give it a dark base color
-          };
+        if (matchedRows.length > 0) {
+          // Sort rows in descending order (bottom to top)
+          matchedRows.sort((a, b) => b - a);
+          
+          // Process column from bottom to top
+          let bricksToShift = [...matchedRows];
+          let lastCheckedRow = GRID_ROWS - 1;
+          
+          for (let rowIndex = GRID_ROWS - 1; rowIndex >= 0; rowIndex--) {
+            // Skip if this is a matched brick
+            if (bricksToShift.includes(rowIndex)) {
+              continue;
+            }
+            
+            // Find the next position for this brick
+            if (lastCheckedRow > rowIndex) {
+              // Calculate fall distance for the animation
+              const fallDistance = lastCheckedRow - rowIndex;
+              
+              // Move this brick down to fill the gap
+              newGrid[lastCheckedRow][col] = {
+                ...prevGrid[rowIndex][col],
+                positionKey: `pos-${lastCheckedRow}-${col}`,
+                fallDistance: fallDistance
+              };
+              
+              // Clear the original position
+              newGrid[rowIndex][col] = null as any;
+              lastCheckedRow--;
+            }
+          }
+          
+          // If this is the column where we want to place a bomb and we haven't placed it yet
+          if (col === targetCol && !bombPlaced) {
+            // Calculate how far bricks need to fall
+            const bombFallDistance = Math.max(4, GRID_ROWS); // Make bomb fall from top
+            
+            // Place the bomb at the top of the column (first matched position)
+            bombPlaced = true;
+            
+            // Fill the top with new bricks, except where we'll place the bomb
+            for (let rowIndex = lastCheckedRow; rowIndex >= 0; rowIndex--) {
+              if (rowIndex === 0) {
+                // Place bomb at the top with fall animation
+                newGrid[rowIndex][col] = {
+                  id: `bomb-${Date.now()}-${Math.random()}`,
+                  color: '#333', // Dark base color for bomb
+                  matched: false,
+                  isBomb: true,
+                  positionKey: `pos-${rowIndex}-${col}`,
+                  fallDistance: bombFallDistance
+                };
+              } else {
+                const fallDistance = rowIndex + 1 + (GRID_ROWS - lastCheckedRow - 1);
+                newGrid[rowIndex][col] = {
+                  ...generateNewBrick(rowIndex, col),
+                  positionKey: `pos-${rowIndex}-${col}`,
+                  fallDistance: fallDistance
+                };
+              }
+            }
+          } else {
+            // Fill the top with new bricks
+            for (let rowIndex = lastCheckedRow; rowIndex >= 0; rowIndex--) {
+              const fallDistance = rowIndex + 1 + (GRID_ROWS - lastCheckedRow - 1);
+              newGrid[rowIndex][col] = {
+                ...generateNewBrick(rowIndex, col),
+                positionKey: `pos-${rowIndex}-${col}`,
+                fallDistance: fallDistance
+              };
+            }
+          }
         }
       }
       
@@ -557,6 +659,16 @@ const BrickPop = () => {
     return Math.max(15, STARTING_MOVES - ((currentLevel - 1) * MOVES_DECREASE_RATE));
   };
   const getProgressPercentage = () => Math.min(100, (score / getLevelTarget()) * 100);
+
+  // Helper to calculate delay for natural falling animation
+  const calculateFallDelay = (rowIndex: number, colIndex: number, fallDistance: number = 0) => {
+    // Base delay for natural column-based falling
+    const baseDelay = 0.02 * colIndex; // Small delay per column for visual interest
+    
+    // Add distance-based delay to simulate gravity (greater distance = longer time to fall)
+    // This creates the illusion of gravity affecting the bricks
+    return baseDelay + (fallDistance ? Math.sqrt(fallDistance) * 0.03 : 0);
+  };
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-violet-800 p-4 overflow-hidden">
@@ -657,21 +769,39 @@ const BrickPop = () => {
                 >
                   {grid.map((row, rowIndex) =>
                     row.map((brick, colIndex) => (
-                      <motion.div
+                      brick && <motion.div
                         key={brick.id}
-                        layout
-                        initial={{ opacity: 0, y: -30 }}
+                        layoutId={brick.positionKey}
+                        initial={{ 
+                          opacity: 1, 
+                          y: brick.fallDistance ? -100 - (brick.fallDistance * 10) : 0, // Start above the viewport
+                          scale: 1
+                        }}
                         animate={{ 
                           opacity: brick.matched ? 0.5 : 1, 
-                          y: 0,
+                          y: 0, // Fall to final position
                           scale: brick.matched ? 0.8 : 1
                         }}
-                        exit={{ opacity: 0, scale: 0 }}
+                        exit={{ 
+                          opacity: 0, 
+                          scale: 0.8,
+                          transition: { 
+                            duration: 0.2 
+                          }
+                        }}
                         transition={{ 
                           type: "spring", 
-                          stiffness: 300, 
-                          damping: 20,
-                          delay: (rowIndex * 0.03) + (colIndex * 0.02)
+                          stiffness: 350, // Higher stiffness for bounce effect
+                          damping: 17, // Lower damping for more bounce
+                          mass: 1.3, // Slightly heavier for momentum
+                          velocity: 12,
+                          bounce: 0.25, // Add bounce effect
+                          // Dynamic delay based on column and fall distance
+                          delay: brick.matched ? 0 : calculateFallDelay(
+                            rowIndex, 
+                            colIndex, 
+                            brick.fallDistance || 0
+                          )
                         }}
                         className={`w-full h-full aspect-square cursor-pointer relative rounded-[15%] shadow-md brick ${
                           brick.matched ? "opacity-50 scale-90" : "hover:scale-105 active:scale-95"
