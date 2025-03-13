@@ -1,1206 +1,534 @@
 "use client";
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-
-interface Platform {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface Ball {
-  x: number;
-  y: number;
-  dx: number;
-  dy: number;
-  radius: number;
-  speed: number; // Add speed property to maintain constant velocity
-}
-
-interface Block {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  hitPoints: number; // Add hit points to blocks
-  type: 'normal' | 'explosive' | 'unbreakable' | 'moving'; // Add block types for more variety
-  moveDirection?: number; // For moving blocks
-}
-
-// Add new interface for power-ups
-interface PowerUp {
-  id: string;
-  x: number;
-  y: number;
-  type: 'widePlatform' | 'multiBall';
-  width: number;
-  height: number;
-  dy: number;
-  active: boolean;
-}
-
-const PingPongGame = () => {
-  const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameSize, setGameSize] = useState({ width: 0, height: 0 });
-  const [platform, setPlatform] = useState<Platform>({ x: 0, y: 0, width: 120, height: 20 }); // Wider platform
-  const [ball, setBall] = useState<Ball>({ x: 0, y: 0, dx: 3, dy: -3, radius: 7, speed: 3 }); // Added speed property
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
+export default function SpaceShooterGame() {
+  // Game state
+  const [playerPosition, setPlayerPosition] = useState(50); // Player position as percentage from left
+  const playerPositionRef = useRef(50); // Ref to track latest player position for accurate shooting
+  const [bullets, setBullets] = useState<{id: number, x: number, y: number}[]>([]); // Bullets array
+  const [enemies, setEnemies] = useState<{id: number, x: number, y: number, type: number}[]>([]); // Enemies array
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
-  const [level, setLevel] = useState(1); // Track current level
-  const requestRef = useRef<number | null>(null);
-  const previousTimeRef = useRef<number | null>(null);
+  const [gameOver, setGameOver] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [level, setLevel] = useState(1);
+  const [powerUpActive, setPowerUpActive] = useState(false);
+  const [autoFire, setAutoFire] = useState(false);
+  
+  const nextBulletId = useRef(0);
+  const nextEnemyId = useRef(0);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
-  // Add new state variables for power-ups
-  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
-  const [activePowerUps, setActivePowerUps] = useState({
-    widePlatform: false,
-    multiBall: false,
-  });
-  const [balls, setBalls] = useState<Ball[]>([]);
-  const powerUpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Initialize game setup
+  // Keep playerPositionRef in sync with playerPosition state
   useEffect(() => {
-    const initializeGame = () => {
-      if (gameAreaRef.current) {
-        const { width, height } = gameAreaRef.current.getBoundingClientRect();
-        setGameSize({ width, height });
-        
-        // Initial platform position
-        setPlatform(prev => ({
-          ...prev,
-          x: width / 2 - prev.width / 2,
-          y: height - 40
-        }));
-        
-        // Initial ball position
-        setBall(prev => ({
-          ...prev,
-          x: width / 2,
-          y: height - 60
-        }));
-        
-        // Create blocks
-        createBlocks(width, level);
-      }
-    };
-    
-    const handleResize = () => {
-      initializeGame();
-    };
-    
-    initializeGame();
-    window.addEventListener('resize', handleResize);
-    
-    // Reset power-ups when initializing game
-    setPowerUps([]);
-    setActivePowerUps({ widePlatform: false, multiBall: false });
+    playerPositionRef.current = playerPosition;
+  }, [playerPosition]);
 
+  // Start the game
+  const startGame = () => {
+    setGameStarted(true);
+    setGameOver(false);
+    setScore(0);
+    setLevel(1);
+    setEnemies([]);
+    setBullets([]);
+    setPowerUpActive(false);
+    setPlayerPosition(50);
+    playerPositionRef.current = 50;
+    setAutoFire(false);
+  };
+
+  // Update player position function - use this for all player movement
+  const updatePlayerPosition = (newPosition: number) => {
+    const clampedPosition = Math.max(0, Math.min(100, newPosition));
+    setPlayerPosition(clampedPosition);
+    playerPositionRef.current = clampedPosition;
+  };
+
+  // Shoot function
+  const shoot = () => {
+    const currentPlayerPosition = playerPositionRef.current; // Use ref for most up-to-date position
+    const newBullets: { id: number, x: number, y: number }[] = [];
+  
+    if (powerUpActive) {
+      newBullets.push({
+        id: nextBulletId.current++,
+        x: currentPlayerPosition - 2,
+        y: 85,
+      });
+      newBullets.push({
+        id: nextBulletId.current++,
+        x: currentPlayerPosition + 2,
+        y: 85,
+      });
+    } else {
+      newBullets.push({
+        id: nextBulletId.current++,
+        x: currentPlayerPosition,
+        y: 85,
+      });
+    }
+  
+    setBullets((prev) => [...prev, ...newBullets]);
+  };
+  
+  // Auto firing functionality
+  useEffect(() => {
+    if (!gameStarted || gameOver || !autoFire) return;
+    
+    const fireInterval = setInterval(() => {
+      shoot();
+    }, 400); // Fire every 400ms when auto-fire is enabled
+    
+    return () => clearInterval(fireInterval);
+  }, [gameStarted, gameOver, autoFire]);
+
+  // Handle touch events for swipe functionality
+  useEffect(() => {
+    if (!gameStarted || gameOver || !gameAreaRef.current) return;
+    
+    const gameArea = gameAreaRef.current;
+    
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchStartX.current) return;
+      
+      const touchX = e.touches[0].clientX;
+      const touchY = e.touches[0].clientY;
+      
+      // Calculate X distance moved as a percentage of game area width
+      const gameAreaRect = gameArea.getBoundingClientRect();
+      const deltaX = touchX - touchStartX.current;
+      const deltaXPercent = (deltaX / gameAreaRect.width) * 100;
+      
+      // Update player position based on horizontal swipe
+      updatePlayerPosition(playerPositionRef.current + deltaXPercent);
+      
+      // Reset touch start to current position for continuous movement
+      touchStartX.current = touchX;
+      touchStartY.current = touchY;
+    };
+    
+    const handleTouchEnd = () => {
+      touchStartX.current = 0;
+      touchStartY.current = 0;
+    };
+    
+    gameArea.addEventListener('touchstart', handleTouchStart);
+    gameArea.addEventListener('touchmove', handleTouchMove);
+    gameArea.addEventListener('touchend', handleTouchEnd);
+    
     return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(requestRef.current!);
-      // Clear power-up timeout
-      if (powerUpTimeoutRef.current) clearTimeout(powerUpTimeoutRef.current);
+      gameArea.removeEventListener('touchstart', handleTouchStart);
+      gameArea.removeEventListener('touchmove', handleTouchMove);
+      gameArea.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [level]);
-
-  // Create initial blocks with more variety
-  const createBlocks = (width: number, currentLevel: number) => {
-    const blockSize = 50;
-    const padding = 10;
-    const blocksPerRow = Math.floor((width - padding) / (blockSize + padding));
-    const startX = (width - (blocksPerRow * (blockSize + padding) - padding)) / 2;
-    
-    // Increase rows with level
-    const baseRows = 5;
-    const rows = Math.min(baseRows + Math.floor(currentLevel / 3), 8);
-    
-    const newBlocks: Block[] = [];
-    
-    const colors = ['#FF5252', '#FF4081', '#E040FB', '#7C4DFF', '#536DFE', '#448AFF', '#40C4FF', '#18FFFF'];
-    
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < blocksPerRow; col++) {
-        // Determine block type based on level and randomness
-        let blockType: 'normal' | 'explosive' | 'unbreakable' | 'moving' = 'normal';
-        let hitPoints = 1;
-        let blockColor = colors[Math.floor(Math.random() * colors.length)];
-        let moveDirection = 0;
-        
-        // Higher chance of special blocks in higher levels
-        const specialBlockChance = Math.min(0.1 + (currentLevel * 0.05), 0.5);
-        
-        if (Math.random() < specialBlockChance) {
-          const blockRoll = Math.random();
-          
-          if (blockRoll < 0.4) {
-            // Normal block but with more hit points
-            hitPoints = Math.min(2 + Math.floor(Math.random() * (currentLevel / 2)), 3);
-            blockColor = hitPoints === 2 ? '#FFC107' : '#FF9800';
-          } else if (blockRoll < 0.6) {
-            // Explosive block - destroys adjacent blocks when hit
-            blockType = 'explosive';
-            hitPoints = 1;
-            blockColor = '#F44336'; // Red for explosive
-          } else if (blockRoll < 0.8) {
-            // Moving block
-            blockType = 'moving';
-            hitPoints = 2; // Moving blocks are a bit tougher
-            blockColor = '#8BC34A'; // Green for moving blocks
-            moveDirection = Math.random() > 0.5 ? 1 : -1;
-          } else {
-            // Unbreakable block (can't be destroyed)
-            blockType = 'unbreakable';
-            hitPoints = Infinity;
-            blockColor = '#9E9E9E'; // Gray for unbreakable
-          }
-        }
-        
-        newBlocks.push({
-          id: `block-${row}-${col}`,
-          x: startX + col * (blockSize + padding),
-          y: row * (blockSize + padding) + 50,
-          width: blockSize,
-          height: blockSize,
-          color: blockColor,
-          hitPoints: hitPoints,
-          type: blockType,
-          moveDirection
-        });
-      }
-    }
-    
-    setBlocks(newBlocks);
-  };
-
-  // Create a new function to spawn power-ups
-  const spawnPowerUp = (x: number, y: number) => {
-    // 20% chance to spawn power-up when a block is destroyed
-    if (Math.random() > 0.2) return;
-    
-    // Randomly select power-up type
-    const powerUpType = Math.random() > 0.5 ? 'widePlatform' : 'multiBall';
-    
-    const newPowerUp: PowerUp = {
-      id: `powerup-${Date.now()}`,
-      x,
-      y,
-      type: powerUpType,
-      width: 30,
-      height: 30,
-      dy: 2, // Power-up falls down
-      active: true
-    };
-    
-    setPowerUps(prev => [...prev, newPowerUp]);
-  };
-
-  // Add a function to activate power-ups
-  const activatePowerUp = (type: 'widePlatform' | 'multiBall') => {
-    if (type === 'widePlatform') {
-      setActivePowerUps(prev => ({ ...prev, widePlatform: true }));
-      
-      // Increase platform width
-      setPlatform(prev => ({
-        ...prev,
-        width: 200 // Wider platform
-      }));
-      
-      // Set timeout to reset the platform width after 10 seconds
-      if (powerUpTimeoutRef.current) clearTimeout(powerUpTimeoutRef.current);
-      
-      powerUpTimeoutRef.current = setTimeout(() => {
-        setActivePowerUps(prev => ({ ...prev, widePlatform: false }));
-        setPlatform(prev => ({
-          ...prev,
-          width: 120 // Reset to original width
-        }));
-      }, 10000);
-    }
-    
-    if (type === 'multiBall') {
-      setActivePowerUps(prev => ({ ...prev, multiBall: true }));
-      
-      // Create a second ball
-      const newBall: Ball = {
-        x: ball.x,
-        y: ball.y,
-        dx: -ball.dx, // Move in opposite horizontal direction
-        dy: ball.dy,
-        radius: ball.radius,
-        speed: ball.speed
-      };
-      
-      setBalls(prev => [...prev, newBall]);
-      
-      // Reset after 3 seconds (don't need full timeout here)
-      setTimeout(() => {
-        setActivePowerUps(prev => ({ ...prev, multiBall: false }));
-      }, 3000);
-    }
-  };
-
-  // Initialize balls state based on the main ball
+  }, [gameStarted, gameOver]);
+  
+  // Handle keyboard events for moving player and shooting
   useEffect(() => {
-    if (gameStarted && !activePowerUps.multiBall) {
-      setBalls([ball]);
-    }
-  }, [gameStarted, ball, activePowerUps.multiBall]);
-
-  // Game animation loop
-  const animate = (time: number) => {
-    if (previousTimeRef.current === undefined) {
-      previousTimeRef.current = time;
-    }
-    
-    const deltaTime = time - (previousTimeRef.current ?? time);
-    previousTimeRef.current = time;
-    
-    if (gameStarted && !gameOver) {
-      updateGameState(deltaTime);
-    }
-    
-    requestRef.current = requestAnimationFrame(animate);
-  };
-
-  useEffect(() => {
-    if (gameStarted) {
-      requestRef.current = requestAnimationFrame(animate);
-    }
-    return () => cancelAnimationFrame(requestRef.current!);
-  }, [gameStarted, gameOver, platform, ball, blocks]);
-
-  // Unified function to handle ball collisions with blocks
-  const handleBallBlockCollision = (
-    ball: Ball, 
-    blocks: Block[]
-  ): { 
-    newDx: number; 
-    newDy: number; 
-    updatedBlocks: Block[];
-    destroyed: boolean;
-    destroyedPosition?: { x: number; y: number };
-  } => {
-    const { x, y, dx, dy, radius, speed } = ball;
-    let newDx = dx;
-    let newDy = dy;
-    let destroyed = false;
-    let destroyedPosition;
-    
-    // Clone blocks to avoid mutation
-    let updatedBlocks = [...blocks];
-    let blockCollision = false;
-    
-    // Calculate next position
-    const nextX = x + dx;
-    const nextY = y + dy;
-
-    // Track which block to remove
-    let blockToRemoveIndex = -1;
-    let explosiveBlockHit = false;
-    let explosionCenter = { x: 0, y: 0 };
-    
-    // Check collisions with all blocks
-    for (let i = 0; i < updatedBlocks.length; i++) {
-      const block = updatedBlocks[i];
-      
-      // Precise collision detection using closest point method
-      const closestX = Math.max(block.x, Math.min(nextX, block.x + block.width));
-      const closestY = Math.max(block.y, Math.min(nextY, block.y + block.height));
-      
-      // Distance between ball center and closest point on block
-      const distX = nextX - closestX;
-      const distY = nextY - closestY;
-      const distance = Math.sqrt(distX * distX + distY * distY);
-      
-      // Check if distance is less than ball radius (collision)
-      if (distance < radius && !blockCollision) {
-        blockCollision = true;
-        
-        // Special handling for unbreakable blocks - just bounce
-        if (block.type === 'unbreakable') {
-          // Only process bouncing physics here
-        } else {
-          // Normal blocks and special blocks
-          const newHitPoints = block.hitPoints - 1;
-          updatedBlocks[i] = {
-            ...block,
-            hitPoints: newHitPoints,
-            color: newHitPoints <= 0 ? block.color : '#FF9800' // Damaged color
-          };
-          
-          // Check if block is destroyed
-          if (newHitPoints <= 0) {
-            blockToRemoveIndex = i;
-            destroyedPosition = { 
-              x: block.x + block.width / 2, 
-              y: block.y + block.height / 2 
-            };
-            
-            // Handle explosive blocks
-            if (block.type === 'explosive') {
-              explosiveBlockHit = true;
-              explosionCenter = destroyedPosition;
-            }
-            
-            destroyed = true;
-          }
-        }
-        
-        // Calculate collision response (bouncing)
-        // Determine which side was hit
-        let normalX = 0;
-        let normalY = 0;
-        
-        // If inside the block width, check top/bottom
-        if (nextX > block.x && nextX < block.x + block.width) {
-          // Coming from top or bottom
-          normalY = nextY < block.y ? -1 : 1;
-        } 
-        // If inside the block height, check left/right
-        else if (nextY > block.y && nextY < block.y + block.height) {
-          // Coming from left or right
-          normalX = nextX < block.x ? -1 : 1;
-        }
-        // Corner collision - get precise normal
-        else {
-          const cornerX = closestX;
-          const cornerY = closestY;
-          
-          // Calculate normal based on collision point
-          const dx = nextX - cornerX;
-          const dy = nextY - cornerY;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          normalX = dx / len;
-          normalY = dy / len;
-        }
-        
-        // Reflect velocity based on normal
-        if (Math.abs(normalX) > Math.abs(normalY)) {
-          // Mostly horizontal collision
-          newDx = -newDx;
-        } else {
-          // Mostly vertical collision
-          newDy = -newDy;
-        }
-        
-        // Add variation for more interesting gameplay
-        newDx += (Math.random() - 0.5) * 0.5;
-        newDy += (Math.random() - 0.5) * 0.5;
-        
-        // Normalize to maintain constant speed
-        const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
-        newDx = (newDx / magnitude) * speed;
-        newDy = (newDy / magnitude) * speed;
+    if (!gameStarted || gameOver) return;
+  
+    const handleKeyDown = (event: KeyboardEvent) => {
+      switch (event.key) {
+        case 'ArrowLeft':
+          updatePlayerPosition(playerPositionRef.current - 3);
+          break;
+        case 'ArrowRight':
+          updatePlayerPosition(playerPositionRef.current + 3);
+          break;
+        case ' ': // Spacebar - shoot
+          event.preventDefault();
+          shoot();
+          break;
+        case 'a': // 'a' key - toggle auto-fire
+          event.preventDefault();
+          setAutoFire(prev => !prev);
+          break;
       }
-    }
-    
-    // Process block destruction after collision detection
-    if (blockToRemoveIndex >= 0) {
-      // Remove the destroyed block
-      updatedBlocks = updatedBlocks.filter((_, index) => index !== blockToRemoveIndex);
-      
-      // Handle explosive block chain reaction
-      if (explosiveBlockHit) {
-        // Find blocks in explosion radius
-        const EXPLOSION_RADIUS = 80;
-        
-        updatedBlocks = updatedBlocks.filter(block => {
-          // Calculate distance to explosion center
-          const blockCenterX = block.x + block.width / 2;
-          const blockCenterY = block.y + block.height / 2;
-          const distance = Math.sqrt(
-            Math.pow(blockCenterX - explosionCenter.x, 2) + 
-            Math.pow(blockCenterY - explosionCenter.y, 2)
-          );
-          
-          // If in explosion radius and not unbreakable, destroy block
-          if (distance < EXPLOSION_RADIUS && block.type !== 'unbreakable') {
-            // Award points for chain reaction
-            setScore(prev => prev + 5);
-            return false; // Remove from list
-          }
-          return true; // Keep the block
-        });
-      }
-    }
-    
-    return { 
-      newDx, 
-      newDy, 
-      updatedBlocks,
-      destroyed,
-      destroyedPosition
     };
-  };
+  
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameStarted, gameOver]);
 
-  // Improved function to handle wall collisions - only allowing ball to exit at bottom
-const handleWallCollisions = (ball: Ball): { dx: number; dy: number; x: number; y: number } => {
-  const { x, y, dx, dy, radius, speed } = ball;
-  let newDx = dx;
-  let newDy = dy;
-  let newX = x;
-  let newY = y;
-  
-  // First, check if the ball will go out of bounds after movement
-  const nextX = x + dx;
-  const nextY = y + dy;
-  
-  // Check left wall - clamp position and reverse direction
-  if (nextX - radius <= 0) {
-    newDx = Math.abs(dx); // Force right direction
-    newX = radius; // Ensure ball stays in bounds
-  } 
-  // Check right wall - clamp position and reverse direction
-  else if (nextX + radius >= gameSize.width) {
-    newDx = -Math.abs(dx); // Force left direction
-    newX = gameSize.width - radius; // Ensure ball stays in bounds
-  }
-  
-  // Check top wall - clamp position and reverse direction
-  if (nextY - radius <= 0) {
-    newDy = Math.abs(dy); // Force down direction
-    newY = radius; // Ensure ball stays in bounds
-  }
-  
-  // Note: We don't check bottom wall because we want the ball to fall off
-  
-  // Add slight angle variation on wall bounces for interesting gameplay
-  if (newDx !== dx || newDy !== dy) {
-    // Add small random variation to prevent looping patterns
-    newDx += (Math.random() - 0.5) * 0.3;
+  // Generate enemy formations based on level
+  const generateEnemyFormation = () => {
+    const newEnemies = [];
+    const formationType = level % 5; // 5 different formations that cycle
     
-    // Normalize to maintain constant speed
-    const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
-    if (magnitude > 0) {
-      newDx = (newDx / magnitude) * speed;
-      newDy = (newDy / magnitude) * speed;
-    }
-  }
-  
-  return { 
-    dx: newDx, 
-    dy: newDy,
-    x: newX,
-    y: newY
-  };
-};
-
-
-// Helper function to handle explosive blocks chain reaction
-const handleExplosion = (blocks: Block[], explodingBlockIndex: number, center: { x: number, y: number }) => {
-  // Get the exploding block
-  const explodingBlock = blocks[explodingBlockIndex];
-  
-  // Remove the exploding block first
-  const updatedBlocks = blocks.filter((_, i) => i !== explodingBlockIndex);
-  
-  // Define explosion radius
-  const EXPLOSION_RADIUS = 80;
-  
-  // Find all blocks in explosion radius and destroy them
-  const blocksAfterExplosion = updatedBlocks.filter(block => {
-    // Skip unbreakable blocks
-    if (block.type === 'unbreakable') {
-      return true;
-    }
-    
-    // Calculate block center
-    const blockCenterX = block.x + block.width / 2;
-    const blockCenterY = block.y + block.height / 2;
-    
-    // Calculate distance to explosion center
-    const distance = Math.sqrt(
-      Math.pow(blockCenterX - center.x, 2) + 
-      Math.pow(blockCenterY - center.y, 2)
-    );
-    
-    // If block is within explosion radius, destroy it
-    if (distance < EXPLOSION_RADIUS) {
-      // Award points for chain reaction
-      setScore(prev => prev + 5);
-      
-      // Create chance for power-up from destroyed blocks
-      if (Math.random() < 0.1) {
-        spawnPowerUp(blockCenterX, blockCenterY);
-      }
-      
-      return false; // Remove the block
-    }
-    
-    return true; // Keep the block
-  });
-  
-  return blocksAfterExplosion;
-};
-
-// Update game state
-const updateGameState = (deltaTime: number) => {
-  // Update power-ups
-  setPowerUps(prevPowerUps => {
-    return prevPowerUps
-      .map(powerUp => {
-        // Check for collision with platform
-        if (
-          powerUp.active &&
-          powerUp.y + powerUp.height > platform.y &&
-          powerUp.y < platform.y + platform.height &&
-          powerUp.x + powerUp.width > platform.x &&
-          powerUp.x < platform.x + platform.width
-        ) {
-          // Activate power-up
-          activatePowerUp(powerUp.type);
-          
-          // Collect power-up (deactivate it)
-          return { ...powerUp, active: false };
+    switch (formationType) {
+      case 0: // V formation
+        for (let i = 0; i < 5; i++) {
+          newEnemies.push({
+            id: nextEnemyId.current++,
+            x: 30 + i * 10,
+            y: 5 + Math.abs(2 - i) * 5,
+            type: i % 3
+          });
         }
-        
-        // Move power-up down
-        return {
-          ...powerUp,
-          y: powerUp.y + powerUp.dy,
-          // Remove if it goes off screen
-          active: powerUp.y < gameSize.height
-        };
-      })
-      .filter(powerUp => powerUp.active);
-  });
-
-  // Update block positions (for moving blocks)
-  setBlocks(prevBlocks => {
-    return prevBlocks.map(block => {
-      if (block.type === 'moving' && block.moveDirection) {
-        // Calculate new position
-        let newX = block.x + block.moveDirection;
-        
-        // Bounce if hit wall
-        if (newX <= 0 || newX + block.width >= gameSize.width) {
-          return {
-            ...block,
-            moveDirection: -block.moveDirection,
-            x: block.x + (-block.moveDirection) // Immediately move in new direction
-          };
+        break;
+      case 1: // Line formation
+        for (let i = 0; i < 6; i++) {
+          newEnemies.push({
+            id: nextEnemyId.current++,
+            x: 25 + i * 10,
+            y: 5,
+            type: (i + level) % 3
+          });
         }
-        
-        // Continue moving
-        return {
-          ...block,
-          x: newX
-        };
-      }
-      return block;
-    });
-  });
-
-  // Update main ball or all balls if multi-ball is active
-  if (activePowerUps.multiBall) {
-    // Update all balls in multi-ball mode
-    setBalls(prevBalls => {
-      return prevBalls.map(currBall => {
-        if (!currBall) return null;
-        
-        let { x, y, dx, dy, radius, speed } = currBall;
-        
-        // 1. Apply wall collisions first
-        const wallCollision = handleWallCollisions(currBall);
-        let newDx = wallCollision.dx;
-        let newDy = wallCollision.dy;
-        let newX = wallCollision.x;
-        let newY = wallCollision.y;
-        
-        // 2. Check for platform collision
-        if (
-          newY + radius > platform.y && 
-          newY - radius < platform.y + platform.height &&
-          newX + radius > platform.x && 
-          newX - radius < platform.x + platform.width
-        ) {
-          // Only bounce if coming from above
-          if (dy > 0 && newY < platform.y + platform.height/2) {
-            const hitPosition = (newX - platform.x) / platform.width;
-            newDx = speed * (hitPosition - 0.5) * 2.5;
-            newDy = -Math.abs(dy);
-            
-            // Normalize vector
-            const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
-            if (magnitude > 0) {
-              newDx = (newDx / magnitude) * speed;
-              newDy = (newDy / magnitude) * speed;
-            }
+        break;
+      case 2: // Box formation
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 3; col++) {
+            newEnemies.push({
+              id: nextEnemyId.current++,
+              x: 35 + col * 15,
+              y: 5 + row * 10,
+              type: (col + row + level) % 3
+            });
           }
         }
-        
-        // 3. Ball falls below platform - only way to lose a ball
-        if (newY + radius > gameSize.height) {
-          // For multi-ball, just remove this ball
-          return null;
+        break;
+      case 3: // Diamond formation
+        const positions = [
+          {x: 50, y: 0}, 
+          {x: 40, y: 10}, {x: 60, y: 10},
+          {x: 50, y: 20}
+        ];
+        positions.forEach((pos, i) => {
+          newEnemies.push({
+            id: nextEnemyId.current++,
+            x: pos.x,
+            y: pos.y,
+            type: (i + level) % 3
+          });
+        });
+        break;
+      case 4: // Random cluster
+        for (let i = 0; i < 7; i++) {
+          newEnemies.push({
+            id: nextEnemyId.current++,
+            x: 30 + Math.random() * 40,
+            y: Math.random() * 15,
+            type: Math.floor(Math.random() * 3)
+          });
         }
-        
-        // 4. Check collision with blocks
-        const collisionResult = handleBallBlockCollision(
-          {...currBall, x: newX, y: newY, dx: newDx, dy: newDy}, 
-          blocks
-        );
-        
-        // Apply collision result
-        newDx = collisionResult.newDx;
-        newDy = collisionResult.newDy;
-        
-        // Update blocks if this ball hit something
-        if (collisionResult.updatedBlocks.length !== blocks.length) {
-          setBlocks(collisionResult.updatedBlocks);
-          
-          // If a block was destroyed, potentially spawn a power-up
-          if (collisionResult.destroyed && collisionResult.destroyedPosition) {
-            spawnPowerUp(
-              collisionResult.destroyedPosition.x,
-              collisionResult.destroyedPosition.y
-            );
-          }
-        }
-        
-        // 5. Update position with the new velocity
-        newX = newX + newDx;
-        newY = newY + newDy;
-        
-        return {
-          ...currBall,
-          x: newX,
-          y: newY,
-          dx: newDx,
-          dy: newDy
+        break;
+    }
+    
+    // Add boss enemy every 5 levels
+    if (level % 5 === 0) {
+      newEnemies.push({
+        id: nextEnemyId.current++,
+        x: 50,
+        y: 10,
+        type: 2 // Use type 2 for boss appearance
+      });
+    }
+    
+    return newEnemies;
+  };
+
+  // Create new enemies at intervals
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+
+    // Add formation at the beginning of each level
+    if (enemies.length === 0) {
+      setEnemies(generateEnemyFormation());
+    }
+
+    const enemyInterval = setInterval(() => {
+      // Random chance to spawn single enemies
+      if (Math.random() > 0.7 && enemies.length < 10 + level) { // Limit total enemies
+        const newEnemy = {
+          id: nextEnemyId.current++,
+          x: Math.random() * 100, // Random position
+          y: 0, // Start at the top
+          type: Math.floor(Math.random() * 3) // Random enemy type (0-2)
         };
-      }).filter(Boolean) as Ball[];
-    });
-    
-    // Check if all balls are gone
-    if (balls.length === 0) {
-      setActivePowerUps(prev => ({ ...prev, multiBall: false }));
-      setBalls([ball]); // Reset to main ball
-    }
-  }
-  
-  // Update main ball state using the same improved collision logic
-  setBall(prevBall => {
-    let { x, y, dx, dy, radius, speed } = prevBall;
-    
-    // 1. Apply wall collisions first
-    const wallCollision = handleWallCollisions(prevBall);
-    let newDx = wallCollision.dx;
-    let newDy = wallCollision.dy;
-    let newX = wallCollision.x;
-    let newY = wallCollision.y;
-    
-    // 2. Platform collision
-    if (
-      newY + radius > platform.y && 
-      newY - radius < platform.y + platform.height &&
-      newX + radius > platform.x && 
-      newX - radius < platform.x + platform.width
-    ) {
-      if (dy > 0 && newY < platform.y + platform.height/2) {
-        const hitPosition = (newX - platform.x) / platform.width;
-        // Adjust angle based on where the ball hits the platform
-        newDx = speed * (hitPosition - 0.5) * 2.5;
-        newDy = -Math.abs(dy);
-        
-        // Normalize to maintain constant speed
-        const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
-        if (magnitude > 0) {
-          newDx = (newDx / magnitude) * speed;
-          newDy = (newDy / magnitude) * speed;
-        }
-      }
-    }
-    
-    // 3. Ball-block collision using enhanced precision detection
-    const collisionResult = handleBallBlockCollision(
-      {...prevBall, x: newX, y: newY, dx: newDx, dy: newDy}, 
-      blocks
-    );
-    
-    newDx = collisionResult.newDx;
-    newDy = collisionResult.newDy;
-    
-    // Update blocks if this ball hit something
-    if (collisionResult.updatedBlocks.length !== blocks.length) {
-      setBlocks(collisionResult.updatedBlocks);
-      
-      // If a block was destroyed, potentially spawn a power-up
-      if (collisionResult.destroyed && collisionResult.destroyedPosition) {
-        spawnPowerUp(
-          collisionResult.destroyedPosition.x,
-          collisionResult.destroyedPosition.y
-        );
-        
-        // Add score for destroyed block
-        setScore(prev => prev + 10);
+        setEnemies((prev) => [...prev, newEnemy]);
       }
       
-      // Check if level is complete
-      if (collisionResult.updatedBlocks.length === 0 || 
-          collisionResult.updatedBlocks.every(block => block.type === 'unbreakable')) {
-        // Level is complete when all breakable blocks are gone
-        setGameStarted(false);
-        setLevel(prevLevel => prevLevel + 1);
+      // Random chance for power-up
+      if (Math.random() > 0.95 && !powerUpActive) {
+        setPowerUpActive(true);
         
+        // Power-up lasts for 10 seconds
         setTimeout(() => {
-          setBall({
-            x: gameSize.width / 2,
-            y: gameSize.height - 60,
-            dx: 3 * (Math.random() > 0.5 ? 1 : -1),
-            dy: -(3 + level * 0.5),
-            radius: 7,
-            speed: 3 + level * 0.5
+          setPowerUpActive(false);
+        }, 10000);
+      }
+    }, 1500 / Math.sqrt(level)); // Spawn rate increases with level
+
+    return () => clearInterval(enemyInterval);
+  }, [gameStarted, gameOver, level, enemies.length, powerUpActive]);
+
+  // Game loop - update positions and check collisions
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+
+    const gameLoop = setInterval(() => {
+      // Move bullets up
+      setBullets((prev) => 
+        prev
+          .map((bullet) => ({...bullet, y: bullet.y - 2}))
+          .filter((bullet) => bullet.y > 0)
+      );
+
+      // Move enemies down - REDUCED SPEED HERE
+      setEnemies((prev) => {
+        const newEnemies = prev
+          .map((enemy) => ({...enemy, y: enemy.y + 0.2 * (1 + level * 0.05)}))
+          .filter((enemy) => enemy.y < 100);
+          
+        // Check for game over (enemy reached bottom)
+        if (newEnemies.some((enemy) => enemy.y > 90)) {
+          setGameOver(true);
+        }
+        
+        return newEnemies;
+      });
+
+      // Check collisions
+      setBullets((prevBullets) => {
+        let updatedBullets = [...prevBullets];
+        
+        setEnemies((prevEnemies) => {
+          let updatedEnemies = [...prevEnemies];
+          let scoreIncrease = 0;
+          
+          // Check each bullet against each enemy
+          updatedBullets = updatedBullets.filter(bullet => {
+            let bulletHit = false;
+            
+            updatedEnemies = updatedEnemies.filter(enemy => {
+              // Simple collision detection
+              const collision = 
+                Math.abs(bullet.x - enemy.x) < 8 && 
+                Math.abs(bullet.y - enemy.y) < 8;
+                
+              if (collision) {
+                scoreIncrease += 10 * (enemy.type + 1);
+                bulletHit = true;
+                return false; // Remove enemy
+              }
+              return true;
+            });
+            
+            return !bulletHit; // Keep bullet if it didn't hit
           });
           
-          createBlocks(gameSize.width, level + 1);
-          setGameStarted(true);
-        }, 1500);
-      }
-    }
-    
-    // 4. Ball falls below platform - Fix life system for proper gameplay
-    // This is the only way a ball can "exit" the game area
-    if (newY + radius > gameSize.height) {
-      setLives(prevLives => {
-        const newLives = Math.max(0, prevLives - 1);
-        
-        if (newLives <= 0) {
-          // Only set game over when lives reach zero
-          setGameOver(true);
-          setGameStarted(false);
-        } else {
-          // Reset ball and platform for next life with a better delay
-          setTimeout(() => {
-            // Center the platform
-            setPlatform(prev => ({
-              ...prev,
-              x: gameSize.width / 2 - prev.width / 2
-            }));
-            
-            // Reset ball with slightly randomized direction
-            setBall({
-              x: gameSize.width / 2,
-              y: gameSize.height - 60,
-              dx: speed * (Math.random() > 0.5 ? 1 : -1) * 0.8,
-              dy: -speed,
-              radius,
-              speed
+          if (scoreIncrease > 0) {
+            setScore(prev => {
+              const newScore = prev + scoreIncrease;
+              // Level up every 300 points
+              if (Math.floor(newScore / 300) > Math.floor(prev / 300)) {
+                setLevel(lvl => lvl + 1);
+              }
+              return newScore;
             });
-          }, 1000);
-        }
+          }
+          
+          // If all enemies are destroyed, add new formation in the next cycle
+          return updatedEnemies;
+        });
         
-        return newLives;
+        return updatedBullets;
       });
-      
-      // Move ball off screen immediately to avoid further collisions
-      return {
-        ...prevBall,
-        x: gameSize.width / 2,
-        y: gameSize.height * 2,
-        dx: 0,
-        dy: 0
-      };
-    }
-    
-    // 5. Update position with new velocity
-    newX = newX + newDx;
-    newY = newY + newDy;
-    
-    return {
-      ...prevBall,
-      x: newX,
-      y: newY,
-      dx: newDx,
-      dy: newDy
-    };
-  });
-};
+    }, 16); // ~60fps
 
-  // Handle platform movement - mouse
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!gameStarted || gameOver) return;
-    
-    const gameRect = gameAreaRef.current!.getBoundingClientRect();
-    const mouseX = e.clientX - gameRect.left;
-    
-    setPlatform(prev => ({
-      ...prev,
-      x: Math.max(0, Math.min(mouseX - prev.width / 2, gameSize.width - prev.width))
-    }));
-  };
-
-  // Handle platform movement - touch
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!gameStarted || gameOver) return;
-    e.preventDefault();
-    
-    const gameRect = gameAreaRef.current!.getBoundingClientRect();
-    const touchX = e.touches[0].clientX - gameRect.left;
-    
-    setPlatform(prev => ({
-      ...prev,
-      x: Math.max(0, Math.min(touchX - prev.width / 2, gameSize.width - prev.width))
-    }));
-  };
-
-  // Start or restart the game - Fixed lives reset
-  const startGame = () => {
-    if (gameOver) {
-      // Reset game state
-      setScore(0);
-      setLives(3);
-      setLevel(1);
-      
-      createBlocks(gameSize.width, 1);
-    }
-    
-    // Clear any active power-ups
-    setPowerUps([]);
-    setActivePowerUps({ widePlatform: false, multiBall: false });
-    if (powerUpTimeoutRef.current) clearTimeout(powerUpTimeoutRef.current);
-    
-    // Reset platform to original width
-    setPlatform(prev => ({
-      ...prev,
-      width: 120,
-      x: gameSize.width / 2 - 60,
-    }));
-    
-    // Reset ball position on any game start
-    setBall({
-      x: gameSize.width / 2,
-      y: gameSize.height - 60,
-      dx: 3,
-      dy: -3,
-      radius: 7,
-      speed: 3 // Initial speed
-    });
-    
-    // Reset platform position
-    setPlatform(prev => ({
-      ...prev,
-      x: gameSize.width / 2 - prev.width / 2,
-    }));
-    
-    setGameOver(false);
-    setGameStarted(true);
-  };
+    return () => clearInterval(gameLoop);
+  }, [gameStarted, gameOver, level]);
 
   return (
-    <div className="flex flex-col items-center w-full min-h-screen bg-gray-900 py-8 px-4">
-      <h1 className="text-3xl font-bold text-white mb-4">Ping Pong Block Buster</h1>
-      
-      <div className="flex gap-4 mb-4">
-        <div className="text-white text-xl">Level: {level}</div>
-        <div className="text-white text-xl">Score: {score}</div>
-        <div className="text-white text-xl">Lives: {lives}</div>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-900 bg-[url('/images/stars-bg.png')] p-4">
+      <div className="mb-4 flex justify-between items-center w-full max-w-lg px-4 bg-black bg-opacity-60 rounded-lg py-2 backdrop-blur-sm">
+        <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">Space Impact</h1>
+        <div className="flex gap-6">
+          <div className="text-white px-3 py-1 bg-purple-900 bg-opacity-70 rounded-md">Level: {level}</div>
+          <div className="text-white px-3 py-1 bg-blue-900 bg-opacity-70 rounded-md">Score: {score}</div>
+        </div>
       </div>
-      
+
       <div 
         ref={gameAreaRef}
-        className="relative bg-gray-800 rounded-lg shadow-lg w-full max-w-3xl h-[70vh] overflow-hidden cursor-none"
-        onMouseMove={handleMouseMove}
-        onTouchMove={handleTouchMove}
+        className="relative w-full max-w-lg h-[600px] bg-slate-900 border-2 border-purple-600 overflow-hidden rounded-lg shadow-[0_0_15px_rgba(147,51,234,0.5)] bg-[url('/images/space-bg.jpg')] bg-cover touch-none"
       >
-        {/* Game elements */}
-        
-        {/* Platform */}
-        <motion.div 
-          className={`absolute rounded-md ${
-            activePowerUps.widePlatform 
-              ? "bg-gradient-to-r from-purple-500 to-pink-600" 
-              : "bg-gradient-to-r from-blue-500 to-blue-600"
-          }`}
-          animate={{
-            x: platform.x,
-            y: platform.y
-          }}
-          style={{
-            width: platform.width,
-            height: platform.height
-          }}
-          transition={{ type: "tween", duration: 0 }}
-        />
-        
-        {/* Main Ball */}
-        <motion.div 
-          className="absolute w-[14px] h-[14px] bg-white rounded-full shadow-[0_0_10px_2px_rgba(255,255,255,0.6)]"
-          animate={{
-            x: ball.x - ball.radius,
-            y: ball.y - ball.radius
-          }}
-          transition={{ type: "tween", duration: 0 }}
-        />
-        
-        {/* Secondary Balls (for multi-ball power-up) */}
-        {activePowerUps.multiBall && balls.slice(1).map((secondaryBall, index) => (
-          <motion.div 
-            key={`ball-${index}`}
-            className="absolute w-[14px] h-[14px] bg-yellow-300 rounded-full shadow-[0_0_10px_2px_rgba(255,215,0,0.6)]"
-            animate={{
-              x: secondaryBall.x - secondaryBall.radius,
-              y: secondaryBall.y - secondaryBall.radius
-            }}
-            transition={{ type: "tween", duration: 0 }}
-          />
-        ))}
-        
-        {/* Falling Power-ups */}
-        <AnimatePresence>
-          {powerUps.map((powerUp) => (
-            <motion.div
-              key={powerUp.id}
-              className={`absolute rounded-md flex items-center justify-center 
-                ${powerUp.type === 'widePlatform' ? 'bg-purple-600' : 'bg-yellow-500'}`}
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1,
-                x: powerUp.x,
-                y: powerUp.y,
+        {/* Dynamic stars background */}
+        <div className="absolute inset-0 overflow-hidden">
+          {Array.from({ length: 100 }).map((_, i) => (
+            <div 
+              key={i}
+              className="absolute w-[2px] h-[2px] bg-white rounded-full animate-pulse"
+              style={{ 
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                opacity: Math.random() * 0.8 + 0.2,
               }}
-              exit={{ 
-                scale: 1.5,
-                opacity: 0,
-                transition: { duration: 0.3 }
-              }}
-              style={{
-                width: powerUp.width,
-                height: powerUp.height
-              }}
-            >
-              {/* Power-up icon */}
-              <span className="text-white font-bold text-lg">
-                {powerUp.type === 'widePlatform' ? '↔️' : '➕'}
-              </span>
-            </motion.div>
+            ></div>
           ))}
-        </AnimatePresence>
-        
-        {/* Blocks with special visual effects */}
-        <AnimatePresence>
-          {blocks.map((block) => (
-            <motion.div
-              key={block.id}
-              className={`absolute rounded-md ${
-                block.type === 'unbreakable' ? 'bg-gray-600 border-2 border-gray-400' :
-                block.type === 'explosive' ? 'bg-red-500' :
-                block.type === 'moving' ? 'bg-green-500' :
-                block.hitPoints === 2 ? 'bg-yellow-500' : 'bg-orange-500'
-              }`}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1,
-                x: block.type === 'moving' ? [block.x, block.x + 5, block.x - 5, block.x] : block.x
-              }}
-              exit={{ 
-                scale: block.type === 'explosive' ? 2 : 1.5,
-                opacity: 0,
-                transition: { duration: block.type === 'explosive' ? 0.5 : 0.3 }
-              }}
-              style={{
-                left: block.x,
-                top: block.y,
-                width: block.width,
-                height: block.height
-              }}
-              whileHover={{ scale: 1.02 }}
-            >
-              {/* Block content based on type */}
-              {block.type === 'explosive' && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-1/2 h-1/2 text-white text-center font-bold">💣</div>
-                </div>
-              )}
-              
-              {block.type === 'unbreakable' && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-3/4 h-3/4 border-4 border-dashed border-gray-300 rounded-sm"></div>
-                </div>
-              )}
-              
-              {block.hitPoints === 2 && block.type !== 'unbreakable' && (
-                <motion.div 
-                  className="absolute inset-0"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-full h-0.5 bg-red-800 rotate-45"></div>
-                    <div className="w-full h-0.5 bg-red-800 -rotate-45"></div>
-                  </div>
-                </motion.div>
-              )}
-              
-              {block.type === 'moving' && (
-                <motion.div 
-                  className="absolute inset-0"
-                  animate={{ 
-                    x: [0, 5, -5, 0],
-                    transition: { repeat: Infinity, duration: 2 }
-                  }}
-                >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-1/2 h-1/2 text-white text-center font-bold">↔️</div>
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        
-        {/* Power-up indicator */}
-        {(activePowerUps.widePlatform || activePowerUps.multiBall) && (
-          <div className="absolute top-12 left-2 flex flex-col gap-1">
-            {activePowerUps.widePlatform && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                className="bg-purple-600 px-2 py-1 rounded text-white text-xs"
-              >
-                Wide Platform!
-              </motion.div>
-            )}
-            {activePowerUps.multiBall && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                className="bg-yellow-600 px-2 py-1 rounded text-white text-xs"
-              >
-                Multi Ball!
-              </motion.div>
-            )}
-          </div>
-        )}
-        
-        {/* Lives indicators with better animation */}
-        <div className="absolute top-2 right-2 flex gap-1">
-          <AnimatePresence>
-            {Array.from({ length: Math.max(0, lives) }).map((_, i) => (
-              <motion.div 
-                key={`life-${i}`}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300 }}
-                className="w-3 h-3 bg-red-500 rounded-full"
-              />
-            ))}
-          </AnimatePresence>
         </div>
         
-        {/* Game state indicators */}
-        {lives < 3 && lives > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="absolute top-10 left-1/2 transform -translate-x-1/2 bg-red-500 px-3 py-1 rounded-md text-white font-bold"
-          >
-            Life lost! {lives} remaining
-          </motion.div>
-        )}
-        
-        {/* Enhanced life lost indicator */}
-        <AnimatePresence>
-          {lives < 3 && lives > 0 && !gameOver && (
-            <motion.div
-              key={`life-lost-${lives}`}
-              initial={{ opacity: 0, y: 20, scale: 0.5 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.5 }}
-              transition={{ duration: 0.5 }}
-              className="absolute top-1/3 left-1/2 transform -translate-x-1/2 bg-red-500 px-6 py-3 rounded-md text-white font-bold z-10 shadow-lg"
-            >
-              <div className="text-xl mb-1">Life lost!</div>
-              <div className="flex justify-center items-center gap-2">
-                {Array.from({ length: lives }).map((_, i) => (
-                  <motion.div 
-                    key={`heart-${i}`}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: i * 0.2 }}
-                    className="w-6 h-6 bg-red-300 rounded-full flex items-center justify-center"
-                  >
-                    ❤️
-                  </motion.div>
-                ))}
+        {/* HUD overlay at the top */}
+        <div className="absolute top-0 left-0 right-0 h-8 flex justify-between items-center px-4 bg-black bg-opacity-40 z-10">
+          <div className="flex items-center gap-2">
+            {powerUpActive && (
+              <div className="text-yellow-300 text-sm font-bold animate-pulse">
+                POWER UP ACTIVE!
               </div>
-              <div className="mt-2 text-sm">Get ready... continuing in 1 second</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+            {autoFire && (
+              <div className="text-green-300 text-sm font-bold ml-4">
+                AUTO-FIRE: ON
+              </div>
+            )}
+          </div>
+          <div className="text-xs text-white opacity-70">
+            Swipe to move • Tap to shoot
+          </div>
+        </div>
         
-        {/* Game overlay */}
-        {(!gameStarted || gameOver) && (
-          <motion.div 
-            className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <h2 className="text-3xl font-bold text-white mb-4">
-              {gameOver ? 'Game Over' : level === 1 ? 'Ping Pong Block Buster' : `Level ${level}`}
+        {!gameStarted || gameOver ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 z-10 backdrop-blur-sm">
+            <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
+              {gameOver ? 'Game Over' : 'Space Impact'}
             </h2>
-            
-            {gameOver && (
-              <>
-                <p className="text-white text-xl mb-4">Final Score: {score}</p>
-                <p className="text-red-500 text-lg mb-4">You lost all your lives!</p>
-              </>
-            )}
-            
-            {gameOver && <p className="text-white text-xl mb-4">Final Score: {score}</p>}
-            {level > 1 && !gameOver && (
-              <p className="text-white text-xl mb-4">You reached level {level}!</p>
-            )}
-            
+            <p className="text-white mb-2 text-center max-w-xs">
+              {gameOver ? `Final Score: ${score}` : 'Use arrow keys to move and spacebar to shoot'}
+            </p>
+            <p className="text-white mb-6 text-center max-w-xs text-sm opacity-80">
+              {gameOver ? '' : 'On mobile: Swipe to move, tap to shoot, press "A" to toggle auto-fire'}
+            </p>
             <button
-              className="bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:from-blue-600 hover:to-blue-800 transition-all duration-200"
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition shadow-lg transform hover:scale-105 active:scale-95"
               onClick={startGame}
             >
-              {gameOver ? 'Play Again' : level === 1 ? 'Start Game' : 'Start Level ' + level}
+              {gameOver ? 'Play Again' : 'Start Game'}
             </button>
-            
-            {!gameOver && (
-              <div className="mt-6 text-white text-center max-w-md">
-                <h3 className="text-xl font-semibold mb-2">How to Play:</h3>
-                <p>Move your mouse or finger to control the platform.</p>
-                <p>Break all blocks to advance to the next level.</p>
-                <p>Look out for power-ups and special blocks:</p>
-                <div className="flex flex-wrap justify-center gap-3 mt-2">
-                  <div className="flex items-center bg-yellow-500 px-2 py-1 rounded">
-                    <span className="mr-1">🔨</span> 2 Hits
-                  </div>
-                  <div className="flex items-center bg-red-500 px-2 py-1 rounded">
-                    <span className="mr-1">💣</span> Explosive
-                  </div>
-                  <div className="flex items-center bg-green-500 px-2 py-1 rounded">
-                    <span className="mr-1">↔️</span> Moving
-                  </div>
-                  <div className="flex items-center bg-gray-600 px-2 py-1 rounded">
-                    <span className="mr-1">🛡️</span> Unbreakable
-                  </div>
-                </div>
+          </div>
+        ) : null}
+
+        {/* Player ship with engine glow - using Framer Motion for smooth animations */}
+        <motion.div 
+          className="absolute bottom-2 w-10 h-10" 
+          style={{ left: `calc(${playerPosition}% - 20px)` }}
+          animate={{ left: `calc(${playerPosition}% - 20px)` }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        >
+          <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-b-[30px] border-l-transparent border-r-transparent border-b-blue-500 mx-auto relative">
+            {/* Engine glow */}
+            <motion.div 
+              className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-5 h-6 bg-blue-400 rounded-full blur-sm opacity-70"
+              animate={{ opacity: [0.4, 0.8, 0.4], scale: [0.8, 1.1, 0.8] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            ></motion.div>
+          </div>
+          <div className="absolute top-[60%] left-1/2 -translate-x-1/2 w-4 h-1 bg-yellow-300"></div>
+          <div className="absolute top-[70%] left-1/2 -translate-x-1/2 w-2 h-2 bg-red-500 rounded-full"></div>
+          
+          {/* Power-up indicator */}
+          {powerUpActive && (
+            <motion.div 
+              className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full border-2 border-yellow-400 opacity-70"
+              animate={{ scale: [1, 1.5, 1], opacity: [0.7, 0.3, 0.7] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            ></motion.div>
+          )}
+        </motion.div>
+
+        {/* Bullets with glow effect - using Framer Motion */}
+        {bullets.map((bullet) => (
+          <motion.div
+            key={bullet.id}
+            className="absolute w-2 h-6 bg-yellow-400 rounded-full"
+            initial={{ bottom: `${(100 - bullet.y)}%`, left: `calc(${bullet.x}% - 1px)` }}
+            animate={{ bottom: `${(100 - bullet.y)}%`, left: `calc(${bullet.x}% - 1px)` }}
+            transition={{ type: "tween", duration: 0.1 }}
+          >
+            <motion.div 
+              className="absolute inset-0 bg-white blur-sm rounded-full"
+              animate={{ opacity: [0.3, 0.6, 0.3] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            ></motion.div>
+          </motion.div>
+        ))}
+
+        {/* Enemies - using Framer Motion */}
+        {enemies.map((enemy) => (
+          <motion.div
+            key={enemy.id}
+            className="absolute w-12 h-12"
+            initial={{ top: `${enemy.y}%`, left: `calc(${enemy.x}% - 18px)` }}
+            animate={{ top: `${enemy.y}%`, left: `calc(${enemy.x}% - 18px)` }}
+            transition={{ type: "tween", duration: 0.1 }}
+            onClick={shoot} // Allow tapping on enemies to shoot
+          >
+            {enemy.type === 0 && (
+              <div className="w-10 h-5 bg-gradient-to-b from-red-400 to-red-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_5px_rgba(239,68,68,0.7)]">
+                <div className="w-6 h-3 bg-red-700 rounded-full"></div>
+                <div className="absolute -bottom-1 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[8px] border-l-transparent border-r-transparent border-t-red-500 mx-auto"></div>
+              </div>
+            )}
+            {enemy.type === 1 && (
+              <div className="w-12 h-6 bg-gradient-to-b from-green-400 to-green-600 rounded-md flex items-center justify-center shadow-[0_0_5px_rgba(34,197,94,0.7)]">
+                <div className="w-8 h-3 bg-green-700 rounded-sm"></div>
+                <div className="absolute -bottom-2 left-1 w-2 h-4 bg-green-500 rounded-b-md"></div>
+                <div className="absolute -bottom-2 right-1 w-2 h-4 bg-green-500 rounded-b-md"></div>
+              </div>
+            )}
+            {enemy.type === 2 && (
+              <div className="w-12 h-8 bg-gradient-to-b from-purple-500 to-purple-700 rounded-t-full flex items-center justify-center shadow-[0_0_5px_rgba(168,85,247,0.7)]">
+                <div className="w-6 h-3 bg-yellow-400"></div>
+                <div className="absolute -bottom-1 left-2 w-8 h-2 bg-purple-600"></div>
+                <div className="absolute -bottom-3 left-3 w-6 h-2 bg-purple-600"></div>
+                {/* Glow effect for boss enemies */}
+                {level % 5 === 0 && enemy.y < 15 && (
+                  <div className="absolute inset-0 border-2 border-yellow-300 rounded-t-full animate-ping opacity-50"></div>
+                )}
               </div>
             )}
           </motion.div>
-        )}
+        ))}
       </div>
-    </div>
-  );
-};
 
-export default PingPongGame;
+      {gameStarted && !gameOver && (
+        <div className="mt-4 flex justify-between w-full max-w-lg px-4">
+          <button 
+            className="px-8 py-4 bg-gradient-to-r from-blue-700 to-blue-500 text-white rounded-full hover:from-blue-800 hover:to-blue-600 transition active:from-blue-900 active:to-blue-700 text-xl shadow-lg"
+            onTouchStart={() => updatePlayerPosition(playerPositionRef.current - 5)}
+            onClick={() => updatePlayerPosition(playerPositionRef.current - 5)}
+          >
+            ←
+          </button>
+          <button 
+            className={`px-6 py-3 text-white rounded-full transition text-lg shadow-lg ${
+              autoFire 
+                ? "bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 active:from-green-800 active:to-green-700" 
+                : "bg-gradient-to-r from-yellow-600 to-red-500 hover:from-yellow-700 hover:to-red-600 active:from-yellow-800 active:to-red-700"
+            }`}
+            onTouchStart={() => setAutoFire(prev => !prev)}
+            onClick={() => setAutoFire(prev => !prev)}
+          >
+            {autoFire ? "Auto: ON" : "Auto: OFF"}
+          </button>
+          <button 
+            className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:from-blue-600 hover:to-blue-800 transition active:from-blue-700 active:to-blue-900 text-xl shadow-lg"
+            onTouchStart={() => updatePlayerPosition(playerPositionRef.current + 5)}
+            onClick={() => updatePlayerPosition(playerPositionRef.current + 5)}
+          >
+            →
+          </button>
+        </div>
+      )}
+    </main>
+  );
+}

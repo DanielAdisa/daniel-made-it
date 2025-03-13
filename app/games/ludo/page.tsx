@@ -12,7 +12,7 @@ type Player = {
 };
 
 // Define the grid size
-const GRID_SIZE = 48;
+const GRID_SIZE = 15;
 
 // Fix Array.fill to create independent objects for each piece
 const INITIAL_PLAYERS: Player[] = [
@@ -38,24 +38,31 @@ const INITIAL_PLAYERS: Player[] = [
   }
 ];
 
-// Path coordinates for each player (will need conversion to 48x48 grid)
+// Correct starting positions
+const START_POSITIONS = {
+  red: { x: 2, y: 7 },
+  green: { x: 7, y: 2 },
+  yellow: { x: 13, y: 8 },
+  blue: { x: 8, y: 13 }
+};
+
+// Path coordinates for each player - making sure they're accurate
 const PATHS = {
   red: [
-    // Red path: Starting from red home to center
-    { x: 6, y: 1 }, { x: 6, y: 2 }, { x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 },
-    { x: 5, y: 6 }, { x: 4, y: 6 }, { x: 3, y: 6 }, { x: 2, y: 6 }, { x: 1, y: 6 },
-    { x: 1, y: 7 }, { x: 1, y: 8 },
-    { x: 2, y: 8 }, { x: 3, y: 8 }, { x: 4, y: 8 }, { x: 5, y: 8 }, { x: 6, y: 9 },
-    { x: 6, y: 10 }, { x: 6, y: 11 }, { x: 6, y: 12 }, { x: 6, y: 13 }, { x: 6, y: 14 },
-    { x: 7, y: 14 }, { x: 8, y: 14 },
-    { x: 8, y: 13 }, { x: 8, y: 12 }, { x: 8, y: 11 }, { x: 8, y: 10 }, { x: 8, y: 9 },
-    { x: 9, y: 8 }, { x: 10, y: 8 }, { x: 11, y: 8 }, { x: 12, y: 8 }, { x: 13, y: 8 },
-    { x: 14, y: 8 }, { x: 14, y: 7 },
-    { x: 14, y: 6 }, { x: 13, y: 6 }, { x: 12, y: 6 }, { x: 11, y: 6 }, { x: 10, y: 6 },
-    { x: 9, y: 6 }, { x: 8, y: 5 }, { x: 8, y: 4 }, { x: 8, y: 3 }, { x: 8, y: 2 },
-    { x: 8, y: 1 }, { x: 7, y: 1 },
-    // Final stretch for red
-    { x: 7, y: 2 }, { x: 7, y: 3 }, { x: 7, y: 4 }, { x: 7, y: 5 }, { x: 7, y: 6 },
+    { x: 2, y: 7 }, // Step 1 (starting position)
+    { x: 2, y: 6 }, { x: 2, y: 5 }, { x: 2, y: 4 }, { x: 2, y: 3 }, { x: 2, y: 2 },
+    { x: 3, y: 2 }, { x: 4, y: 2 }, { x: 5, y: 2 }, { x: 6, y: 2 }, { x: 6, y: 3 },
+    { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 6, y: 6 }, { x: 7, y: 6 }, { x: 8, y: 6 },
+    { x: 8, y: 5 }, { x: 8, y: 4 }, { x: 8, y: 3 }, { x: 8, y: 2 }, { x: 9, y: 2 },
+    { x: 10, y: 2 }, { x: 11, y: 2 }, { x: 12, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 3 },
+    { x: 13, y: 4 }, { x: 13, y: 5 }, { x: 13, y: 6 }, { x: 13, y: 7 }, { x: 13, y: 8 },
+    { x: 13, y: 9 }, { x: 13, y: 10 }, { x: 13, y: 11 }, { x: 13, y: 12 }, { x: 13, y: 13 },
+    { x: 12, y: 13 }, { x: 11, y: 13 }, { x: 10, y: 13 }, { x: 9, y: 13 }, { x: 8, y: 13 },
+    { x: 8, y: 12 }, { x: 8, y: 11 }, { x: 8, y: 10 }, { x: 8, y: 9 }, { x: 7, y: 9 },
+    { x: 6, y: 9 }, { x: 6, y: 10 }, { x: 6, y: 11 }, { x: 6, y: 12 }, { x: 6, y: 13 },
+    { x: 5, y: 13 }, { x: 4, y: 13 }, { x: 3, y: 13 }, { x: 2, y: 13 }, { x: 2, y: 12 },
+    { x: 2, y: 11 }, { x: 2, y: 10 }, { x: 2, y: 9 }, { x: 2, y: 8 }, // Finish area starts here
+    { x: 3, y: 8 }, { x: 4, y: 8 }, { x: 5, y: 8 }, { x: 6, y: 8 }, { x: 7, y: 8 }  // Final 5 steps
   ],
   green: [
     // Green path: Starting from green home to center
@@ -110,6 +117,12 @@ const PATHS = {
   ]
 };
 
+// Safe spots where pieces can't be captured
+const SAFE_SPOTS = [
+  '2,7', '7,2', '13,8', '8,13', // Starting positions
+  '7,7' // Center
+];
+
 export default function LudoGame() {
   const [players, setPlayers] = useState<Player[]>(INITIAL_PLAYERS);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
@@ -120,19 +133,11 @@ export default function LudoGame() {
   const [selectedPieceIndex, setSelectedPieceIndex] = useState<number | null>(null);
   const [boardSize, setBoardSize] = useState({ width: 480, height: 480 });
 
-  // Convert 15x15 grid to 48x48 grid
-  const convertToGridCoordinates = (x: number, y: number) => {
-    return {
-      x: Math.round((x - 1) * (48/15)) + 1,
-      y: Math.round((y - 1) * (48/15)) + 1
-    };
-  };
-
   useEffect(() => {
     // Update board size based on viewport
     const updateBoardSize = () => {
-      const width = window.innerWidth < 640 ? 336 : window.innerWidth < 1024 ? 480 : 576; // Divisible by 48 for exact cells
-      setBoardSize({ width, height: width });
+      const width = window.innerWidth < 640 ? 300 : window.innerWidth < 1024 ? 450 : 600; 
+      setBoardSize({ width, height: width }); // Keep it square
     };
 
     updateBoardSize();
@@ -165,6 +170,9 @@ export default function LudoGame() {
       const currentPlayer = players[currentPlayerIndex];
       const canMoveWithDice1 = checkIfPlayerCanMove(currentPlayer, finalValues[0]);
       const canMoveWithDice2 = checkIfPlayerCanMove(currentPlayer, finalValues[1]);
+      
+      // If both dice are 6, player gets another turn after using these dice
+      const rollsDoublesSix = finalValues[0] === 6 && finalValues[1] === 6;
       
       if (!canMoveWithDice1 && !canMoveWithDice2) {
         // Move to next player after a delay
@@ -227,12 +235,12 @@ export default function LudoGame() {
     // Handle moving out of home
     if (piece.inHome && diceValue === 6) {
       const updatedPlayers = [...players];
-      const startPosition = getStartPosition(currentPlayer.color);
+      const startPosition = START_POSITIONS[currentPlayer.color];
       updatedPlayers[currentPlayerIndex].pieces[pieceIndex] = {
         ...startPosition,
         inHome: false,
         inFinish: false,
-        steps: 0
+        steps: 1 // Start at step 1 to correctly place on path
       };
       setPlayers(updatedPlayers);
       
@@ -273,49 +281,75 @@ export default function LudoGame() {
     if (checkWinCondition(updatedPlayers[currentPlayerIndex])) {
       setWinner(currentPlayer.color);
     } 
-    // If both dice are now used, proceed to next player
+    // Fix: Player gets another turn if they rolled a 6 or doubles
     else if (newDiceValues[0] === 0 && newDiceValues[1] === 0) {
-      setTimeout(() => nextPlayer(), 500);
-    }
-    // If player rolled doubles (both dice same value), they get another turn
-    else if (diceValues[0] === diceValues[1] && diceValues[0] !== 0 && diceValues[1] !== 0) {
-      // Player keeps their turn, but we've already used one die
+      // Both dice used - check if either was a 6 for an extra turn
+      if (diceValue === 6) {
+        // Player gets another turn for rolling a 6
+        setTimeout(() => {
+          setDiceValues([0, 0]);
+          rollDice();
+        }, 500);
+      } else if (diceValues[0] === diceValues[1] && diceValues[0] !== 0) {
+        // Player rolled doubles (non-zero), gets another turn
+        setTimeout(() => {
+          setDiceValues([0, 0]);
+          rollDice();
+        }, 500);
+      } else {
+        // Normal move, next player's turn
+        setTimeout(() => nextPlayer(), 500);
+      }
     }
   };
 
   // Calculate new position based on current position and dice value
   const calculateNewPosition = (piece: Position, color: PlayerColor, steps: number): Position => {
-    // Basic implementation - this would need to handle the complete path logic
     const newSteps = piece.steps + steps;
     const path = PATHS[color];
     
-    // If would go beyond finish, stay in place
+    // If would go beyond finish, bounce back
     if (newSteps > path.length) {
-      return piece;
+      const overshoot = newSteps - path.length;
+      const bounceBackSteps = path.length - overshoot;
+      const newPosition = path[bounceBackSteps - 1]; // -1 for array index
+      
+      return {
+        ...newPosition,
+        inHome: false,
+        inFinish: bounceBackSteps >= path.length - 5, // Last 5 spaces are the finish area
+        steps: bounceBackSteps
+      };
     }
     
+    // Normal movement
     const newPosition = path[newSteps - 1]; // -1 because steps start from 1
+    const inFinish = newSteps >= path.length - 5 && newSteps <= path.length; // Last 5 spaces are finishing area
+    
     return {
       ...newPosition,
       inHome: false,
-      inFinish: newSteps === path.length,
+      inFinish,
       steps: newSteps
     };
   };
 
   // Get the starting position for a player based on color
   const getStartPosition = (color: PlayerColor) => {
-    switch (color) {
-      case 'red': return { x: 6, y: 1 };
-      case 'green': return { x: 13, y: 6 };
-      case 'yellow': return { x: 8, y: 13 };
-      case 'blue': return { x: 1, y: 8 };
-      default: return { x: 0, y: 0 };
-    }
+    return {
+      ...START_POSITIONS[color],
+      steps: 1 // Each piece starts at step 1 on the path
+    };
   };
 
   // Check for captures
   const checkForCaptures = (newPosition: Position, currentPlayerIdx: number) => {
+    // Check if position is a safe spot
+    const posKey = `${newPosition.x},${newPosition.y}`;
+    if (SAFE_SPOTS.includes(posKey)) {
+      return; // No captures on safe spots
+    }
+    
     const updatedPlayers = [...players];
     
     players.forEach((player, playerIdx) => {
@@ -349,96 +383,136 @@ export default function LudoGame() {
 
   // Helper function to get cell class based on coordinates
   const getCellClass = (x: number, y: number) => {
-    // Base cell class
-    let cellClass = "border border-gray-200 ";
+    // Account for 1-based indexing in the array
+    const adjX = x - 1;
+    const adjY = y - 1;
     
-    // Size each cell based on board size
-    const cellSize = boardSize.width / GRID_SIZE;
-    
-    // Red home area (top-left)
-    if (x <= 18 && y <= 18) {
-      cellClass += "bg-red-100 ";
-    }
-    // Green home area (top-right)
-    else if (x >= 31 && y <= 18) {
-      cellClass += "bg-green-100 ";
-    }
-    // Yellow home area (bottom-right)
-    else if (x >= 31 && y >= 31) {
-      cellClass += "bg-yellow-100 ";
-    }
-    // Blue home area (bottom-left)
-    else if (x <= 18 && y >= 31) {
-      cellClass += "bg-blue-100 ";
-    }
-    // Center area
-    else if (x >= 19 && x <= 30 && y >= 19 && y <= 30) {
-      // Red path to center
-      if (x >= 19 && x <= 24 && y === 24) {
-        cellClass += "bg-red-200 ";
+    // Red home area (top-left corner)
+    if (adjX < 6 && adjY < 6) {
+      // Border outline
+      if (adjX === 5 || adjY === 5) {
+        return 'bg-red-300 border-red-400';
       }
-      // Green path to center
-      else if (x === 24 && y >= 19 && y <= 24) {
-        cellClass += "bg-green-200 ";
+      // Inner 4x4 playing area (with proper offset)
+      if (adjX >= 1 && adjX <= 4 && adjY >= 1 && adjY <= 4) {
+        return 'bg-red-50';
       }
-      // Yellow path to center
-      else if (x >= 24 && x <= 30 && y === 24) {
-        cellClass += "bg-yellow-200 ";
-      }
-      // Blue path to center
-      else if (x === 24 && y >= 24 && y <= 30) {
-        cellClass += "bg-blue-200 ";
-      }
-      // Center finishing area
-      else {
-        cellClass += "bg-gray-100 ";
-      }
-    }
-    // Path cells
-    else if (
-      // Vertical paths
-      x === 24 || 
-      // Horizontal paths
-      y === 24
-    ) {
-      cellClass += "bg-gray-200 ";
-    }
-    // Default white cells
-    else {
-      cellClass += "bg-white ";
+      return 'bg-red-500'; // Main red color
     }
     
-    return cellClass;
-  };
+    // Green home area (top-right corner)
+    if (adjX >= 9 && adjY < 6) {
+      // Border outline
+      if (adjX === 9 || adjY === 5) {
+        return 'bg-green-300 border-green-400';
+      }
+      // Inner 4x4 playing area (with proper offset)
+      if (adjX >= 10 && adjX <= 13 && adjY >= 1 && adjY <= 4) {
+        return 'bg-green-50';
+      }
+      return 'bg-green-500'; // Main green color
+    }
+    
+    // Yellow home area (bottom-right corner)
+    if (adjX >= 9 && adjX < 15 && adjY >= 9 && adjY < 15) {
+      // Border outline
+      if (adjX === 9 || adjY === 9) {
+        return 'bg-yellow-300 border-yellow-400';
+      }
+      // Inner 4x4 playing area (with proper offset)
+      if (adjX >= 10 && adjX <= 13 && adjY >= 10 && adjY <= 13) {
+        return 'bg-yellow-50';
+      }
+      return 'bg-yellow-500'; // Main yellow color
+    }
+    
+    // Blue home area (bottom-left corner)
+    if (adjX < 6 && adjY >= 9 && adjY < 15) {
+      // Border outline
+      if (adjX === 5 || adjY === 9) {
+        return 'bg-blue-300 border-blue-400';
+      }
+      // Inner 4x4 playing area (with proper offset)
+      if (adjX >= 1 && adjX <= 4 && adjY >= 10 && adjY <= 13) {
+        return 'bg-blue-50';
+      }
+      return 'bg-blue-500'; // Main blue color
+    }
   
-  // Create the 48x48 grid for the board
+    // Safe cells (star spots) with clearer marking
+    if ((adjX === 1 && adjY === 6) || // Red start
+        (adjX === 8 && adjY === 1) || // Green start
+        (adjX === 13 && adjY === 8) || // Yellow start
+        (adjX === 6 && adjY === 13)) { // Blue start
+      return 'bg-gray-100 border border-gray-400'; 
+    }
+    
+    // Additional safe spots with star markings
+    if ((adjX === 6 && adjY === 1) || // Top safe spot
+        (adjX === 13 && adjY === 6) || // Right safe spot
+        (adjX === 8 && adjY === 13) || // Bottom safe spot
+        (adjX === 1 && adjY === 8)) { // Left safe spot
+      return 'bg-gray-200 border border-gray-400';
+    }
+    
+    // Main path - vertical
+    if (adjX === 7) {
+      if (adjY < 6) return 'bg-green-200'; // Green path
+      if (adjY > 8) return 'bg-blue-200'; // Blue path
+      return 'bg-gray-200'; // Neutral path
+    }
+    
+    // Main path - horizontal
+    if (adjY === 7) {
+      if (adjX < 6) return 'bg-red-200'; // Red path
+      if (adjX > 8) return 'bg-yellow-200'; // Yellow path
+      return 'bg-gray-200'; // Neutral path
+    }
+    
+    // Colored home paths - more precise and nicer looking
+    if (adjY === 6 && adjX >= 1 && adjX <= 5) return 'bg-red-200';  // Red home path
+    if (adjX === 8 && adjY >= 1 && adjY <= 5) return 'bg-green-200'; // Green home path
+    if (adjY === 8 && adjX >= 9 && adjX <= 13) return 'bg-yellow-200'; // Yellow home path
+    if (adjX === 6 && adjY >= 9 && adjY <= 13) return 'bg-blue-200'; // Blue home path
+    
+    // Center finish area - proper symmetric look
+    if (adjX === 7 && adjY === 7) {
+      return 'bg-white border-2 border-gray-300';
+    }
+    
+    // Default - neutral background for uncovered areas
+    return 'bg-gray-100';
+  };
+
+  // Create the 15x15 grid for the board
   const renderBoard = () => {
-    // Calculate cell size
     const cellSize = boardSize.width / GRID_SIZE;
     
     return (
-      <div 
-        className="relative rounded-xl overflow-hidden shadow-xl border border-gray-300"
-        style={{ 
-          width: `${boardSize.width}px`, 
-          height: `${boardSize.height}px`,
-          display: 'grid',
-          gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-          gridTemplateRows: `repeat(${GRID_SIZE}, 1fr)`
-        }}
-      >
-        {/* Generate all cells for the 48x48 grid */}
-        {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
-          const x = index % GRID_SIZE + 1;
-          const y = Math.floor(index / GRID_SIZE) + 1;
-          return (
-            <div 
-              key={`cell-${x}-${y}`}
-              className={getCellClass(x, y)}
-              style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
-            />
-          );
-        })}
+      <div className="relative rounded-xl overflow-hidden shadow-xl border border-gray-300">
+        {/* Board grid */}
+        <div 
+          className="grid grid-cols-15 grid-rows-15"
+          style={{ 
+            width: `${boardSize.width}px`, 
+            height: `${boardSize.height}px`
+          }}
+        >
+          {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
+            const x = index % GRID_SIZE + 1;
+            const y = Math.floor(index / GRID_SIZE) + 1;
+            return (
+              <div 
+                key={`cell-${x}-${y}`}
+                className={`border border-gray-200 ${getCellClass(x, y)}`}
+                style={{ 
+                  width: `${cellSize}px`, 
+                  height: `${cellSize}px` 
+                }}
+              />
+            );
+          })}
+        </div>
         
         {/* Render pieces on the board */}
         {renderPieces()}
@@ -448,6 +522,8 @@ export default function LudoGame() {
   
   // Render all player pieces on the board
   const renderPieces = () => {
+    const cellSize = boardSize.width / GRID_SIZE;
+    
     return (
       <>
         {players.map((player, playerIdx) => (
@@ -472,29 +548,28 @@ export default function LudoGame() {
     const isSelectable = isCurrentPlayer && (diceValues[0] > 0 || diceValues[1] > 0) && !isRolling;
     const isSelected = isCurrentPlayer && selectedPieceIndex === pieceIdx;
     
-    // Convert 15x15 coordinates to 48x48
-    const gridPos = convertToGridCoordinates(piece.x, piece.y);
-    
-    // Calculate cell size based on board dimensions
+    // Calculate position based on cell size
     const cellSize = boardSize.width / GRID_SIZE;
+    const left = (piece.x - 0.5) * cellSize;
+    const top = (piece.y - 0.5) * cellSize;
     
-    let bgColor, borderColor;
+    let bgColor, ringColor;
     switch (player.color) {
       case 'red': 
         bgColor = 'bg-red-500'; 
-        borderColor = 'border-red-700';
+        ringColor = 'ring-red-200';
         break;
       case 'green': 
-        bgColor = 'bg-green-500'; 
-        borderColor = 'border-green-700';
+        bgColor = 'bg-green-500';
+        ringColor = 'ring-green-200';
         break;
       case 'yellow': 
-        bgColor = 'bg-yellow-500'; 
-        borderColor = 'border-yellow-700';
+        bgColor = 'bg-yellow-500';
+        ringColor = 'ring-yellow-200';
         break;
       case 'blue': 
-        bgColor = 'bg-blue-500'; 
-        borderColor = 'border-blue-700';
+        bgColor = 'bg-blue-500';
+        ringColor = 'ring-blue-200';
         break;
     }
     
@@ -511,15 +586,15 @@ export default function LudoGame() {
             }
           }
         }}
-        className={`absolute rounded-full border-2 shadow transition-transform
-                    ${bgColor} ${borderColor}
-                    ${isSelectable ? 'cursor-pointer hover:scale-110' : ''}
-                    ${isSelected ? 'ring-2 ring-white shadow-lg' : ''}`}
+        className={`absolute rounded-full border-2 border-white shadow-lg transition-transform
+                  ${bgColor}
+                  ${isSelectable ? 'cursor-pointer hover:scale-110' : ''}
+                  ${isSelected ? `ring-4 ${ringColor} shadow-xl scale-105` : ''}`}
         style={{
-          width: cellSize * 0.8,
-          height: cellSize * 0.8,
-          left: `${(gridPos.x - 0.5) * cellSize}px`,
-          top: `${(gridPos.y - 0.5) * cellSize}px`,
+          width: cellSize * 0.65,
+          height: cellSize * 0.65,
+          left: left,
+          top: top,
           transform: 'translate(-50%, -50%)',
           zIndex: isSelected ? 30 : 20
         }}
@@ -529,25 +604,30 @@ export default function LudoGame() {
   
   // Render pieces in home bases
   const renderHomePieces = () => {
+    const cellSize = boardSize.width / GRID_SIZE;
+    
     return players.map((player, playerIdx) => {
-      // Define home area positions for each player
+      // Define home area positions for each player with more precise positioning
       const homePositions = {
-        red: { x: 9, y: 9, pieces: [
-          { x: 7, y: 7 }, { x: 11, y: 7 }, { x: 7, y: 11 }, { x: 11, y: 11 }
-        ]},
-        green: { x: 39, y: 9, pieces: [
-          { x: 37, y: 7 }, { x: 41, y: 7 }, { x: 37, y: 11 }, { x: 41, y: 11 }
-        ]},
-        yellow: { x: 39, y: 39, pieces: [
-          { x: 37, y: 37 }, { x: 41, y: 37 }, { x: 37, y: 41 }, { x: 41, y: 41 }
-        ]},
-        blue: { x: 9, y: 39, pieces: [
-          { x: 7, y: 37 }, { x: 11, y: 37 }, { x: 7, y: 41 }, { x: 11, y: 41 }
-        ]}
+        red: [
+          { x: 2, y: 2 }, { x: 4, y: 2 }, 
+          { x: 2, y: 4 }, { x: 4, y: 4 }
+        ],
+        green: [
+          { x: 11, y: 2 }, { x: 13, y: 2 }, 
+          { x: 11, y: 4 }, { x: 13, y: 4 }
+        ],
+        yellow: [
+          { x: 11, y: 11 }, { x: 13, y: 11 }, 
+          { x: 11, y: 13 }, { x: 13, y: 13 }
+        ],
+        blue: [
+          { x: 2, y: 11 }, { x: 4, y: 11 }, 
+          { x: 2, y: 13 }, { x: 4, y: 13 }
+        ]
       };
       
       const isCurrentPlayer = playerIdx === currentPlayerIndex;
-      const cellSize = boardSize.width / GRID_SIZE;
       
       let bgColor, borderColor;
       switch (player.color) {
@@ -573,7 +653,7 @@ export default function LudoGame() {
         if (!piece.inHome) return null;
         
         const canMoveOut = isCurrentPlayer && (diceValues[0] === 6 || diceValues[1] === 6);
-        const homePosition = homePositions[player.color].pieces[pieceIdx];
+        const homePosition = homePositions[player.color][pieceIdx];
         
         return (
           <div
@@ -587,14 +667,14 @@ export default function LudoGame() {
                 }
               }
             }}
-            className={`absolute rounded-full border-2 shadow-sm transition-all
-                      ${bgColor} ${borderColor}
-                      ${canMoveOut ? 'cursor-pointer animate-pulse' : ''}`}
+            className={`absolute rounded-full border-2 border-white shadow-lg transition-all
+                      ${bgColor}
+                      ${canMoveOut ? 'cursor-pointer animate-pulse ring-4 ring-white' : ''}`}
             style={{
-              width: cellSize * 0.8,
-              height: cellSize * 0.8,
-              left: `${(homePosition.x - 0.5) * cellSize}px`,
-              top: `${(homePosition.y - 0.5) * cellSize}px`,
+              width: cellSize * 0.65,
+              height: cellSize * 0.65,
+              left: (homePosition.x - 0.5) * cellSize,
+              top: (homePosition.y - 0.5) * cellSize,
               transform: 'translate(-50%, -50%)',
               zIndex: 20
             }}
