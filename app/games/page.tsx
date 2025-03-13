@@ -4,11 +4,18 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import snake from "@/public/assets/games/snake.png";
+import tetris from "@/public/assets/games/tetris.png";
+import tictactoe from "@/public/assets/games/tictactoe.png";
+import ping from "@/public/assets/games/ping.png";
+import brickpop from "@/public/assets/games/brickpop.png";
+
+import { StaticImageData } from 'next/image';
 
 interface GameCardProps {
   title: string;
   description: string;
-  image: string;
+  image: string | StaticImageData;
   href: string;
 }
 
@@ -48,36 +55,36 @@ export default function GamesPage() {
       id: 'snake',
       title: 'Snake Game',
       description: 'Classic snake game where you collect food and grow longer without hitting walls or yourself.',
-      image: '/images/games/snake.jpg',
+      image: snake,
       href: '/games/snake', // Changed from component to route path
     },
     {
       id: 'tetris',
       title: 'Tetris Game',
       description: 'The classic game of Tetris. Arrange the falling blocks to complete lines and score points.',
-      image: '/images/games/tic-tac-toe.jpg',
+      image: tetris,
       href: '/games/tetris',
     },
     {
       id: 'tic-tac-toe',
       title: 'Tic Tac Toe',
       description: 'Play the classic game of Tic Tac Toe against a friend or the computer.',
-      image: '/images/games/tic-tac-toe.jpg',
+      image: tictactoe,
       href: '/games/tic-tac-toe',
     },
     {
-      id: 'Bubble Shooter',
-      title: 'Bubble Shooter',
-      description: 'Shoot bubbles to match three or more of the same color and clear the board.',
-      image: '/images/games/bubble-shooter.jpg',
+      id: 'Brick Pop',
+      title: 'Brick Pop',
+      description: 'Tap on groups of 3 or more bricks of the same color to pop them.',
+      image: brickpop,
       href: '/games/bubble-pop',
     },
     {
       id: 'Platform Game',
       title: 'Platform Game',
-      description: 'Jump and run through levels to reach the end and defeat the boss.',
-      image: '/images/games/platform-game.jpg',
-      href: '/games/platform-game',
+      description: 'Swipe to move the player and avoid obstacles to reach the end of the level.',
+      image: ping,
+      href: "/games/platform-game",
     }
   ];
 
