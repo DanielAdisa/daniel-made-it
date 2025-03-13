@@ -27,6 +27,20 @@ interface Block {
   height: number;
   color: string;
   hitPoints: number; // Add hit points to blocks
+  type: 'normal' | 'explosive' | 'unbreakable' | 'moving'; // Add block types for more variety
+  moveDirection?: number; // For moving blocks
+}
+
+// Add new interface for power-ups
+interface PowerUp {
+  id: string;
+  x: number;
+  y: number;
+  type: 'widePlatform' | 'multiBall';
+  width: number;
+  height: number;
+  dy: number;
+  active: boolean;
 }
 
 const PingPongGame = () => {
@@ -42,6 +56,15 @@ const PingPongGame = () => {
   const [level, setLevel] = useState(1); // Track current level
   const requestRef = useRef<number | null>(null);
   const previousTimeRef = useRef<number | null>(null);
+
+  // Add new state variables for power-ups
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+  const [activePowerUps, setActivePowerUps] = useState({
+    widePlatform: false,
+    multiBall: false,
+  });
+  const [balls, setBalls] = useState<Ball[]>([]);
+  const powerUpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize game setup
   useEffect(() => {
@@ -76,18 +99,24 @@ const PingPongGame = () => {
     initializeGame();
     window.addEventListener('resize', handleResize);
     
+    // Reset power-ups when initializing game
+    setPowerUps([]);
+    setActivePowerUps({ widePlatform: false, multiBall: false });
+
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(requestRef.current!);
+      // Clear power-up timeout
+      if (powerUpTimeoutRef.current) clearTimeout(powerUpTimeoutRef.current);
     };
   }, [level]);
 
-  // Create initial blocks
+  // Create initial blocks with more variety
   const createBlocks = (width: number, currentLevel: number) => {
-    const blockSize = 50; // Square blocks
+    const blockSize = 50;
     const padding = 10;
     const blocksPerRow = Math.floor((width - padding) / (blockSize + padding));
-    const startX = (width - (blocksPerRow * (blockSize + padding) - padding)) / 2; // Center the grid
+    const startX = (width - (blocksPerRow * (blockSize + padding) - padding)) / 2;
     
     // Increase rows with level
     const baseRows = 5;
@@ -99,10 +128,40 @@ const PingPongGame = () => {
     
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < blocksPerRow; col++) {
-        // Higher chance of 2-hit blocks in higher levels
-        const hitPointsProbability = Math.min(0.3 + (currentLevel * 0.05), 0.7);
-        const hitPoints = Math.random() < hitPointsProbability ? 2 : 1;
-        const blockColor = hitPoints > 1 ? '#FFC107' : colors[Math.floor(Math.random() * colors.length)];
+        // Determine block type based on level and randomness
+        let blockType: 'normal' | 'explosive' | 'unbreakable' | 'moving' = 'normal';
+        let hitPoints = 1;
+        let blockColor = colors[Math.floor(Math.random() * colors.length)];
+        let moveDirection = 0;
+        
+        // Higher chance of special blocks in higher levels
+        const specialBlockChance = Math.min(0.1 + (currentLevel * 0.05), 0.5);
+        
+        if (Math.random() < specialBlockChance) {
+          const blockRoll = Math.random();
+          
+          if (blockRoll < 0.4) {
+            // Normal block but with more hit points
+            hitPoints = Math.min(2 + Math.floor(Math.random() * (currentLevel / 2)), 3);
+            blockColor = hitPoints === 2 ? '#FFC107' : '#FF9800';
+          } else if (blockRoll < 0.6) {
+            // Explosive block - destroys adjacent blocks when hit
+            blockType = 'explosive';
+            hitPoints = 1;
+            blockColor = '#F44336'; // Red for explosive
+          } else if (blockRoll < 0.8) {
+            // Moving block
+            blockType = 'moving';
+            hitPoints = 2; // Moving blocks are a bit tougher
+            blockColor = '#8BC34A'; // Green for moving blocks
+            moveDirection = Math.random() > 0.5 ? 1 : -1;
+          } else {
+            // Unbreakable block (can't be destroyed)
+            blockType = 'unbreakable';
+            hitPoints = Infinity;
+            blockColor = '#9E9E9E'; // Gray for unbreakable
+          }
+        }
         
         newBlocks.push({
           id: `block-${row}-${col}`,
@@ -111,13 +170,89 @@ const PingPongGame = () => {
           width: blockSize,
           height: blockSize,
           color: blockColor,
-          hitPoints: hitPoints
+          hitPoints: hitPoints,
+          type: blockType,
+          moveDirection
         });
       }
     }
     
     setBlocks(newBlocks);
   };
+
+  // Create a new function to spawn power-ups
+  const spawnPowerUp = (x: number, y: number) => {
+    // 20% chance to spawn power-up when a block is destroyed
+    if (Math.random() > 0.2) return;
+    
+    // Randomly select power-up type
+    const powerUpType = Math.random() > 0.5 ? 'widePlatform' : 'multiBall';
+    
+    const newPowerUp: PowerUp = {
+      id: `powerup-${Date.now()}`,
+      x,
+      y,
+      type: powerUpType,
+      width: 30,
+      height: 30,
+      dy: 2, // Power-up falls down
+      active: true
+    };
+    
+    setPowerUps(prev => [...prev, newPowerUp]);
+  };
+
+  // Add a function to activate power-ups
+  const activatePowerUp = (type: 'widePlatform' | 'multiBall') => {
+    if (type === 'widePlatform') {
+      setActivePowerUps(prev => ({ ...prev, widePlatform: true }));
+      
+      // Increase platform width
+      setPlatform(prev => ({
+        ...prev,
+        width: 200 // Wider platform
+      }));
+      
+      // Set timeout to reset the platform width after 10 seconds
+      if (powerUpTimeoutRef.current) clearTimeout(powerUpTimeoutRef.current);
+      
+      powerUpTimeoutRef.current = setTimeout(() => {
+        setActivePowerUps(prev => ({ ...prev, widePlatform: false }));
+        setPlatform(prev => ({
+          ...prev,
+          width: 120 // Reset to original width
+        }));
+      }, 10000);
+    }
+    
+    if (type === 'multiBall') {
+      setActivePowerUps(prev => ({ ...prev, multiBall: true }));
+      
+      // Create a second ball
+      const newBall: Ball = {
+        x: ball.x,
+        y: ball.y,
+        dx: -ball.dx, // Move in opposite horizontal direction
+        dy: ball.dy,
+        radius: ball.radius,
+        speed: ball.speed
+      };
+      
+      setBalls(prev => [...prev, newBall]);
+      
+      // Reset after 3 seconds (don't need full timeout here)
+      setTimeout(() => {
+        setActivePowerUps(prev => ({ ...prev, multiBall: false }));
+      }, 3000);
+    }
+  };
+
+  // Initialize balls state based on the main ball
+  useEffect(() => {
+    if (gameStarted && !activePowerUps.multiBall) {
+      setBalls([ball]);
+    }
+  }, [gameStarted, ball, activePowerUps.multiBall]);
 
   // Game animation loop
   const animate = (time: number) => {
@@ -142,161 +277,553 @@ const PingPongGame = () => {
     return () => cancelAnimationFrame(requestRef.current!);
   }, [gameStarted, gameOver, platform, ball, blocks]);
 
-  // Update game state
-  const updateGameState = (deltaTime: number) => {
-    setBall(prevBall => {
-      let { x, y, dx, dy, radius, speed } = prevBall;
-      let newDx = dx;
-      let newDy = dy;
-      let ballLost = false;
+  // Unified function to handle ball collisions with blocks
+  const handleBallBlockCollision = (
+    ball: Ball, 
+    blocks: Block[]
+  ): { 
+    newDx: number; 
+    newDy: number; 
+    updatedBlocks: Block[];
+    destroyed: boolean;
+    destroyedPosition?: { x: number; y: number };
+  } => {
+    const { x, y, dx, dy, radius, speed } = ball;
+    let newDx = dx;
+    let newDy = dy;
+    let destroyed = false;
+    let destroyedPosition;
+    
+    // Clone blocks to avoid mutation
+    let updatedBlocks = [...blocks];
+    let blockCollision = false;
+    
+    // Calculate next position
+    const nextX = x + dx;
+    const nextY = y + dy;
+
+    // Track which block to remove
+    let blockToRemoveIndex = -1;
+    let explosiveBlockHit = false;
+    let explosionCenter = { x: 0, y: 0 };
+    
+    // Check collisions with all blocks
+    for (let i = 0; i < updatedBlocks.length; i++) {
+      const block = updatedBlocks[i];
       
-      // Wall collisions
-      if (x + dx < radius || x + dx > gameSize.width - radius) {
-        newDx = -dx;
-        // Add slight variation for more interesting gameplay
-        newDy += (Math.random() - 0.5) * 0.5;
-      }
+      // Precise collision detection using closest point method
+      const closestX = Math.max(block.x, Math.min(nextX, block.x + block.width));
+      const closestY = Math.max(block.y, Math.min(nextY, block.y + block.height));
       
-      if (y + dy < radius) {
-        newDy = -dy;
-      }
+      // Distance between ball center and closest point on block
+      const distX = nextX - closestX;
+      const distY = nextY - closestY;
+      const distance = Math.sqrt(distX * distX + distY * distY);
       
-      // Platform collision
-      if (
-        y + dy > platform.y - radius &&
-        y + dy < platform.y + platform.height &&
-        x + dx > platform.x &&
-        x + dx < platform.x + platform.width
-      ) {
-        // Change ball direction based on where it hits the platform
-        const hitPosition = (x - platform.x) / platform.width;
-        newDx = speed * (hitPosition - 0.5) * 2; 
-        newDy = -speed;
+      // Check if distance is less than ball radius (collision)
+      if (distance < radius && !blockCollision) {
+        blockCollision = true;
         
-        // Normalize vector
+        // Special handling for unbreakable blocks - just bounce
+        if (block.type === 'unbreakable') {
+          // Only process bouncing physics here
+        } else {
+          // Normal blocks and special blocks
+          const newHitPoints = block.hitPoints - 1;
+          updatedBlocks[i] = {
+            ...block,
+            hitPoints: newHitPoints,
+            color: newHitPoints <= 0 ? block.color : '#FF9800' // Damaged color
+          };
+          
+          // Check if block is destroyed
+          if (newHitPoints <= 0) {
+            blockToRemoveIndex = i;
+            destroyedPosition = { 
+              x: block.x + block.width / 2, 
+              y: block.y + block.height / 2 
+            };
+            
+            // Handle explosive blocks
+            if (block.type === 'explosive') {
+              explosiveBlockHit = true;
+              explosionCenter = destroyedPosition;
+            }
+            
+            destroyed = true;
+          }
+        }
+        
+        // Calculate collision response (bouncing)
+        // Determine which side was hit
+        let normalX = 0;
+        let normalY = 0;
+        
+        // If inside the block width, check top/bottom
+        if (nextX > block.x && nextX < block.x + block.width) {
+          // Coming from top or bottom
+          normalY = nextY < block.y ? -1 : 1;
+        } 
+        // If inside the block height, check left/right
+        else if (nextY > block.y && nextY < block.y + block.height) {
+          // Coming from left or right
+          normalX = nextX < block.x ? -1 : 1;
+        }
+        // Corner collision - get precise normal
+        else {
+          const cornerX = closestX;
+          const cornerY = closestY;
+          
+          // Calculate normal based on collision point
+          const dx = nextX - cornerX;
+          const dy = nextY - cornerY;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          normalX = dx / len;
+          normalY = dy / len;
+        }
+        
+        // Reflect velocity based on normal
+        if (Math.abs(normalX) > Math.abs(normalY)) {
+          // Mostly horizontal collision
+          newDx = -newDx;
+        } else {
+          // Mostly vertical collision
+          newDy = -newDy;
+        }
+        
+        // Add variation for more interesting gameplay
+        newDx += (Math.random() - 0.5) * 0.5;
+        newDy += (Math.random() - 0.5) * 0.5;
+        
+        // Normalize to maintain constant speed
         const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
         newDx = (newDx / magnitude) * speed;
         newDy = (newDy / magnitude) * speed;
       }
+    }
+    
+    // Process block destruction after collision detection
+    if (blockToRemoveIndex >= 0) {
+      // Remove the destroyed block
+      updatedBlocks = updatedBlocks.filter((_, index) => index !== blockToRemoveIndex);
       
-      // Block collisions
-      setBlocks(prevBlocks => {
-        const updatedBlocks: Block[] = [];
-        let collision = false;
+      // Handle explosive block chain reaction
+      if (explosiveBlockHit) {
+        // Find blocks in explosion radius
+        const EXPLOSION_RADIUS = 80;
         
-        for (const block of prevBlocks) {
-          // Check collision with this block
-          if (
-            !collision && // Only process one collision per frame
-            x + radius > block.x &&
-            x - radius < block.x + block.width &&
-            y + radius > block.y &&
-            y - radius < block.y + block.height
-          ) {
-            collision = true;
-            const newHitPoints = block.hitPoints - 1;
+        updatedBlocks = updatedBlocks.filter(block => {
+          // Calculate distance to explosion center
+          const blockCenterX = block.x + block.width / 2;
+          const blockCenterY = block.y + block.height / 2;
+          const distance = Math.sqrt(
+            Math.pow(blockCenterX - explosionCenter.x, 2) + 
+            Math.pow(blockCenterY - explosionCenter.y, 2)
+          );
+          
+          // If in explosion radius and not unbreakable, destroy block
+          if (distance < EXPLOSION_RADIUS && block.type !== 'unbreakable') {
+            // Award points for chain reaction
+            setScore(prev => prev + 5);
+            return false; // Remove from list
+          }
+          return true; // Keep the block
+        });
+      }
+    }
+    
+    return { 
+      newDx, 
+      newDy, 
+      updatedBlocks,
+      destroyed,
+      destroyedPosition
+    };
+  };
+
+  // Improved function to handle wall collisions - only allowing ball to exit at bottom
+const handleWallCollisions = (ball: Ball): { dx: number; dy: number; x: number; y: number } => {
+  const { x, y, dx, dy, radius, speed } = ball;
+  let newDx = dx;
+  let newDy = dy;
+  let newX = x;
+  let newY = y;
+  
+  // First, check if the ball will go out of bounds after movement
+  const nextX = x + dx;
+  const nextY = y + dy;
+  
+  // Check left wall - clamp position and reverse direction
+  if (nextX - radius <= 0) {
+    newDx = Math.abs(dx); // Force right direction
+    newX = radius; // Ensure ball stays in bounds
+  } 
+  // Check right wall - clamp position and reverse direction
+  else if (nextX + radius >= gameSize.width) {
+    newDx = -Math.abs(dx); // Force left direction
+    newX = gameSize.width - radius; // Ensure ball stays in bounds
+  }
+  
+  // Check top wall - clamp position and reverse direction
+  if (nextY - radius <= 0) {
+    newDy = Math.abs(dy); // Force down direction
+    newY = radius; // Ensure ball stays in bounds
+  }
+  
+  // Note: We don't check bottom wall because we want the ball to fall off
+  
+  // Add slight angle variation on wall bounces for interesting gameplay
+  if (newDx !== dx || newDy !== dy) {
+    // Add small random variation to prevent looping patterns
+    newDx += (Math.random() - 0.5) * 0.3;
+    
+    // Normalize to maintain constant speed
+    const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
+    if (magnitude > 0) {
+      newDx = (newDx / magnitude) * speed;
+      newDy = (newDy / magnitude) * speed;
+    }
+  }
+  
+  return { 
+    dx: newDx, 
+    dy: newDy,
+    x: newX,
+    y: newY
+  };
+};
+
+
+// Helper function to handle explosive blocks chain reaction
+const handleExplosion = (blocks: Block[], explodingBlockIndex: number, center: { x: number, y: number }) => {
+  // Get the exploding block
+  const explodingBlock = blocks[explodingBlockIndex];
+  
+  // Remove the exploding block first
+  const updatedBlocks = blocks.filter((_, i) => i !== explodingBlockIndex);
+  
+  // Define explosion radius
+  const EXPLOSION_RADIUS = 80;
+  
+  // Find all blocks in explosion radius and destroy them
+  const blocksAfterExplosion = updatedBlocks.filter(block => {
+    // Skip unbreakable blocks
+    if (block.type === 'unbreakable') {
+      return true;
+    }
+    
+    // Calculate block center
+    const blockCenterX = block.x + block.width / 2;
+    const blockCenterY = block.y + block.height / 2;
+    
+    // Calculate distance to explosion center
+    const distance = Math.sqrt(
+      Math.pow(blockCenterX - center.x, 2) + 
+      Math.pow(blockCenterY - center.y, 2)
+    );
+    
+    // If block is within explosion radius, destroy it
+    if (distance < EXPLOSION_RADIUS) {
+      // Award points for chain reaction
+      setScore(prev => prev + 5);
+      
+      // Create chance for power-up from destroyed blocks
+      if (Math.random() < 0.1) {
+        spawnPowerUp(blockCenterX, blockCenterY);
+      }
+      
+      return false; // Remove the block
+    }
+    
+    return true; // Keep the block
+  });
+  
+  return blocksAfterExplosion;
+};
+
+// Update game state
+const updateGameState = (deltaTime: number) => {
+  // Update power-ups
+  setPowerUps(prevPowerUps => {
+    return prevPowerUps
+      .map(powerUp => {
+        // Check for collision with platform
+        if (
+          powerUp.active &&
+          powerUp.y + powerUp.height > platform.y &&
+          powerUp.y < platform.y + platform.height &&
+          powerUp.x + powerUp.width > platform.x &&
+          powerUp.x < platform.x + platform.width
+        ) {
+          // Activate power-up
+          activatePowerUp(powerUp.type);
+          
+          // Collect power-up (deactivate it)
+          return { ...powerUp, active: false };
+        }
+        
+        // Move power-up down
+        return {
+          ...powerUp,
+          y: powerUp.y + powerUp.dy,
+          // Remove if it goes off screen
+          active: powerUp.y < gameSize.height
+        };
+      })
+      .filter(powerUp => powerUp.active);
+  });
+
+  // Update block positions (for moving blocks)
+  setBlocks(prevBlocks => {
+    return prevBlocks.map(block => {
+      if (block.type === 'moving' && block.moveDirection) {
+        // Calculate new position
+        let newX = block.x + block.moveDirection;
+        
+        // Bounce if hit wall
+        if (newX <= 0 || newX + block.width >= gameSize.width) {
+          return {
+            ...block,
+            moveDirection: -block.moveDirection,
+            x: block.x + (-block.moveDirection) // Immediately move in new direction
+          };
+        }
+        
+        // Continue moving
+        return {
+          ...block,
+          x: newX
+        };
+      }
+      return block;
+    });
+  });
+
+  // Update main ball or all balls if multi-ball is active
+  if (activePowerUps.multiBall) {
+    // Update all balls in multi-ball mode
+    setBalls(prevBalls => {
+      return prevBalls.map(currBall => {
+        if (!currBall) return null;
+        
+        let { x, y, dx, dy, radius, speed } = currBall;
+        
+        // 1. Apply wall collisions first
+        const wallCollision = handleWallCollisions(currBall);
+        let newDx = wallCollision.dx;
+        let newDy = wallCollision.dy;
+        let newX = wallCollision.x;
+        let newY = wallCollision.y;
+        
+        // 2. Check for platform collision
+        if (
+          newY + radius > platform.y && 
+          newY - radius < platform.y + platform.height &&
+          newX + radius > platform.x && 
+          newX - radius < platform.x + platform.width
+        ) {
+          // Only bounce if coming from above
+          if (dy > 0 && newY < platform.y + platform.height/2) {
+            const hitPosition = (newX - platform.x) / platform.width;
+            newDx = speed * (hitPosition - 0.5) * 2.5;
+            newDy = -Math.abs(dy);
             
-            // Determine which side of the block was hit
-            const overlapLeft = x + radius - block.x;
-            const overlapRight = block.x + block.width - (x - radius);
-            const overlapTop = y + radius - block.y;
-            const overlapBottom = block.y + block.height - (y - radius);
-            
-            // Find the smallest overlap
-            const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-            
-            // Apply bounce based on collision side
-            if (minOverlap === overlapLeft || minOverlap === overlapRight) {
-              newDx = -newDx; // Bounce horizontally
-            } else {
-              newDy = -newDy; // Bounce vertically
+            // Normalize vector
+            const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
+            if (magnitude > 0) {
+              newDx = (newDx / magnitude) * speed;
+              newDy = (newDy / magnitude) * speed;
             }
-            
-            // Always bounce back on brick collision - fix the downward motion
-            newDy = Math.abs(newDy); // Force ball to go downward after hitting brick
-            
-            // Handle block damage/destruction
-            if (newHitPoints <= 0) {
-              setScore(prevScore => prevScore + 10);
-            } else {
-              updatedBlocks.push({
-                ...block,
-                hitPoints: newHitPoints,
-                color: '#FF9800'
-              });
-            }
-          } else {
-            updatedBlocks.push(block);
           }
         }
         
-        // Check level completion
-        if (updatedBlocks.length === 0) {
-          setGameStarted(false);
-          setLevel(prevLevel => prevLevel + 1);
+        // 3. Ball falls below platform - only way to lose a ball
+        if (newY + radius > gameSize.height) {
+          // For multi-ball, just remove this ball
+          return null;
+        }
+        
+        // 4. Check collision with blocks
+        const collisionResult = handleBallBlockCollision(
+          {...currBall, x: newX, y: newY, dx: newDx, dy: newDy}, 
+          blocks
+        );
+        
+        // Apply collision result
+        newDx = collisionResult.newDx;
+        newDy = collisionResult.newDy;
+        
+        // Update blocks if this ball hit something
+        if (collisionResult.updatedBlocks.length !== blocks.length) {
+          setBlocks(collisionResult.updatedBlocks);
           
+          // If a block was destroyed, potentially spawn a power-up
+          if (collisionResult.destroyed && collisionResult.destroyedPosition) {
+            spawnPowerUp(
+              collisionResult.destroyedPosition.x,
+              collisionResult.destroyedPosition.y
+            );
+          }
+        }
+        
+        // 5. Update position with the new velocity
+        newX = newX + newDx;
+        newY = newY + newDy;
+        
+        return {
+          ...currBall,
+          x: newX,
+          y: newY,
+          dx: newDx,
+          dy: newDy
+        };
+      }).filter(Boolean) as Ball[];
+    });
+    
+    // Check if all balls are gone
+    if (balls.length === 0) {
+      setActivePowerUps(prev => ({ ...prev, multiBall: false }));
+      setBalls([ball]); // Reset to main ball
+    }
+  }
+  
+  // Update main ball state using the same improved collision logic
+  setBall(prevBall => {
+    let { x, y, dx, dy, radius, speed } = prevBall;
+    
+    // 1. Apply wall collisions first
+    const wallCollision = handleWallCollisions(prevBall);
+    let newDx = wallCollision.dx;
+    let newDy = wallCollision.dy;
+    let newX = wallCollision.x;
+    let newY = wallCollision.y;
+    
+    // 2. Platform collision
+    if (
+      newY + radius > platform.y && 
+      newY - radius < platform.y + platform.height &&
+      newX + radius > platform.x && 
+      newX - radius < platform.x + platform.width
+    ) {
+      if (dy > 0 && newY < platform.y + platform.height/2) {
+        const hitPosition = (newX - platform.x) / platform.width;
+        // Adjust angle based on where the ball hits the platform
+        newDx = speed * (hitPosition - 0.5) * 2.5;
+        newDy = -Math.abs(dy);
+        
+        // Normalize to maintain constant speed
+        const magnitude = Math.sqrt(newDx * newDx + newDy * newDy);
+        if (magnitude > 0) {
+          newDx = (newDx / magnitude) * speed;
+          newDy = (newDy / magnitude) * speed;
+        }
+      }
+    }
+    
+    // 3. Ball-block collision using enhanced precision detection
+    const collisionResult = handleBallBlockCollision(
+      {...prevBall, x: newX, y: newY, dx: newDx, dy: newDy}, 
+      blocks
+    );
+    
+    newDx = collisionResult.newDx;
+    newDy = collisionResult.newDy;
+    
+    // Update blocks if this ball hit something
+    if (collisionResult.updatedBlocks.length !== blocks.length) {
+      setBlocks(collisionResult.updatedBlocks);
+      
+      // If a block was destroyed, potentially spawn a power-up
+      if (collisionResult.destroyed && collisionResult.destroyedPosition) {
+        spawnPowerUp(
+          collisionResult.destroyedPosition.x,
+          collisionResult.destroyedPosition.y
+        );
+        
+        // Add score for destroyed block
+        setScore(prev => prev + 10);
+      }
+      
+      // Check if level is complete
+      if (collisionResult.updatedBlocks.length === 0 || 
+          collisionResult.updatedBlocks.every(block => block.type === 'unbreakable')) {
+        // Level is complete when all breakable blocks are gone
+        setGameStarted(false);
+        setLevel(prevLevel => prevLevel + 1);
+        
+        setTimeout(() => {
+          setBall({
+            x: gameSize.width / 2,
+            y: gameSize.height - 60,
+            dx: 3 * (Math.random() > 0.5 ? 1 : -1),
+            dy: -(3 + level * 0.5),
+            radius: 7,
+            speed: 3 + level * 0.5
+          });
+          
+          createBlocks(gameSize.width, level + 1);
+          setGameStarted(true);
+        }, 1500);
+      }
+    }
+    
+    // 4. Ball falls below platform - Fix life system for proper gameplay
+    // This is the only way a ball can "exit" the game area
+    if (newY + radius > gameSize.height) {
+      setLives(prevLives => {
+        const newLives = Math.max(0, prevLives - 1);
+        
+        if (newLives <= 0) {
+          // Only set game over when lives reach zero
+          setGameOver(true);
+          setGameStarted(false);
+        } else {
+          // Reset ball and platform for next life with a better delay
           setTimeout(() => {
+            // Center the platform
+            setPlatform(prev => ({
+              ...prev,
+              x: gameSize.width / 2 - prev.width / 2
+            }));
+            
+            // Reset ball with slightly randomized direction
             setBall({
               x: gameSize.width / 2,
               y: gameSize.height - 60,
-              dx: 0,
-              dy: -(3 + level * 0.5),
-              radius: 7,
-              speed: 3 + level * 0.5
+              dx: speed * (Math.random() > 0.5 ? 1 : -1) * 0.8,
+              dy: -speed,
+              radius,
+              speed
             });
-            
-            createBlocks(gameSize.width, level + 1);
-            setGameStarted(true);
-          }, 1500);
+          }, 1000);
         }
         
-        return updatedBlocks;
+        return newLives;
       });
       
-      // Ball falls below platform - fix lives system
-      if (y + dy > gameSize.height) {
-        ballLost = true;
-        
-        setLives(prevLives => {
-          // Ensure lives don't go negative
-          const newLives = Math.max(prevLives - 1, 0);
-          
-          if (newLives <= 0) {
-            setGameOver(true);
-            setGameStarted(false);
-          } else {
-            // Reset ball position for next try
-            setTimeout(() => {
-              setBall(prev => ({
-                ...prev,
-                x: gameSize.width / 2,
-                y: gameSize.height - 60,
-                dx: speed * (Math.random() > 0.5 ? 1 : -1),
-                dy: -speed
-              }));
-            }, 1000);
-          }
-          return newLives;
-        });
-        
-        // Move ball out of view
-        return {
-          ...prevBall,
-          y: gameSize.height + 50,
-          dy: 0,
-          dx: 0
-        };
-      }
-      
+      // Move ball off screen immediately to avoid further collisions
       return {
         ...prevBall,
-        x: ballLost ? prevBall.x : x + newDx,
-        y: ballLost ? prevBall.y : y + newDy,
-        dx: newDx,
-        dy: newDy
+        x: gameSize.width / 2,
+        y: gameSize.height * 2,
+        dx: 0,
+        dy: 0
       };
-    });
-  };
+    }
+    
+    // 5. Update position with new velocity
+    newX = newX + newDx;
+    newY = newY + newDy;
+    
+    return {
+      ...prevBall,
+      x: newX,
+      y: newY,
+      dx: newDx,
+      dy: newDy
+    };
+  });
+};
 
   // Handle platform movement - mouse
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -325,7 +852,7 @@ const PingPongGame = () => {
     }));
   };
 
-  // Start or restart the game
+  // Start or restart the game - Fixed lives reset
   const startGame = () => {
     if (gameOver) {
       // Reset game state
@@ -333,17 +860,37 @@ const PingPongGame = () => {
       setLives(3);
       setLevel(1);
       
-      // Reset platform width (keep constant width now)
       createBlocks(gameSize.width, 1);
-      setBall({
-        x: gameSize.width / 2,
-        y: gameSize.height - 60,
-        dx: 3,
-        dy: -3,
-        radius: 7,
-        speed: 3 // Initial speed
-      });
     }
+    
+    // Clear any active power-ups
+    setPowerUps([]);
+    setActivePowerUps({ widePlatform: false, multiBall: false });
+    if (powerUpTimeoutRef.current) clearTimeout(powerUpTimeoutRef.current);
+    
+    // Reset platform to original width
+    setPlatform(prev => ({
+      ...prev,
+      width: 120,
+      x: gameSize.width / 2 - 60,
+    }));
+    
+    // Reset ball position on any game start
+    setBall({
+      x: gameSize.width / 2,
+      y: gameSize.height - 60,
+      dx: 3,
+      dy: -3,
+      radius: 7,
+      speed: 3 // Initial speed
+    });
+    
+    // Reset platform position
+    setPlatform(prev => ({
+      ...prev,
+      x: gameSize.width / 2 - prev.width / 2,
+    }));
+    
     setGameOver(false);
     setGameStarted(true);
   };
@@ -368,7 +915,11 @@ const PingPongGame = () => {
         
         {/* Platform */}
         <motion.div 
-          className="absolute bg-gradient-to-r from-blue-500 to-blue-600 rounded-md"
+          className={`absolute rounded-md ${
+            activePowerUps.widePlatform 
+              ? "bg-gradient-to-r from-purple-500 to-pink-600" 
+              : "bg-gradient-to-r from-blue-500 to-blue-600"
+          }`}
           animate={{
             x: platform.x,
             y: platform.y
@@ -380,7 +931,7 @@ const PingPongGame = () => {
           transition={{ type: "tween", duration: 0 }}
         />
         
-        {/* Ball */}
+        {/* Main Ball */}
         <motion.div 
           className="absolute w-[14px] h-[14px] bg-white rounded-full shadow-[0_0_10px_2px_rgba(255,255,255,0.6)]"
           animate={{
@@ -390,22 +941,72 @@ const PingPongGame = () => {
           transition={{ type: "tween", duration: 0 }}
         />
         
-        {/* Blocks */}
+        {/* Secondary Balls (for multi-ball power-up) */}
+        {activePowerUps.multiBall && balls.slice(1).map((secondaryBall, index) => (
+          <motion.div 
+            key={`ball-${index}`}
+            className="absolute w-[14px] h-[14px] bg-yellow-300 rounded-full shadow-[0_0_10px_2px_rgba(255,215,0,0.6)]"
+            animate={{
+              x: secondaryBall.x - secondaryBall.radius,
+              y: secondaryBall.y - secondaryBall.radius
+            }}
+            transition={{ type: "tween", duration: 0 }}
+          />
+        ))}
+        
+        {/* Falling Power-ups */}
         <AnimatePresence>
-          {blocks.map((block) => (
+          {powerUps.map((powerUp) => (
             <motion.div
-              key={block.id}
-              className={
-                block.hitPoints === 2 
-                  ? "absolute rounded-md bg-yellow-500" 
-                  : "absolute rounded-md bg-orange-500 border-2 border-red-700 before:absolute before:inset-0 before:content-[''] before:border-t-4 before:border-r-4 before:border-red-800 before:rotate-45"
-              }
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
+              key={powerUp.id}
+              className={`absolute rounded-md flex items-center justify-center 
+                ${powerUp.type === 'widePlatform' ? 'bg-purple-600' : 'bg-yellow-500'}`}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+                x: powerUp.x,
+                y: powerUp.y,
+              }}
               exit={{ 
                 scale: 1.5,
                 opacity: 0,
                 transition: { duration: 0.3 }
+              }}
+              style={{
+                width: powerUp.width,
+                height: powerUp.height
+              }}
+            >
+              {/* Power-up icon */}
+              <span className="text-white font-bold text-lg">
+                {powerUp.type === 'widePlatform' ? '↔️' : '➕'}
+              </span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        
+        {/* Blocks with special visual effects */}
+        <AnimatePresence>
+          {blocks.map((block) => (
+            <motion.div
+              key={block.id}
+              className={`absolute rounded-md ${
+                block.type === 'unbreakable' ? 'bg-gray-600 border-2 border-gray-400' :
+                block.type === 'explosive' ? 'bg-red-500' :
+                block.type === 'moving' ? 'bg-green-500' :
+                block.hitPoints === 2 ? 'bg-yellow-500' : 'bg-orange-500'
+              }`}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+                x: block.type === 'moving' ? [block.x, block.x + 5, block.x - 5, block.x] : block.x
+              }}
+              exit={{ 
+                scale: block.type === 'explosive' ? 2 : 1.5,
+                opacity: 0,
+                transition: { duration: block.type === 'explosive' ? 0.5 : 0.3 }
               }}
               style={{
                 left: block.x,
@@ -415,32 +1016,132 @@ const PingPongGame = () => {
               }}
               whileHover={{ scale: 1.02 }}
             >
-              {block.hitPoints === 2 && (
+              {/* Block content based on type */}
+              {block.type === 'explosive' && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-1/2 h-1/2 text-white text-center font-bold">💣</div>
+                </div>
+              )}
+              
+              {block.type === 'unbreakable' && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-3/4 h-3/4 border-4 border-dashed border-gray-300 rounded-sm"></div>
+                </div>
+              )}
+              
+              {block.hitPoints === 2 && block.type !== 'unbreakable' && (
                 <motion.div 
-                  className="absolute inset-0 flex items-center justify-center"
+                  className="absolute inset-0"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                 >
-                  <div className="w-full h-0.5 bg-red-800 rotate-45"></div>
-                  <div className="w-full h-0.5 bg-red-800 -rotate-45"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-full h-0.5 bg-red-800 rotate-45"></div>
+                    <div className="w-full h-0.5 bg-red-800 -rotate-45"></div>
+                  </div>
+                </motion.div>
+              )}
+              
+              {block.type === 'moving' && (
+                <motion.div 
+                  className="absolute inset-0"
+                  animate={{ 
+                    x: [0, 5, -5, 0],
+                    transition: { repeat: Infinity, duration: 2 }
+                  }}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-1/2 h-1/2 text-white text-center font-bold">↔️</div>
+                  </div>
                 </motion.div>
               )}
             </motion.div>
           ))}
         </AnimatePresence>
         
-        {/* Lives indicators - FIXED to prevent Array with negative length */}
+        {/* Power-up indicator */}
+        {(activePowerUps.widePlatform || activePowerUps.multiBall) && (
+          <div className="absolute top-12 left-2 flex flex-col gap-1">
+            {activePowerUps.widePlatform && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0 }}
+                className="bg-purple-600 px-2 py-1 rounded text-white text-xs"
+              >
+                Wide Platform!
+              </motion.div>
+            )}
+            {activePowerUps.multiBall && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0 }}
+                className="bg-yellow-600 px-2 py-1 rounded text-white text-xs"
+              >
+                Multi Ball!
+              </motion.div>
+            )}
+          </div>
+        )}
+        
+        {/* Lives indicators with better animation */}
         <div className="absolute top-2 right-2 flex gap-1">
-          {Array.from({ length: Math.max(0, lives) }).map((_, i) => (
-            <motion.div 
-              key={i}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="w-3 h-3 bg-red-500 rounded-full"
-            />
-          ))}
+          <AnimatePresence>
+            {Array.from({ length: Math.max(0, lives) }).map((_, i) => (
+              <motion.div 
+                key={`life-${i}`}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300 }}
+                className="w-3 h-3 bg-red-500 rounded-full"
+              />
+            ))}
+          </AnimatePresence>
         </div>
+        
+        {/* Game state indicators */}
+        {lives < 3 && lives > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-10 left-1/2 transform -translate-x-1/2 bg-red-500 px-3 py-1 rounded-md text-white font-bold"
+          >
+            Life lost! {lives} remaining
+          </motion.div>
+        )}
+        
+        {/* Enhanced life lost indicator */}
+        <AnimatePresence>
+          {lives < 3 && lives > 0 && !gameOver && (
+            <motion.div
+              key={`life-lost-${lives}`}
+              initial={{ opacity: 0, y: 20, scale: 0.5 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.5 }}
+              transition={{ duration: 0.5 }}
+              className="absolute top-1/3 left-1/2 transform -translate-x-1/2 bg-red-500 px-6 py-3 rounded-md text-white font-bold z-10 shadow-lg"
+            >
+              <div className="text-xl mb-1">Life lost!</div>
+              <div className="flex justify-center items-center gap-2">
+                {Array.from({ length: lives }).map((_, i) => (
+                  <motion.div 
+                    key={`heart-${i}`}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: i * 0.2 }}
+                    className="w-6 h-6 bg-red-300 rounded-full flex items-center justify-center"
+                  >
+                    ❤️
+                  </motion.div>
+                ))}
+              </div>
+              <div className="mt-2 text-sm">Get ready... continuing in 1 second</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         {/* Game overlay */}
         {(!gameStarted || gameOver) && (
@@ -453,35 +1154,50 @@ const PingPongGame = () => {
             <h2 className="text-3xl font-bold text-white mb-4">
               {gameOver ? 'Game Over' : level === 1 ? 'Ping Pong Block Buster' : `Level ${level}`}
             </h2>
-            {gameOver && <p className="text-white text-xl mb-4">Final Score: {score}</p>}
-            {level > 1 && !gameOver && <p className="text-white text-xl mb-4">Level {level}! Ball speed increased!</p>}
-            {!gameStarted && !gameOver && level === 1 && (
-              <p className="text-white text-center max-w-md mb-4">
-                Move your mouse or swipe to control the platform. 
-                Some blocks need two hits to break - they'll crack first!
-              </p>
+            
+            {gameOver && (
+              <>
+                <p className="text-white text-xl mb-4">Final Score: {score}</p>
+                <p className="text-red-500 text-lg mb-4">You lost all your lives!</p>
+              </>
             )}
-            <button 
+            
+            {gameOver && <p className="text-white text-xl mb-4">Final Score: {score}</p>}
+            {level > 1 && !gameOver && (
+              <p className="text-white text-xl mb-4">You reached level {level}!</p>
+            )}
+            
+            <button
+              className="bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:from-blue-600 hover:to-blue-800 transition-all duration-200"
               onClick={startGame}
-              className="px-6 py-2 bg-green-500 hover:bg-green-600 rounded-md text-white font-bold transition-colors"
             >
               {gameOver ? 'Play Again' : level === 1 ? 'Start Game' : 'Start Level ' + level}
             </button>
+            
+            {!gameOver && (
+              <div className="mt-6 text-white text-center max-w-md">
+                <h3 className="text-xl font-semibold mb-2">How to Play:</h3>
+                <p>Move your mouse or finger to control the platform.</p>
+                <p>Break all blocks to advance to the next level.</p>
+                <p>Look out for power-ups and special blocks:</p>
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
+                  <div className="flex items-center bg-yellow-500 px-2 py-1 rounded">
+                    <span className="mr-1">🔨</span> 2 Hits
+                  </div>
+                  <div className="flex items-center bg-red-500 px-2 py-1 rounded">
+                    <span className="mr-1">💣</span> Explosive
+                  </div>
+                  <div className="flex items-center bg-green-500 px-2 py-1 rounded">
+                    <span className="mr-1">↔️</span> Moving
+                  </div>
+                  <div className="flex items-center bg-gray-600 px-2 py-1 rounded">
+                    <span className="mr-1">🛡️</span> Unbreakable
+                  </div>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
-      </div>
-      
-      <div className="mt-6 max-w-2xl text-white text-center">
-        <h3 className="text-xl font-bold mb-2">How to Play:</h3>
-        <ul className="list-disc pl-6 text-left">
-          <li>Move your mouse or swipe to control the platform</li>
-          <li>Don't let the ball fall below your platform</li>
-          <li>Yellow blocks need two hits to break - they'll crack on first hit</li>
-          <li>Clear all blocks to advance to the next level</li>
-          <li>Each level makes the ball move faster</li>
-          <li>How many levels can you complete?</li>
-          <li>You have 3 lives</li>
-        </ul>
       </div>
     </div>
   );

@@ -24,6 +24,12 @@ interface Food {
   y: number;
 }
 
+// New interface for super food
+interface SuperFood extends Food {
+  active: boolean;
+  timeRemaining: number;
+}
+
 const SnakeGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef(null);
@@ -41,6 +47,16 @@ const SnakeGame = () => {
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
   const [wallCollision, setWallCollision] = useState(false); // New state for wall collision mode
   const [isMuted, setIsMuted] = useState(false); // New state for audio mute control
+  
+  // New states for super food
+  const [foodCounter, setFoodCounter] = useState(0);
+  const [superFood, setSuperFood] = useState<SuperFood>({ 
+    x: 0, 
+    y: 0, 
+    active: false, 
+    timeRemaining: 0 
+  });
+  const superFoodSoundRef = useRef<HTMLAudioElement | null>(null);
 
   // Audio references
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -55,11 +71,19 @@ const SnakeGame = () => {
       backgroundMusicRef.current = new Audio('/audio/snake-background.mp3');
       foodSoundRef.current = new Audio('/audio/snake-eat.mp3');
       gameOverSoundRef.current = new Audio('/audio/snake-gameover.mp3');
+      // Add super food sound
+      superFoodSoundRef.current = new Audio('/audio/snake-eat.mp3'); // Reuse existing sound or replace with new one
       
       // Configure background music to loop
       if (backgroundMusicRef.current) {
         backgroundMusicRef.current.loop = true;
         backgroundMusicRef.current.volume = 0.5; // Set to 50% volume
+      }
+      
+      // Configure super food sound with higher pitch
+      if (superFoodSoundRef.current) {
+        superFoodSoundRef.current.playbackRate = 1.5; // Faster pitch for super food
+        superFoodSoundRef.current.volume = 0.7; // Slightly louder
       }
       
       // Load mute preference from localStorage if available
@@ -87,6 +111,9 @@ const SnakeGame = () => {
     }
     if (gameOverSoundRef.current) {
       gameOverSoundRef.current.muted = isMuted;
+    }
+    if (superFoodSoundRef.current) {
+      superFoodSoundRef.current.muted = isMuted;
     }
     
     // Save mute preference to localStorage
@@ -117,6 +144,17 @@ const SnakeGame = () => {
     }
   };
 
+  // Function to play the super food sound
+  const playSuperFoodSound = () => {
+    if (superFoodSoundRef.current && !isMuted) {
+      // Reset the audio to start
+      superFoodSoundRef.current.currentTime = 0;
+      superFoodSoundRef.current.play().catch(err => {
+        console.log('Could not play super food sound:', err);
+      });
+    }
+  };
+
   // Function to play the game over sound
   const playGameOverSound = () => {
     if (gameOverSoundRef.current && !isMuted) {
@@ -130,6 +168,27 @@ const SnakeGame = () => {
   const toggleMute = () => {
     setIsMuted(prev => !prev);
   };
+
+  // Super food timer effect
+  useEffect(() => {
+    if (gameOver || !gameStarted || isPaused) return;
+    
+    const interval = setInterval(() => {
+      if (superFood.active) {
+        // Update super food timer
+        const newTimeRemaining = superFood.timeRemaining - 100;
+        if (newTimeRemaining <= 0) {
+          // Super food expires
+          setSuperFood(prev => ({...prev, active: false, timeRemaining: 0}));
+        } else {
+          // Update remaining time
+          setSuperFood(prev => ({...prev, timeRemaining: newTimeRemaining}));
+        }
+      }
+    }, 100); // Check every 100ms
+    
+    return () => clearInterval(interval);
+  }, [gameStarted, gameOver, isPaused, superFood]);
 
   // Resize canvas to fit container
   useEffect(() => {
@@ -308,7 +367,34 @@ const SnakeGame = () => {
     return () => clearInterval(interval);
   }, [snake, direction, gameOver, speed, gameStarted, isPaused]);
 
-  // Move snake and handle logic - updated with conditional wall collision
+  // Generate super food position
+  const generateSuperFood = (snakeBody: SnakeSegment[]): Food => {
+    let newSuperFood: Food;
+    
+    // Calculate grid size based on current canvas dimensions
+    const gridWidth = Math.floor(canvasSize.width / scale);
+    const gridHeight = Math.floor(canvasSize.height / scale);
+    
+    while (true) {
+      newSuperFood = {
+        x: Math.floor(Math.random() * gridWidth),
+        y: Math.floor(Math.random() * gridHeight),
+      };
+      
+      // Check collision with snake
+      const collisionWithSnake = snakeBody.some(
+        (segment) => segment.x === newSuperFood.x && segment.y === newSuperFood.y
+      );
+      
+      // Check collision with regular food
+      const collisionWithFood = food.x === newSuperFood.x && food.y === newSuperFood.y;
+      
+      if (!collisionWithSnake && !collisionWithFood) break;
+    }
+    return newSuperFood;
+  };
+
+  // Move snake and handle logic - updated with super food handling
   const moveSnake = () => {
     const head = snake[0];
     const newHead = { x: head.x + direction.x, y: head.y + direction.y };
@@ -351,23 +437,65 @@ const SnakeGame = () => {
     }
 
     let newSnake = [newHead, ...snake];
+    
+    // Check if snake ate regular food
     if (newHead.x === food.x && newHead.y === food.y) {
+      // Increase food counter
+      const newFoodCount = foodCounter + 1;
+      setFoodCounter(newFoodCount);
+      
+      // Generate new regular food
       setFood(generateFood(newSnake));
+      
+      // Update score
       const newScore = score + 10;
       setScore(newScore);
       setScoreFlash(true);
       setTimeout(() => setScoreFlash(false), 500);
       
-      // Play food sound when food is eaten
+      // Play food sound
       playFoodSound();
+      
+      // Check if we should spawn super food (every 5 regular foods)
+      if (newFoodCount % 5 === 0) {
+        const superFoodPos = generateSuperFood(newSnake);
+        setSuperFood({
+          x: superFoodPos.x,
+          y: superFoodPos.y,
+          active: true,
+          timeRemaining: 5000 // 5 seconds in milliseconds
+        });
+      }
       
       if (newSnake.length % 5 === 0) {
         // Only auto-increase speed if it's not already very fast
         setSpeed((prevSpeed) => Math.max(prevSpeed - 5, 50));
       }
-    } else {
+    } 
+    // Check if snake ate super food
+    else if (superFood.active && newHead.x === superFood.x && newHead.y === superFood.y) {
+      // Add 5 segments to the snake instead of just 1
+      for (let i = 0; i < 4; i++) { // Add 4 extra segments (we already keep 1 from not popping)
+        newSnake.push({ ...newSnake[newSnake.length - 1] });
+      }
+      
+      // Update score (bonus points for super food)
+      const newScore = score + 50;
+      setScore(newScore);
+      setScoreFlash(true);
+      setTimeout(() => setScoreFlash(false), 500);
+      
+      // Play super food sound
+      playSuperFoodSound();
+      
+      // Deactivate super food
+      setSuperFood({...superFood, active: false, timeRemaining: 0});
+    }
+    else {
+      // If no food eaten, remove the tail segment
       newSnake.pop();
     }
+    
     setSnake(newSnake);
     drawGame(newSnake, food);
   };
@@ -406,7 +534,7 @@ const SnakeGame = () => {
     return newFood;
   };
 
-  // Draw game elements
+  // Draw game elements - updated to include super food
   const drawGame = (snakeToDraw: SnakeSegment[], foodToDraw: Food) => {
     const canvas = canvasRef.current as HTMLCanvasElement | null;
     if (!canvas) return;
@@ -418,7 +546,7 @@ const SnakeGame = () => {
 
     // Draw grid
     ctx.strokeStyle = wallCollision ? '#FF4040' : '#222';
-    ctx.lineWidth = wallCollision ? 2 : 0.5;
+    ctx.lineWidth = wallCollision ? 0.5 : 0.5;
     for (let x = 0; x <= canvasSize.width; x += scale) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -480,7 +608,7 @@ const SnakeGame = () => {
       }
     });
 
-    // Draw food with pulsating effect
+    // Draw regular food with pulsating effect
     const pulseValue = 0.9 + 0.2 * Math.sin(Date.now() / 200);
     const foodRadius = (scale / 2 - 1) * pulseValue;
     
@@ -502,6 +630,59 @@ const SnakeGame = () => {
     const centerY = foodToDraw.y * scale + scale / 2;
     ctx.arc(centerX, centerY, foodRadius, 0, 2 * Math.PI);
     ctx.fill();
+    
+    // Draw super food if active
+    if (superFood.active) {
+      // Larger, rainbow-colored pulsating effect for super food
+      const superPulseValue = 1.2 + 0.3 * Math.sin(Date.now() / 100);
+      const superFoodRadius = (scale / 1.5) * superPulseValue;
+      
+      // Create rainbow gradient for super food
+      const superGradient = ctx.createRadialGradient(
+        superFood.x * scale + scale / 2,
+        superFood.y * scale + scale / 2,
+        0,
+        superFood.x * scale + scale / 2,
+        superFood.y * scale + scale / 2,
+        superFoodRadius
+      );
+      
+      // Rainbow effect that changes over time
+      const hue = (Date.now() / 20) % 360;
+      superGradient.addColorStop(0, `hsl(${hue}, 100%, 70%)`);
+      superGradient.addColorStop(0.5, `hsl(${hue + 60}, 100%, 50%)`);
+      superGradient.addColorStop(1, `hsl(${hue + 120}, 100%, 30%)`);
+      
+      ctx.fillStyle = superGradient;
+      ctx.beginPath();
+      const superX = superFood.x * scale + scale / 2;
+      const superY = superFood.y * scale + scale / 2;
+      ctx.arc(superX, superY, superFoodRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Add sparkles around the super food
+      for (let i = 0; i < 5; i++) {
+        const angle = (Date.now() / 300 + i * (Math.PI * 2 / 5)) % (Math.PI * 2);
+        const sparkleX = superX + Math.cos(angle) * (superFoodRadius * 1.5);
+        const sparkleY = superY + Math.sin(angle) * (superFoodRadius * 1.5);
+        const sparkleSize = scale / 5 * (0.7 + 0.3 * Math.sin(Date.now() / 100 + i));
+        
+        ctx.fillStyle = `hsl(${(hue + i * 30) % 360}, 100%, 70%)`;
+        ctx.beginPath();
+        ctx.arc(sparkleX, sparkleY, sparkleSize, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      // Draw timer indicator for super food
+      const timerPercentage = superFood.timeRemaining / 5000;
+      ctx.fillStyle = '#FFFF00';
+      ctx.fillRect(
+        superFood.x * scale,
+        superFood.y * scale - scale / 2,
+        scale * timerPercentage,
+        scale / 10
+      );
+    }
   };
 
   // Initial draw
@@ -538,6 +719,8 @@ const SnakeGame = () => {
     setGameStarted(false);
     setIsPaused(false);
     setScore(0);
+    setFoodCounter(0);
+    setSuperFood({ x: 0, y: 0, active: false, timeRemaining: 0 });
     // Don't reset speed, wall collision mode, and audio settings - keep user's preferred settings
     if (canvasRef.current) drawGame([{ x: 5, y: 5 }], { x: 10, y: 10 });
   };
@@ -557,6 +740,19 @@ const SnakeGame = () => {
             High Score: {highScore}
           </div>
         </div>
+        
+        {/* Super food notification */}
+        {superFood.active && (
+          <div className="mb-3 px-2 py-1 bg-purple-600 bg-opacity-70 rounded-md text-center animate-pulse">
+            <span className="font-bold">SUPER FOOD AVAILABLE!</span>
+            <div className="w-full bg-gray-700 h-2 mt-1 rounded-full overflow-hidden">
+              <div 
+                className="bg-purple-300 h-full transition-all duration-100 ease-linear"
+                style={{ width: `${(superFood.timeRemaining / 5000) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
         
         {/* Game controls */}
         <div className="flex flex-col sm:flex-row justify-between mb-3 sm:mb-4 sm:space-x-2 space-y-2 sm:space-y-0">
@@ -674,6 +870,7 @@ const SnakeGame = () => {
           <p>Use arrow keys to navigate</p>
           <p>Mobile users can swipe to change direction</p>
           <p>Press P or ESC to pause the game</p>
+          <p>Every 5 foods eaten, a rainbow super food appears for 5 seconds</p>
           <p className={`${wallCollision ? 'text-red-400' : 'text-cyan-400'}`}>
             Wall Mode: {wallCollision ? 'Collision (walls kill)' : 'Portal (pass through walls)'}
           </p>
