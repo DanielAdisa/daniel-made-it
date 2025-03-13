@@ -72,7 +72,7 @@ const SnakeGame = () => {
       foodSoundRef.current = new Audio('/audio/snake-eat.mp3');
       gameOverSoundRef.current = new Audio('/audio/snake-gameover.mp3');
       // Add super food sound
-      superFoodSoundRef.current = new Audio('/audio/snake-eat.mp3'); // Reuse existing sound or replace with new one
+      superFoodSoundRef.current = new Audio('/audio/snake-eat2.mp3'); // Reuse existing sound or replace with new one
       
       // Configure background music to loop
       if (backgroundMusicRef.current) {
