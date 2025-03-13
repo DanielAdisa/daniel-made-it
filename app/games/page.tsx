@@ -85,7 +85,14 @@ export default function GamesPage() {
       description: 'Swipe to move the player and avoid obstacles to reach the end of the level.',
       image: ping,
       href: "/games/platform-game",
-    }
+    },
+    {
+      id: 'Ludo',
+      title: 'Ludo Game',
+      description: 'Play the classic game of Ludo with friends or against the computer.',
+      image: ping,
+      href: "/games/ludo",
+    },
   ];
 
   return (

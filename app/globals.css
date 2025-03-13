@@ -51,3 +51,18 @@ body {
 .animate-shake {
   animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
 }
+
+@layer utilities {
+  .grid-cols-15 {
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+  }
+  .grid-rows-15 {
+    grid-template-rows: repeat(15, minmax(0, 1fr));
+  }
+  .grid-cols-48 {
+    grid-template-columns: repeat(48, minmax(0, 1fr));
+  }
+  .grid-rows-48 {
+    grid-template-rows: repeat(48, minmax(0, 1fr));
+  }
+}
