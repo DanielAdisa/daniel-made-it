@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
   FaChevronDown, FaDownload, FaUpload, FaSync, FaSave } from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Define TypeScript interfaces for our data models
 interface InventoryItem {
@@ -1161,6 +1162,79 @@ export default function BookKeepingSystem() {
     }
   }, [editingCategory]);
 
+  // Define animation variants for reuse
+  const fadeIn = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { duration: 0.3 }
+    },
+    exit: { 
+      opacity: 0,
+      transition: { duration: 0.2 }
+    }
+  };
+
+  const slideUp = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { 
+      y: 0, 
+      opacity: 1,
+      transition: { 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 24,
+        duration: 0.3
+      }
+    },
+    exit: { 
+      y: 20, 
+      opacity: 0,
+      transition: { duration: 0.2 }
+    }
+  };
+
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  };
+
+  const tableRowVariant = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { type: "spring", stiffness: 300, damping: 24 }
+    }
+  };
+
+  const cardVariant = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 24 
+      }
+    },
+    hover: { 
+      y: -4,
+      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+      transition: { 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 20 
+      }
+    }
+  };
+
   return (
     <div className={`min-h-screen bg-${currentTheme.background}`}>
       {/* Header - with gradient background */}
@@ -1306,115 +1380,379 @@ export default function BookKeepingSystem() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row">
-        {/* Sidebar Navigation */}
-        <aside className={`w-full lg:w-64 bg-${currentTheme.cardBackground} rounded-lg shadow-md p-4 mb-6 lg:mb-0 lg:mr-8 border border-${currentTheme.border}`}>
-          <nav>
-            <ul className="space-y-2">
-              <li>
-                <button
-                  className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "dashboard" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
-                  }`}
-                  onClick={() => setActiveTab("dashboard")}
-                >
-                  <FaHome className="mr-3" />
-                  <span>Dashboard</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "inventory" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
-                  }`}
-                  onClick={() => setActiveTab("inventory")}
-                >
-                  <FaBoxOpen className="mr-3" />
-                  <span>Inventory</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "transactions" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
-                  }`}
-                  onClick={() => setActiveTab("transactions")}
-                >
-                  <FaBook className="mr-3" />
-                  <span>Transactions</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "receipts" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
-                  }`}
-                  onClick={() => setActiveTab("receipts")}
-                >
-                  <FaBook className="mr-3" />
-                  <span>Receipts</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "categories" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
-                  }`}
-                  onClick={() => setActiveTab("categories")}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                  <span>Categories</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
-        </aside>
+      {/* Main Content - wrap in AnimatePresence */}
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={activeTab}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          variants={fadeIn}
+          className="container mx-auto px-4 py-8 flex flex-col lg:flex-row"
+        >
+          {/* Sidebar Navigation - animate it */}
+          <motion.aside 
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 24 }}
+            className={`w-full lg:w-64 bg-${currentTheme.cardBackground} rounded-lg shadow-md p-4 mb-6 lg:mb-0 lg:mr-8 border border-${currentTheme.border}`}
+          >
+            <nav>
+              <ul className="space-y-2">
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "dashboard" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("dashboard")}
+                  >
+                    <FaHome className="mr-3" />
+                    <span>Dashboard</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "inventory" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("inventory")}
+                  >
+                    <FaBoxOpen className="mr-3" />
+                    <span>Inventory</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "transactions" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("transactions")}
+                  >
+                    <FaBook className="mr-3" />
+                    <span>Transactions</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "receipts" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("receipts")}
+                  >
+                    <FaBook className="mr-3" />
+                    <span>Receipts</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "categories" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("categories")}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    <span>Categories</span>
+                  </button>
+                </li>
+              </ul>
+            </nav>
+          </motion.aside>
 
-        {/* Main Content Area */}
-        <div className={`flex-1 bg-${currentTheme.cardBackground} rounded-lg shadow-md p-6 border border-${currentTheme.border}`}>
-          {/* Dashboard tab - use currentTheme for cards and tables */}
-          {activeTab === "dashboard" && (
-            <div className="space-y-6">
-              <h2 className={`text-2xl font-bold mb-4 flex items-center text-${currentTheme.text}`}>
-                <FaChartLine className={`mr-2 text-${currentTheme.accent}`} />
-                Dashboard Overview
-              </h2>
+          {/* Main Content Area */}
+          <motion.div 
+            variants={slideUp}
+            className={`flex-1 bg-${currentTheme.cardBackground} rounded-lg shadow-md p-6 border border-${currentTheme.border}`}
+          >
+            {/* Dashboard Tab */}
+            {activeTab === "dashboard" && (
+              <motion.div 
+                variants={fadeIn} 
+                className="space-y-6"
+              >
+                <h2 className={`text-2xl font-bold mb-4 flex items-center text-${currentTheme.text}`}>
+                  <FaChartLine className={`mr-2 text-${currentTheme.accent}`} />
+                  Dashboard Overview
+                </h2>
               
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.primary}`}>
-                  <h3 className="text-gray-400 text-sm">Inventory Value</h3>
-                  <p className={`text-2xl font-bold text-${currentTheme.text}`}>{formatCurrency(totalInventoryValue)}</p>
-                </div>
-                
-                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.success}`}>
-                  <h3 className="text-gray-400 text-sm">Total Sales</h3>
-                  <p className={`text-2xl font-bold text-${currentTheme.text}`}>{formatCurrency(totalSalesValue)}</p>
-                </div>
-                
-                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.danger}`}>
-                  <h3 className="text-gray-400 text-sm">Total Expenses</h3>
-                  <p className={`text-2xl font-bold text-${currentTheme.text}`}>{formatCurrency(totalExpenses)}</p>
-                </div>
-                
-                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.secondary}`}>
-                  <h3 className="text-gray-400 text-sm">Profit</h3>
-                  <p className={`text-2xl font-bold ${profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                    {formatCurrency(profit)}
-                  </p>
-                </div>
-              </div>
+                {/* Summary Cards with staggered animation */}
+                <motion.div 
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+                >
+                  <motion.div
+                    variants={cardVariant}
+                    whileHover="hover"
+                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.primary}`}
+                  >
+                    <h3 className="text-gray-400 text-sm">Inventory Value</h3>
+                    <motion.p 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, duration: 0.3 }}
+                      className={`text-2xl font-bold text-${currentTheme.text}`}
+                    >
+                      {formatCurrency(totalInventoryValue)}
+                    </motion.p>
+                  </motion.div>
+                  
+                  <motion.div
+                    variants={cardVariant}
+                    whileHover="hover"
+                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.success}`}
+                  >
+                    <h3 className="text-gray-400 text-sm">Total Sales</h3>
+                    <motion.p 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, duration: 0.3 }}
+                      className={`text-2xl font-bold text-${currentTheme.text}`}
+                    >
+                      {formatCurrency(totalSalesValue)}
+                    </motion.p>
+                  </motion.div>
+                  
+                  <motion.div
+                    variants={cardVariant}
+                    whileHover="hover"
+                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.danger}`}
+                  >
+                    <h3 className="text-gray-400 text-sm">Total Expenses</h3>
+                    <motion.p 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, duration: 0.3 }}
+                      className={`text-2xl font-bold text-${currentTheme.text}`}
+                    >
+                      {formatCurrency(totalExpenses)}
+                    </motion.p>
+                  </motion.div>
+                  
+                  <motion.div
+                    variants={cardVariant}
+                    whileHover="hover"
+                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.secondary}`}
+                  >
+                    <h3 className="text-gray-400 text-sm">Profit</h3>
+                    <motion.p 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.2, duration: 0.3 }}
+                      className={`text-2xl font-bold ${profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}
+                    >
+                      {formatCurrency(profit)}
+                    </motion.p>
+                  </motion.div>
+                </motion.div>
               
-              {/* Recent Activity */}
-              <div>
-                <h3 className={`text-xl font-semibold mb-4 text-${currentTheme.text} border-b border-${currentTheme.border} pb-2`}>Recent Activity</h3>
+                {/* Recent Activity */}
+                <div>
+                  <h3 className={`text-xl font-semibold mb-4 text-${currentTheme.text} border-b border-${currentTheme.border} pb-2`}>Recent Activity</h3>
+                  {filteredTransactions.length === 0 ? (
+                    <p className="text-gray-400">
+                      {searchQuery ? "No matching transactions found." : "No transactions recorded yet."}
+                    </p>
+                  ) : (
+                    <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className={`bg-${currentTheme.background}`}>
+                            <th className="p-4 text-gray-400 font-semibold">Date</th>
+                            <th className="p-4 text-gray-400 font-semibold">Description</th>
+                            <th className="p-4 text-gray-400 font-semibold">Category</th>
+                            <th className="p-4 text-gray-400 font-semibold">Amount</th>
+                          </tr>
+                        </thead>
+                        <motion.tbody
+                          variants={staggerContainer}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          {filteredTransactions.slice(0, 5).map((transaction) => (
+                            <motion.tr 
+                              key={transaction.id} 
+                              variants={tableRowVariant}
+                              className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
+                            >
+                              <td className="p-4 text-gray-300">{transaction.date.toLocaleDateString()}</td>
+                              <td className="p-4 text-gray-300">{transaction.description}</td>
+                              <td className="p-4 text-gray-300">{transaction.category}</td>
+                              <td className={`p-4 ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
+                                {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </motion.tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Inventory tab */}
+            {activeTab === "inventory" && (
+              <motion.div variants={fadeIn}>
+                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                  <div>
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Inventory Management</h2>
+                    {searchQuery && (
+                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                        Showing {searchStats.inventory}
+                      </p>
+                    )}
+                  </div>
+                  <button 
+                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+                    onClick={() => {
+                      setEditingInventoryItem(null);
+                      resetInventoryForm();
+                      setShowInventoryModal(true);
+                    }}
+                  >
+                    <FaPlus className="mr-2" /> Add Item
+                  </button>
+                </div>
+                
+                {filteredInventory.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+                  >
+                    {searchQuery ? (
+                      <>
+                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching inventory items</h3>
+                        <p className="text-gray-400 mt-2">Try different search terms</p>
+                      </>
+                    ) : (
+                      <>
+                        <FaBoxOpen className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No inventory items yet</h3>
+                        <p className="text-gray-400 mt-2">Add your first inventory item to get started</p>
+                      </>
+                    )}
+                  </motion.div>
+                ) : (
+                  <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className={`bg-${currentTheme.background}`}>
+                          <th className="p-4 text-gray-400 font-semibold">Item Name</th>
+                          <th className="p-4 text-gray-400 font-semibold">SKU</th>
+                          <th className="p-4 text-gray-400 font-semibold">Category</th>
+                          <th className="p-4 text-gray-400 font-semibold">Quantity</th>
+                          <th className="p-4 text-gray-400 font-semibold">Cost Price</th>
+                          <th className="p-4 text-gray-400 font-semibold">Selling Price</th>
+                          <th className="p-4 text-gray-400 font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <motion.tbody
+                        variants={staggerContainer}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        {filteredInventory.map((item) => (
+                          <motion.tr 
+                            key={item.id} 
+                            variants={tableRowVariant}
+                            className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
+                          >
+                            <td className={`p-4 text-${currentTheme.text}`}>{item.name}</td>
+                            <td className="p-4 text-gray-400">{item.sku}</td>
+                            <td className="p-4">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                // Find matching category to apply its color
+                                (() => {
+                                  const category = categories.find(c => c.id === item.category);
+                                  return category 
+                                    ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
+                                    : `bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`;
+                                })()
+                              }`}>
+                                {/* Display category name instead of ID */}
+                                {(() => {
+                                  const category = categories.find(c => c.id === item.category);
+                                  return category ? category.name : item.category;
+                                })()}
+                              </span>
+                            </td>
+                            <td className={`p-4 text-${currentTheme.text}`}>{item.quantity}</td>
+                            <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.costPrice)}</td>
+                            <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.sellingPrice)}</td>
+                            <td className="p-4 space-x-2">
+                              <button 
+                                className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                                onClick={() => setEditingInventoryItem(item)}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                                onClick={() => deleteInventoryItem(item.id)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </motion.tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Transaction tab */}
+            {activeTab === "transactions" && (
+              <motion.div variants={fadeIn}>
+                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                  <div>
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Financial Transactions</h2>
+                    {searchQuery && (
+                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                        Showing {searchStats.transactions}
+                      </p>
+                    )}
+                  </div>
+                  <button 
+                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+                    onClick={() => {
+                      setEditingTransaction(null);
+                      resetTransactionForm();
+                      setShowTransactionModal(true);
+                    }}
+                  >
+                    <FaPlus className="mr-2" /> Add Transaction
+                  </button>
+                </div>
+                
                 {filteredTransactions.length === 0 ? (
-                  <p className="text-gray-400">
-                    {searchQuery ? "No matching transactions found." : "No transactions recorded yet."}
-                  </p>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+                  >
+                    {searchQuery ? (
+                      <>
+                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching transactions</h3>
+                        <p className="text-gray-400 mt-2">Try different search terms</p>
+                      </>
+                    ) : (
+                      <>
+                        <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No transactions recorded</h3>
+                        <p className="text-gray-400 mt-2">Add your first transaction to start tracking finances</p>
+                      </>
+                    )}
+                  </motion.div>
                 ) : (
                   <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
                     <table className="w-full text-left">
@@ -1423,1153 +1761,1122 @@ export default function BookKeepingSystem() {
                           <th className="p-4 text-gray-400 font-semibold">Date</th>
                           <th className="p-4 text-gray-400 font-semibold">Description</th>
                           <th className="p-4 text-gray-400 font-semibold">Category</th>
+                          <th className="p-4 text-gray-400 font-semibold">Type</th>
                           <th className="p-4 text-gray-400 font-semibold">Amount</th>
+                          <th className="p-4 text-gray-400 font-semibold">Actions</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {filteredTransactions.slice(0, 5).map((transaction) => (
-                          <tr key={transaction.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
-                            <td className="p-4 text-gray-300">{transaction.date.toLocaleDateString()}</td>
-                            <td className="p-4 text-gray-300">{transaction.description}</td>
-                            <td className="p-4 text-gray-300">{transaction.category}</td>
-                            <td className={`p-4 ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
-                              {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                      <motion.tbody
+                        variants={staggerContainer}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        {filteredTransactions.map((transaction) => (
+                          <motion.tr 
+                            key={transaction.id} 
+                            variants={tableRowVariant}
+                            className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
+                          >
+                            <td className={`p-4 text-${currentTheme.text}`}>{transaction.date.toLocaleDateString()}</td>
+                            <td className={`p-4 text-${currentTheme.text}`}>{transaction.description}</td>
+                            <td className="p-4">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                // Find matching category to apply its color
+                                (() => {
+                                  const category = categories.find(c => c.id === transaction.category);
+                                  return category 
+                                    ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
+                                    : transaction.type === "income"
+                                      ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
+                                      : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`;
+                                })()
+                              }`}>
+                                {/* Display category name instead of ID */}
+                                {(() => {
+                                  const category = categories.find(c => c.id === transaction.category);
+                                  return category ? category.name : transaction.category;
+                                })()}
+                              </span>
                             </td>
-                          </tr>
+                            <td className="p-4">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                transaction.type === "income" ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                              }`}>
+                                {transaction.type}
+                              </span>
+                            </td>
+                            <td className={`p-4 ${transaction.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
+                              {formatCurrency(transaction.amount)}
+                            </td>
+                            <td className="p-4 space-x-2">
+                              <button 
+                                className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                                onClick={() => setEditingTransaction(transaction)}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                                onClick={() => deleteTransaction(transaction.id)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </motion.tr>
                         ))}
-                      </tbody>
+                      </motion.tbody>
                     </table>
                   </div>
                 )}
-              </div>
-            </div>
-          )}
+              </motion.div>
+            )}
 
-          {/* Inventory tab */}
-          {activeTab === "inventory" && (
-            <div>
-              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
-                <div>
-                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Inventory Management</h2>
-                  {searchQuery && (
-                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                      Showing {searchStats.inventory}
-                    </p>
-                  )}
-                </div>
-                <button 
-                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                  onClick={() => {
-                    setEditingInventoryItem(null);
-                    resetInventoryForm();
-                    setShowInventoryModal(true);
-                  }}
-                >
-                  <FaPlus className="mr-2" /> Add Item
-                </button>
-              </div>
-              
-              {filteredInventory.length === 0 ? (
-                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
-                  {searchQuery ? (
-                    <>
-                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching inventory items</h3>
-                      <p className="text-gray-400 mt-2">Try different search terms</p>
-                    </>
-                  ) : (
-                    <>
-                      <FaBoxOpen className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No inventory items yet</h3>
-                      <p className="text-gray-400 mt-2">Add your first inventory item to get started</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className={`bg-${currentTheme.background}`}>
-                        <th className="p-4 text-gray-400 font-semibold">Item Name</th>
-                        <th className="p-4 text-gray-400 font-semibold">SKU</th>
-                        <th className="p-4 text-gray-400 font-semibold">Category</th>
-                        <th className="p-4 text-gray-400 font-semibold">Quantity</th>
-                        <th className="p-4 text-gray-400 font-semibold">Cost Price</th>
-                        <th className="p-4 text-gray-400 font-semibold">Selling Price</th>
-                        <th className="p-4 text-gray-400 font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredInventory.map((item) => (
-                        <tr key={item.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
-                          <td className={`p-4 text-${currentTheme.text}`}>{item.name}</td>
-                          <td className="p-4 text-gray-400">{item.sku}</td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              // Find matching category to apply its color
-                              (() => {
-                                const category = categories.find(c => c.id === item.category);
-                                return category 
-                                  ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
-                                  : `bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`;
-                              })()
-                            }`}>
-                              {/* Display category name instead of ID */}
-                              {(() => {
-                                const category = categories.find(c => c.id === item.category);
-                                return category ? category.name : item.category;
-                              })()}
-                            </span>
-                          </td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{item.quantity}</td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.costPrice)}</td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.sellingPrice)}</td>
-                          <td className="p-4 space-x-2">
-                            <button 
-                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                              onClick={() => setEditingInventoryItem(item)}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                              onClick={() => deleteInventoryItem(item.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Transaction tab */}
-          {activeTab === "transactions" && (
-            <div>
-              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
-                <div>
-                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Financial Transactions</h2>
-                  {searchQuery && (
-                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                      Showing {searchStats.transactions}
-                    </p>
-                  )}
-                </div>
-                <button 
-                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                  onClick={() => {
-                    setEditingTransaction(null);
-                    resetTransactionForm();
-                    setShowTransactionModal(true);
-                  }}
-                >
-                  <FaPlus className="mr-2" /> Add Transaction
-                </button>
-              </div>
-              
-              {filteredTransactions.length === 0 ? (
-                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
-                  {searchQuery ? (
-                    <>
-                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching transactions</h3>
-                      <p className="text-gray-400 mt-2">Try different search terms</p>
-                    </>
-                  ) : (
-                    <>
-                      <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No transactions recorded</h3>
-                      <p className="text-gray-400 mt-2">Add your first transaction to start tracking finances</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className={`bg-${currentTheme.background}`}>
-                        <th className="p-4 text-gray-400 font-semibold">Date</th>
-                        <th className="p-4 text-gray-400 font-semibold">Description</th>
-                        <th className="p-4 text-gray-400 font-semibold">Category</th>
-                        <th className="p-4 text-gray-400 font-semibold">Type</th>
-                        <th className="p-4 text-gray-400 font-semibold">Amount</th>
-                        <th className="p-4 text-gray-400 font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTransactions.map((transaction) => (
-                        <tr key={transaction.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
-                          <td className={`p-4 text-${currentTheme.text}`}>{transaction.date.toLocaleDateString()}</td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{transaction.description}</td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              // Find matching category to apply its color
-                              (() => {
-                                const category = categories.find(c => c.id === transaction.category);
-                                return category 
-                                  ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
-                                  : transaction.type === "income"
-                                    ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
-                                    : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`;
-                              })()
-                            }`}>
-                              {/* Display category name instead of ID */}
-                              {(() => {
-                                const category = categories.find(c => c.id === transaction.category);
-                                return category ? category.name : transaction.category;
-                              })()}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              transaction.type === "income" ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
-                            }`}>
-                              {transaction.type}
-                            </span>
-                          </td>
-                          <td className={`p-4 ${transaction.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
-                            {formatCurrency(transaction.amount)}
-                          </td>
-                          <td className="p-4 space-x-2">
-                            <button 
-                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                              onClick={() => setEditingTransaction(transaction)}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                              onClick={() => deleteTransaction(transaction.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Receipts tab */}
-          {activeTab === "receipts" && (
-            <div>
-              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
-                <div>
-                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Receipts Management</h2>
-                  {searchQuery && (
-                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                      Showing {searchStats.receipts}
-                    </p>
-                  )}
-                </div>
-                <button
-                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                  onClick={() => {
-                    setEditingReceipt(null);
-                    resetReceiptForm();
-                    setShowReceiptModal(true);
-                  }}
-                >
-                  <FaPlus className="mr-2" /> Add Receipt
-                </button>
-              </div>
-
-              {filteredReceipts.length === 0 ? (
-                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
-                  {searchQuery ? (
-                    <>
-                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching receipts</h3>
-                      <p className="text-gray-400 mt-2">Try different search terms</p>
-                    </>
-                  ) : (
-                    <>
-                      <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No receipts recorded</h3>
-                      <p className="text-gray-400 mt-2">Add your first receipt to start tracking</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className={`bg-${currentTheme.background}`}>
-                        <th className="p-4 text-gray-400 font-semibold">Date</th>
-                        <th className="p-4 text-gray-400 font-semibold">Customer ID</th>
-                        <th className="p-4 text-gray-400 font-semibold">Customer Name</th>
-                        <th className="p-4 text-gray-400 font-semibold">Total Amount</th>
-                        <th className="p-4 text-gray-400 font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredReceipts.map((receipt) => (
-                        <tr key={receipt.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
-                          <td className={`p-4 text-${currentTheme.text}`}>{receipt.date.toLocaleDateString()}</td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerId}</td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerName}</td>
-                          <td className={`p-4 text-${currentTheme.success}`}>{formatCurrency(receipt.totalAmount)}</td>
-                          <td className="p-4 space-x-2">
-                            <button
-                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                              onClick={() => setEditingReceipt(receipt)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                              onClick={() => deleteReceipt(receipt.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Categories Tab */}
-          {activeTab === "categories" && (
-            <div>
-              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
-                <div>
-                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Category Management</h2>
-                  {searchQuery && (
-                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                      Showing {searchStats.categories}
-                    </p>
-                  )}
-                </div>
-                <button
-                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                  onClick={() => {
-                    setEditingCategory(null);
-                    resetCategoryForm();
-                    setShowCategoryModal(true);
-                  }}
-                >
-                  <FaPlus className="mr-2" /> Add Category
-                </button>
-              </div>
-
-              {filteredCategories.length === 0 ? (
-                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
-                  {searchQuery ? (
-                    <>
-                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching categories</h3>
-                      <p className="text-gray-400 mt-2">Try different search terms</p>
-                    </>
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No categories defined</h3>
-                      <p className="text-gray-400 mt-2">Add categories to organize your inventory and transactions</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredCategories.map(category => (
-                    <div 
-                      key={category.id} 
-                      className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200`}
-                    >
-                      <div className={`bg-${category.color} h-2 w-full`}></div>
-                      <div className="p-4">
-                        <div className="flex justify-between items-start">
-                          <h3 className={`text-lg font-medium text-${currentTheme.text}`}>{category.name}</h3>
-                          <span className={`px-2 py-1 bg-${currentTheme.background} text-xs rounded-full border border-${currentTheme.border} text-gray-400`}>
-                            {category.type === "both" ? "Inventory & Transactions" : 
-                             category.type === "inventory" ? "Inventory Only" : "Transactions Only"}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-gray-400 text-sm">{category.description}</p>
-                        <div className="mt-4 flex justify-end space-x-2">
-                          <button 
-                            className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                            onClick={() => setEditingCategory(category)}
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                            onClick={() => deleteCategory(category.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Inventory Modal - Dark UI */}
-      {showInventoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
-          <div 
-            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                <FaBoxOpen className={`mr-2 text-${currentTheme.accent}`} />
-                {editingInventoryItem ? 'Edit Inventory Item' : 'Add Inventory Item'}
-              </h3>
-              <button 
-                onClick={() => {
-                  setShowInventoryModal(false);
-                  setEditingInventoryItem(null);
-                }}
-                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="px-6 py-4">
-              <form onSubmit={(e) => { 
-                e.preventDefault(); 
-                editingInventoryItem ? updateInventoryItem() : addInventoryItem();
-              }}>
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Item Name</label>
-                  <input 
-                    type="text" 
-                    name="name"
-                    value={inventoryFormData.name}
-                    onChange={handleInventoryFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                    placeholder="Enter item name"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>SKU</label>
-                  <input 
-                    type="text" 
-                    name="sku"
-                    value={inventoryFormData.sku}
-                    onChange={handleInventoryFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                    placeholder="Stock keeping unit"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
-                  <select 
-                    name="category"
-                    value={inventoryFormData.category}
-                    onChange={handleInventoryFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                  >
-                    <option value="">Select a category</option>
-                    {categories
-                      .filter(cat => cat.type === "inventory" || cat.type === "both")
-                      .map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))
-                    }
-                  </select>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4 mb-4">
+            {/* Receipts tab */}
+            {activeTab === "receipts" && (
+              <motion.div variants={fadeIn}>
+                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
                   <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Quantity</label>
-                    <input 
-                      type="number" 
-                      name="quantity"
-                      title="Quantity"
-                      value={inventoryFormData.quantity}
-                      onChange={handleInventoryFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      min="0"
-                      required
-                    />
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Receipts Management</h2>
+                    {searchQuery && (
+                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                        Showing {searchStats.receipts}
+                      </p>
+                    )}
                   </div>
-                  
-                  <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                      Cost <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      name="costPrice"
-                      title="Cost Price"
-                      value={inventoryFormData.costPrice}
-                      onChange={handleInventoryFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      min="0"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                      Price <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      name="sellingPrice"
-                      title="Selling Price"
-                      value={inventoryFormData.sellingPrice}
-                      onChange={handleInventoryFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      min="0"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                  <button 
-                    type="button"
+                  <button
+                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
                     onClick={() => {
-                      setShowInventoryModal(false);
-                      setEditingInventoryItem(null);
+                      setEditingReceipt(null);
+                      resetReceiptForm();
+                      setShowReceiptModal(true);
                     }}
-                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
                   >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                  >
-                    <FaPlus className="mr-2 h-4 w-4" /> 
-                    {editingInventoryItem ? 'Update Item' : 'Save Item'}
+                    <FaPlus className="mr-2" /> Add Receipt
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Transaction Modal - Improved design */}
-      {showTransactionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
-          <div 
-            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                <FaBook className={`mr-2 text-${currentTheme.accent}`} />
-                {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-              </h3>
-              <button 
-                onClick={() => {
-                  setShowTransactionModal(false);
-                  setEditingTransaction(null);
-                }}
-                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="px-6 py-4">
-              <form onSubmit={(e) => { 
-                e.preventDefault(); 
-                editingTransaction ? updateTransaction() : addTransaction();
-              }}>
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
-                  <input 
-                    type="text" 
-                    name="description"
-                    value={transactionFormData.description}
-                    onChange={handleTransactionFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                    placeholder="Transaction description"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Type</label>
-                  <div className="flex space-x-2 mb-2">
-                    <button
-                      type="button"
-                      className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
-                        transactionFormData.type === "income" 
-                          ? `bg-${currentTheme.success}/30 text-${currentTheme.success} border-${currentTheme.success}/30`
-                          : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
-                      }`}
-                      onClick={() => setTransactionFormData({...transactionFormData, type: "income"})}
-                    >
-                      Income
-                    </button>
-                    <button
-                      type="button"
-                      className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
-                        transactionFormData.type === "expense" 
-                          ? `bg-${currentTheme.danger}/30 text-${currentTheme.danger} border-${currentTheme.danger}/30`
-                          : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
-                      }`}
-                      onClick={() => setTransactionFormData({...transactionFormData, type: "expense"})}
-                    >
-                      Expense
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
-                  <select 
-                    name="category"
-                    value={transactionFormData.category}
-                    onChange={handleTransactionFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
+                {filteredReceipts.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
                   >
-                    <option value="">Select a category</option>
-                    {categories
-                      .filter(cat => cat.type === "transaction" || cat.type === "both")
-                      .map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))
-                    }
-                  </select>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                      Amount <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      title="Transaction amount"
-                      name="amount"
-                      value={transactionFormData.amount}
-                      onChange={handleTransactionFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      min="0"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
-                    <input 
-                      type="date" 
-                      name="date"
-                      title="Transaction date"
-                      value={transactionFormData.date}
-                      onChange={handleTransactionFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                    />
-                  </div>
-                </div>
-                
-                {inventory.length > 0 && (
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Related Inventory Item (Optional)</label>
-                    <select 
-                      name="relatedInventoryId"
-                      title="Related Inventory Item"
-                      value={transactionFormData.relatedInventoryId || ""}
-                      onChange={handleTransactionFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    >
-                      <option value="">None</option>
-                      {inventory.map(item => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
+                    {searchQuery ? (
+                      <>
+                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching receipts</h3>
+                        <p className="text-gray-400 mt-2">Try different search terms</p>
+                      </>
+                    ) : (
+                      <>
+                        <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No receipts recorded</h3>
+                        <p className="text-gray-400 mt-2">Add your first receipt to start tracking</p>
+                      </>
+                    )}
+                  </motion.div>
+                ) : (
+                  <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className={`bg-${currentTheme.background}`}>
+                          <th className="p-4 text-gray-400 font-semibold">Date</th>
+                          <th className="p-4 text-gray-400 font-semibold">Customer ID</th>
+                          <th className="p-4 text-gray-400 font-semibold">Customer Name</th>
+                          <th className="p-4 text-gray-400 font-semibold">Total Amount</th>
+                          <th className="p-4 text-gray-400 font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <motion.tbody
+                        variants={staggerContainer}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        {filteredReceipts.map((receipt) => (
+                          <motion.tr 
+                            key={receipt.id} 
+                            variants={tableRowVariant}
+                            className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
+                          >
+                            <td className={`p-4 text-${currentTheme.text}`}>{receipt.date.toLocaleDateString()}</td>
+                            <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerId}</td>
+                            <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerName}</td>
+                            <td className={`p-4 text-${currentTheme.success}`}>{formatCurrency(receipt.totalAmount)}</td>
+                            <td className="p-4 space-x-2">
+                              <button
+                                className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                                onClick={() => setEditingReceipt(receipt)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                                onClick={() => deleteReceipt(receipt.id)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </motion.tbody>
+                    </table>
                   </div>
                 )}
-                
-                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                  <button 
-                    type="button"
+              </motion.div>
+            )}
+
+            {/* Categories Tab */}
+            {activeTab === "categories" && (
+              <motion.div variants={fadeIn}>
+                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                  <div>
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Category Management</h2>
+                    {searchQuery && (
+                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                        Showing {searchStats.categories}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
                     onClick={() => {
-                      setShowTransactionModal(false);
-                      setEditingTransaction(null);
+                      setEditingCategory(null);
+                      resetCategoryForm();
+                      setShowCategoryModal(true);
                     }}
-                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
                   >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className={`px-5 py-2.5 ${transactionFormData.type === "income" ? `bg-${currentTheme.success} hover:bg-${currentTheme.success}/80` : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80`} text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                  >
-                    <FaPlus className="mr-2 h-4 w-4" /> 
-                    {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
+                    <FaPlus className="mr-2" /> Add Category
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+
+                {filteredCategories.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+                  >
+                    {searchQuery ? (
+                      <>
+                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching categories</h3>
+                        <p className="text-gray-400 mt-2">Try different search terms</p>
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No categories defined</h3>
+                        <p className="text-gray-400 mt-2">Add categories to organize your inventory and transactions</p>
+                      </>
+                    )}
+                  </motion.div>
+                ) : (
+                  <motion.div 
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="visible"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                  >
+                    {filteredCategories.map(category => (
+                      <motion.div 
+                        key={category.id}
+                        variants={cardVariant}
+                        whileHover="hover"
+                        className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden shadow-sm`}
+                      >
+                        <div className={`bg-${category.color} h-2 w-full`}></div>
+                        <div className="p-4">
+                          <div className="flex justify-between items-start">
+                            <h3 className={`text-lg font-medium text-${currentTheme.text}`}>{category.name}</h3>
+                            <span className={`px-2 py-1 bg-${currentTheme.background} text-xs rounded-full border border-${currentTheme.border} text-gray-400`}>
+                              {category.type === "both" ? "Inventory & Transactions" : 
+                               category.type === "inventory" ? "Inventory Only" : "Transactions Only"}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-gray-400 text-sm">{category.description}</p>
+                          <div className="mt-4 flex justify-end space-x-2">
+                            <button 
+                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                              onClick={() => setEditingCategory(category)}
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                              onClick={() => deleteCategory(category.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Modals - Animate them with Framer Motion */}
+      
+      {/* Inventory Modal */}
+      <AnimatePresence>
+        {showInventoryModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaBoxOpen className={`mr-2 text-${currentTheme.accent}`} />
+                  {editingInventoryItem ? 'Edit Inventory Item' : 'Add Inventory Item'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowInventoryModal(false);
+                    setEditingInventoryItem(null);
+                  }}
+                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="px-6 py-4">
+                <form onSubmit={(e) => { 
+                  e.preventDefault(); 
+                  editingInventoryItem ? updateInventoryItem() : addInventoryItem();
+                }}>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Item Name</label>
+                    <input 
+                      type="text" 
+                      name="name"
+                      value={inventoryFormData.name}
+                      onChange={handleInventoryFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Enter item name"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>SKU</label>
+                    <input 
+                      type="text" 
+                      name="sku"
+                      value={inventoryFormData.sku}
+                      onChange={handleInventoryFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Stock keeping unit"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
+                    <select 
+                      name="category"
+                      title="Item category"
+                      value={inventoryFormData.category}
+                      onChange={handleInventoryFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    >
+                      <option value="">Select a category</option>
+                      {categories
+                        .filter(cat => cat.type === "inventory" || cat.type === "both")
+                        .map(category => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Quantity</label>
+                      <input 
+                        type="number" 
+                        name="quantity"
+                        title="Quantity"
+                        value={inventoryFormData.quantity}
+                        onChange={handleInventoryFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        min="0"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                        Cost <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
+                      </label>
+                      <input 
+                        type="number" 
+                        name="costPrice"
+                        title="Cost Price"
+                        value={inventoryFormData.costPrice}
+                        onChange={handleInventoryFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                        Price <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
+                      </label>
+                      <input 
+                        type="number" 
+                        name="sellingPrice"
+                        title="Selling Price"
+                        value={inventoryFormData.sellingPrice}
+                        onChange={handleInventoryFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowInventoryModal(false);
+                        setEditingInventoryItem(null);
+                      }}
+                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaPlus className="mr-2 h-4 w-4" /> 
+                      {editingInventoryItem ? 'Update Item' : 'Save Item'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Transaction Modal */}
+      <AnimatePresence>
+        {showTransactionModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaBook className={`mr-2 text-${currentTheme.accent}`} />
+                  {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowTransactionModal(false);
+                    setEditingTransaction(null);
+                  }}
+                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="px-6 py-4">
+                <form onSubmit={(e) => { 
+                  e.preventDefault(); 
+                  editingTransaction ? updateTransaction() : addTransaction();
+                }}>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
+                    <input 
+                      type="text" 
+                      name="description"
+                      value={transactionFormData.description}
+                      onChange={handleTransactionFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Transaction description"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Type</label>
+                    <div className="flex space-x-2 mb-2">
+                      <button
+                        type="button"
+                        className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
+                          transactionFormData.type === "income" 
+                            ? `bg-${currentTheme.success}/30 text-${currentTheme.success} border-${currentTheme.success}/30`
+                            : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
+                        }`}
+                        onClick={() => setTransactionFormData({...transactionFormData, type: "income"})}
+                      >
+                        Income
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
+                          transactionFormData.type === "expense" 
+                            ? `bg-${currentTheme.danger}/30 text-${currentTheme.danger} border-${currentTheme.danger}/30`
+                            : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
+                        }`}
+                        onClick={() => setTransactionFormData({...transactionFormData, type: "expense"})}
+                      >
+                        Expense
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
+                    <select 
+                      name="category"
+                      title="Transaction category"
+                      value={transactionFormData.category}
+                      onChange={handleTransactionFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    >
+                      <option value="">Select a category</option>
+                      {categories
+                        .filter(cat => cat.type === "transaction" || cat.type === "both")
+                        .map(category => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                        Amount <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
+                      </label>
+                      <input 
+                        type="number" 
+                        title="Transaction amount"
+                        name="amount"
+                        value={transactionFormData.amount}
+                        onChange={handleTransactionFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
+                      <input 
+                        type="date" 
+                        name="date"
+                        title="Transaction date"
+                        value={transactionFormData.date}
+                        onChange={handleTransactionFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  {inventory.length > 0 && (
+                    <div className="mb-4">
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Related Inventory Item (Optional)</label>
+                      <select 
+                        name="relatedInventoryId"
+                        title="Related Inventory Item"
+                        value={transactionFormData.relatedInventoryId || ""}
+                        onChange={handleTransactionFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      >
+                        <option value="">None</option>
+                        {inventory.map(item => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowTransactionModal(false);
+                        setEditingTransaction(null);
+                      }}
+                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className={`px-5 py-2.5 ${transactionFormData.type === "income" ? `bg-${currentTheme.success} hover:bg-${currentTheme.success}/80` : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80`} text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaPlus className="mr-2 h-4 w-4" /> 
+                      {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Receipt Modal */}
-      {showReceiptModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
-          <div
-            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {showReceiptModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
           >
-            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                <FaBook className={`mr-2 text-${currentTheme.accent}`} />
-                {editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowReceiptModal(false);
-                  setEditingReceipt(null);
-                }}
-                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-              >
-                <FaTimes />
-              </button>
-            </div>
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaBook className={`mr-2 text-${currentTheme.accent}`} />
+                  {editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowReceiptModal(false);
+                    setEditingReceipt(null);
+                  }}
+                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                >
+                  <FaTimes />
+                </button>
+              </div>
 
-            <div className="px-6 py-4">
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                editingReceipt ? updateReceipt() : addReceipt();
-              }}>
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
-                  <input
-                    type="date"
-                    name="date"
-                    title="Receipt date"
-                    aria-label="Receipt date"
-                    value={receiptFormData.date}
-                    onChange={handleReceiptFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                  />
-                </div>
+              <div className="px-6 py-4">
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  editingReceipt ? updateReceipt() : addReceipt();
+                }}>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
+                    <input
+                      type="date"
+                      name="date"
+                      title="Receipt date"
+                      aria-label="Receipt date"
+                      value={receiptFormData.date}
+                      onChange={handleReceiptFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    />
+                  </div>
 
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer ID</label>
-                  <input
-                    type="text"
-                    name="customerId"
-                    value={receiptFormData.customerId}
-                    onChange={handleReceiptFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                    placeholder="Enter customer ID"
-                  />
-                </div>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer ID</label>
+                    <input
+                      type="text"
+                      name="customerId"
+                      value={receiptFormData.customerId}
+                      onChange={handleReceiptFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Enter customer ID"
+                    />
+                  </div>
 
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer Name</label>
-                  <input
-                    type="text"
-                    name="customerName"
-                    value={receiptFormData.customerName}
-                    onChange={handleReceiptFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                    placeholder="Enter customer name"
-                  />
-                </div>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer Name</label>
+                    <input
+                      type="text"
+                      name="customerName"
+                      value={receiptFormData.customerName}
+                      onChange={handleReceiptFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Enter customer name"
+                    />
+                  </div>
 
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Items</label>
-                  
-                  <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="col-span-2">
-                        <label className="block text-xs text-gray-400 mb-1">Select Item</label>
-                        <select
-                          title="Select inventory item"
-                          aria-label="Select inventory item"
-                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const selectedItem = inventory.find(item => item.id === e.target.value);
-                              if (selectedItem) {
-                                const receiptItem = {
-                                  id: selectedItem.id,
-                                  name: selectedItem.name,
-                                  quantity: 1,
-                                  price: selectedItem.sellingPrice
-                                };
-                                setReceiptFormData({
-                                  ...receiptFormData,
-                                  items: [...receiptFormData.items, receiptItem],
-                                  totalAmount: receiptFormData.totalAmount + selectedItem.sellingPrice
-                                });
-                                e.target.value = ""; // Reset select
-                              }
-                            }
-                          }}
-                        >
-                          <option value="">-- Select an item --</option>
-                          {inventory
-                            .filter(item => item.quantity > 0)
-                            .filter(item => {
-                              const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
-                              
-                              // If editing, we need to consider the original receipt quantities
-                              if (editingReceipt && existingItem) {
-                                const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
-                                if (originalItem) {
-                                  // Only filter out if quantity in form exceeds available + original
-                                  return existingItem.quantity < (item.quantity + originalItem.quantity);
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Items</label>
+                    
+                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="col-span-2">
+                          <label className="block text-xs text-gray-400 mb-1">Select Item</label>
+                          <select
+                            title="Select inventory item"
+                            aria-label="Select inventory item"
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                const selectedItem = inventory.find(item => item.id === e.target.value);
+                                if (selectedItem) {
+                                  const receiptItem = {
+                                    id: selectedItem.id,
+                                    name: selectedItem.name,
+                                    quantity: 1,
+                                    price: selectedItem.sellingPrice
+                                  };
+                                  setReceiptFormData({
+                                    ...receiptFormData,
+                                    items: [...receiptFormData.items, receiptItem],
+                                    totalAmount: receiptFormData.totalAmount + selectedItem.sellingPrice
+                                  });
+                                  e.target.value = ""; // Reset select
                                 }
                               }
-                              
-                              // For new receipts, just check if there's still available inventory
-                              return !existingItem || existingItem.quantity < item.quantity;
-                            })
-                            .map(item => {
-                              // Calculate available quantity
-                              const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
-                              let availableQty = item.quantity;
-                              
-                              if (existingItem) {
-                                if (editingReceipt) {
+                            }}
+                          >
+                            <option value="">-- Select an item --</option>
+                            {inventory
+                              .filter(item => item.quantity > 0)
+                              .filter(item => {
+                                const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
+                                
+                                // If editing, we need to consider the original receipt quantities
+                                if (editingReceipt && existingItem) {
                                   const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
                                   if (originalItem) {
-                                    availableQty = item.quantity + originalItem.quantity - existingItem.quantity;
+                                    // Only filter out if quantity in form exceeds available + original
+                                    return existingItem.quantity < (item.quantity + originalItem.quantity);
+                                  }
+                                }
+                                
+                                // For new receipts, just check if there's still available inventory
+                                return !existingItem || existingItem.quantity < item.quantity;
+                              })
+                              .map(item => {
+                                // Calculate available quantity
+                                const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
+                                let availableQty = item.quantity;
+                                
+                                if (existingItem) {
+                                  if (editingReceipt) {
+                                    const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                    if (originalItem) {
+                                      availableQty = item.quantity + originalItem.quantity - existingItem.quantity;
+                                    } else {
+                                      availableQty = item.quantity - existingItem.quantity;
+                                    }
                                   } else {
                                     availableQty = item.quantity - existingItem.quantity;
                                   }
-                                } else {
-                                  availableQty = item.quantity - existingItem.quantity;
                                 }
-                              }
-                              
-                              return (
-                                <option key={item.id} value={item.id}>
-                                  {item.name} - {formatCurrency(item.sellingPrice)} (Available: {availableQty})
-                                </option>
-                              );
-                            })
-                          }
-                        </select>
+                                
+                                return (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name} - {formatCurrency(item.sellingPrice)} (Available: {availableQty})
+                                  </option>
+                                );
+                              })
+                            }
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+                          <input
+                            type="number"
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                            min="1"
+                            placeholder="Quantity"
+                            title="Item quantity"
+                            aria-label="Item quantity"
+                            disabled
+                          />
+                        </div>
                       </div>
-                      
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Quantity</label>
-                        <input
-                          type="number"
-                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                          min="1"
-                          placeholder="Quantity"
-                          title="Item quantity"
-                          aria-label="Item quantity"
-                          disabled
-                        />
+                    </div>
+                    
+                    {/* Item List */}
+                    {receiptFormData.items.length > 0 ? (
+                      <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+                        <table className="min-w-full divide-y divide-gray-700">
+                          <thead>
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
+                              <th className="px-3 py-2 text-xs font-medium text-gray-400"></th>
+                            </tr>
+                          </thead>
+                          <motion.tbody
+                            variants={staggerContainer}
+                            initial="hidden"
+                            animate="visible"
+                            className={`divide-y divide-${currentTheme.border}`}
+                          >
+                            {receiptFormData.items.map((item, index) => (
+                              <motion.tr 
+                                key={`${item.id}-${index}`}
+                                variants={tableRowVariant}
+                              >
+                                <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <input 
+                                    type="number" 
+                                    title={`Quantity for ${item.name}`}
+                                    placeholder="Qty"
+                                    aria-label={`Quantity for ${item.name}`}
+                                    className={`w-16 p-1 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded text-sm text-center`}
+                                    min="1"
+                                    value={item.quantity}
+                                    max={(() => {
+                                      const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+                                      if (!inventoryItem) return 1;
+                                      
+                                      // If editing, we need to account for the original quantity
+                                      if (editingReceipt) {
+                                        const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                        if (originalItem) {
+                                          return originalItem.quantity + inventoryItem.quantity;
+                                        }
+                                      }
+                                      
+                                      return inventoryItem.quantity;
+                                    })()}
+                                    onChange={(e) => {
+                                      const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+                                      if (!inventoryItem) return;
+                                      
+                                      let maxAllowed = inventoryItem.quantity;
+                                      
+                                      // If editing, we need to account for the original quantity
+                                      if (editingReceipt) {
+                                        const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                        if (originalItem) {
+                                          maxAllowed += originalItem.quantity;
+                                        }
+                                      }
+                                      
+                                      // Parse and cap the new quantity
+                                      const newValue = parseInt(e.target.value) || 1;
+                                      const newQuantity = Math.min(newValue, maxAllowed);
+                                      
+                                      if (newValue > maxAllowed) {
+                                        // Provide feedback that we've limited the quantity
+                                        alert(`Maximum available quantity for ${item.name} is ${maxAllowed}`);
+                                      }
+                                      
+                                      const newItems = [...receiptFormData.items];
+                                      const oldTotal = item.quantity * item.price;
+                                      const newTotal = newQuantity * item.price;
+                                      
+                                      newItems[index] = {
+                                        ...item,
+                                        quantity: newQuantity
+                                      };
+                                      
+                                      setReceiptFormData({
+                                        ...receiptFormData,
+                                        items: newItems,
+                                        totalAmount: receiptFormData.totalAmount - oldTotal + newTotal
+                                      });
+                                    }}
+                                  />
+                                </td>
+                                <td className={`px-3 py-2 text-right text-sm text-${currentTheme.text}`}>{formatCurrency(item.price)}</td>
+                                <td className={`px-3 py-2 text-right text-sm text-${currentTheme.success}`}>
+                                  {formatCurrency(item.price * item.quantity)}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    title="Remove item"
+                                    aria-label="Remove item from receipt"
+                                    className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80`}
+                                    onClick={() => {
+                                      const newItems = receiptFormData.items.filter((_, i) => i !== index);
+                                      const itemTotal = item.price * item.quantity;
+                                      
+                                      setReceiptFormData({
+                                        ...receiptFormData,
+                                        items: newItems,
+                                        totalAmount: receiptFormData.totalAmount - itemTotal
+                                      });
+                                    }}
+                                  >
+                                    <FaTimes />
+                                  </button>
+                                </td>
+                              </motion.tr>
+                            ))}
+                          </motion.tbody>
+                          <tfoot>
+                            <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
+                              <td className={`px-3 py-2 text-sm font-medium text-${currentTheme.text}`} colSpan={3}>
+                                Total
+                              </td>
+                              <td className={`px-3 py-2 text-right text-sm font-bold text-${currentTheme.success}`}>
+                                {formatCurrency(receiptFormData.totalAmount)}
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        </table>
                       </div>
+                    ) : (
+                      <div className={`text-center py-4 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
+                        <p className="text-gray-400 text-sm">No items added to receipt</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remove the manual total amount input field since we're calculating it automatically */}
+                  {/* Instead, add this hidden field to keep the form working */}
+                  <input
+                    type="hidden"
+                    name="totalAmount"
+                    value={receiptFormData.totalAmount}
+                    title="Receipt Total Amount"
+                    placeholder="Receipt Total Amount"
+                  />
+
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReceiptModal(false);
+                        setEditingReceipt(null);
+                      }}
+                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaPlus className="mr-2 h-4 w-4" />
+                      {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Category Modal */}
+      <AnimatePresence>
+        {showCategoryModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${currentTheme.accent}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  {editingCategory ? 'Edit Category' : 'Add Category'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowCategoryModal(false);
+                    setEditingCategory(null);
+                  }}
+                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="px-6 py-4">
+                <form onSubmit={(e) => { 
+                  e.preventDefault(); 
+                  editingCategory ? updateCategory() : addCategory();
+                }}>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category Name</label>
+                    <input 
+                      type="text" 
+                      name="name"
+                      value={categoryFormData.name}
+                      onChange={handleCategoryFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Enter category name"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
+                    <textarea 
+                      name="description"
+                      value={categoryFormData.description}
+                      onChange={handleCategoryFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      rows={3}
+                      placeholder="Category description (optional)"
+                    ></textarea>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category Type</label>
+                    <select
+                      name="type"
+                      title="Category Type"
+                      value={categoryFormData.type}
+                      onChange={handleCategoryFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    >
+                      <option value="both">Both Inventory & Transactions</option>
+                      <option value="inventory">Inventory Only</option>
+                      <option value="transaction">Transactions Only</option>
+                    </select>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Color</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {categoryColors.map(color => (
+                        <div 
+                          key={color} 
+                          className={`w-full aspect-square rounded-md cursor-pointer border-2 ${categoryFormData.color === color ? `border-${currentTheme.text}` : 'border-transparent'}`}
+                          onClick={() => setCategoryFormData({...categoryFormData, color})}
+                        >
+                          <div className={`w-full h-full rounded bg-${color} hover:opacity-80 transition-opacity`}></div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   
-                  {/* Item List */}
-                  {receiptFormData.items.length > 0 ? (
-                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
-                      <table className="min-w-full divide-y divide-gray-700">
-                        <thead>
-                          <tr>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
-                            <th className="px-3 py-2 text-xs font-medium text-gray-400"></th>
-                          </tr>
-                        </thead>
-                        <tbody className={`divide-y divide-${currentTheme.border}`}>
-                          {receiptFormData.items.map((item, index) => (
-                            <tr key={`${item.id}-${index}`}>
-                              <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
-                              <td className="px-3 py-2 text-right">
-                                <input 
-                                  type="number" 
-                                  title={`Quantity for ${item.name}`}
-                                  placeholder="Qty"
-                                  aria-label={`Quantity for ${item.name}`}
-                                  className={`w-16 p-1 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded text-sm text-center`}
-                                  min="1"
-                                  value={item.quantity}
-                                  max={(() => {
-                                    const inventoryItem = inventory.find(invItem => invItem.id === item.id);
-                                    if (!inventoryItem) return 1;
-                                    
-                                    // If editing, we need to account for the original quantity
-                                    if (editingReceipt) {
-                                      const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
-                                      if (originalItem) {
-                                        return originalItem.quantity + inventoryItem.quantity;
-                                      }
-                                    }
-                                    
-                                    return inventoryItem.quantity;
-                                  })()}
-                                  onChange={(e) => {
-                                    const inventoryItem = inventory.find(invItem => invItem.id === item.id);
-                                    if (!inventoryItem) return;
-                                    
-                                    let maxAllowed = inventoryItem.quantity;
-                                    
-                                    // If editing, we need to account for the original quantity
-                                    if (editingReceipt) {
-                                      const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
-                                      if (originalItem) {
-                                        maxAllowed += originalItem.quantity;
-                                      }
-                                    }
-                                    
-                                    // Parse and cap the new quantity
-                                    const newValue = parseInt(e.target.value) || 1;
-                                    const newQuantity = Math.min(newValue, maxAllowed);
-                                    
-                                    if (newValue > maxAllowed) {
-                                      // Provide feedback that we've limited the quantity
-                                      alert(`Maximum available quantity for ${item.name} is ${maxAllowed}`);
-                                    }
-                                    
-                                    const newItems = [...receiptFormData.items];
-                                    const oldTotal = item.quantity * item.price;
-                                    const newTotal = newQuantity * item.price;
-                                    
-                                    newItems[index] = {
-                                      ...item,
-                                      quantity: newQuantity
-                                    };
-                                    
-                                    setReceiptFormData({
-                                      ...receiptFormData,
-                                      items: newItems,
-                                      totalAmount: receiptFormData.totalAmount - oldTotal + newTotal
-                                    });
-                                  }}
-                                />
-                              </td>
-                              <td className={`px-3 py-2 text-right text-sm text-${currentTheme.text}`}>{formatCurrency(item.price)}</td>
-                              <td className={`px-3 py-2 text-right text-sm text-${currentTheme.success}`}>
-                                {formatCurrency(item.price * item.quantity)}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                <button
-                                  type="button"
-                                  title="Remove item"
-                                  aria-label="Remove item from receipt"
-                                  className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80`}
-                                  onClick={() => {
-                                    const newItems = receiptFormData.items.filter((_, i) => i !== index);
-                                    const itemTotal = item.price * item.quantity;
-                                    
-                                    setReceiptFormData({
-                                      ...receiptFormData,
-                                      items: newItems,
-                                      totalAmount: receiptFormData.totalAmount - itemTotal
-                                    });
-                                  }}
-                                >
-                                  <FaTimes />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
-                            <td className={`px-3 py-2 text-sm font-medium text-${currentTheme.text}`} colSpan={3}>
-                              Total
-                            </td>
-                            <td className={`px-3 py-2 text-right text-sm font-bold text-${currentTheme.success}`}>
-                              {formatCurrency(receiptFormData.totalAmount)}
-                            </td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className={`text-center py-4 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
-                      <p className="text-gray-400 text-sm">No items added to receipt</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Remove the manual total amount input field since we're calculating it automatically */}
-                {/* Instead, add this hidden field to keep the form working */}
-                <input
-                  type="hidden"
-                  name="totalAmount"
-                  value={receiptFormData.totalAmount}
-                  title="Receipt Total Amount"
-                  placeholder="Receipt Total Amount"
-                />
-
-                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowReceiptModal(false);
-                      setEditingReceipt(null);
-                    }}
-                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                  >
-                    <FaPlus className="mr-2 h-4 w-4" />
-                    {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Category Modal */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
-          <div 
-            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${currentTheme.accent}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                </svg>
-                {editingCategory ? 'Edit Category' : 'Add Category'}
-              </h3>
-              <button 
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setEditingCategory(null);
-                }}
-                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="px-6 py-4">
-              <form onSubmit={(e) => { 
-                e.preventDefault(); 
-                editingCategory ? updateCategory() : addCategory();
-              }}>
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category Name</label>
-                  <input 
-                    type="text" 
-                    name="name"
-                    value={categoryFormData.name}
-                    onChange={handleCategoryFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                    placeholder="Enter category name"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
-                  <textarea 
-                    name="description"
-                    value={categoryFormData.description}
-                    onChange={handleCategoryFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    rows={3}
-                    placeholder="Category description (optional)"
-                  ></textarea>
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category Type</label>
-                  <select
-                    name="type"
-                    title="Category Type"
-                    value={categoryFormData.type}
-                    onChange={handleCategoryFormChange}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                  >
-                    <option value="both">Both Inventory & Transactions</option>
-                    <option value="inventory">Inventory Only</option>
-                    <option value="transaction">Transactions Only</option>
-                  </select>
-                </div>
-                
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Color</label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {categoryColors.map(color => (
-                      <div 
-                        key={color} 
-                        className={`w-full aspect-square rounded-md cursor-pointer border-2 ${categoryFormData.color === color ? `border-${currentTheme.text}` : 'border-transparent'}`}
-                        onClick={() => setCategoryFormData({...categoryFormData, color})}
-                      >
-                        <div className={`w-full h-full rounded bg-${color} hover:opacity-80 transition-opacity`}></div>
-                      </div>
-                    ))}
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowCategoryModal(false);
+                        setEditingCategory(null);
+                      }}
+                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaPlus className="mr-2 h-4 w-4" /> 
+                      {editingCategory ? 'Update Category' : 'Save Category'}
+                    </button>
                   </div>
-                </div>
-                
-                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setShowCategoryModal(false);
-                      setEditingCategory(null);
-                    }}
-                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                  >
-                    <FaPlus className="mr-2 h-4 w-4" /> 
-                    {editingCategory ? 'Update Category' : 'Save Category'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add this animation for saved notification */}
+      <AnimatePresence>
+        {isSaving && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className={`fixed bottom-4 right-4 bg-${currentTheme.success} text-${currentTheme.buttonText} px-4 py-2 rounded-lg shadow-lg flex items-center`}
+          >
+            <FaSave className="mr-2 animate-pulse" />
+            Data saved successfully
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Animate theme switch */}
+      <AnimatePresence>
+        {showThemeSelector && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className={`absolute right-0 mt-2 w-48 bg-${currentTheme.cardBackground} rounded-md shadow-lg z-10 py-1 border border-${currentTheme.border} overflow-hidden`}
+          >
+            {themes.map((theme) => (
+              <button
+                key={theme.id}
+                className={`flex items-center justify-between w-full text-left px-4 py-3 text-sm hover:bg-${theme.background} transition-colors duration-150 ${
+                  theme.id === currentTheme.id ? `bg-${theme.background} text-${theme.accent}` : `text-${theme.text}`
+                }`}
+                onClick={() => {
+                  setCurrentTheme(theme);
+                  setShowThemeSelector(false);
+                  // Trigger save to persist theme choice
+                  setTimeout(() => saveToLocalStorage(), 100);
+                }}
+              >
+                <span>{theme.name}</span>
+                <span className={`h-4 w-4 rounded-full bg-${theme.primary}`}></span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
