@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle } from "react-icons/fa";
+  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -163,6 +163,37 @@ const exchangeRates = {
 // Add conversion function
 // Add conversion function
 const convertCurrency = (usdPrice: number, rate: number): string => (usdPrice * rate).toFixed(2);
+
+// Add this utility function to convert data to CSV format
+const convertToCSV = (data: any[], headers: string[]): string => {
+  // Create header row
+  let csvContent = headers.join(',') + '\n';
+  
+  // Add data rows
+  data.forEach(item => {
+    const row = headers.map(header => {
+      // Get property value from the data item
+      const fieldValue = header.split('.').reduce((obj, key) => 
+        obj && obj[key] !== undefined ? obj[key] : '', item);
+      
+      // Format date objects
+      if (fieldValue instanceof Date) {
+        return `"${fieldValue.toLocaleDateString()}"`;
+      }
+      
+      // Format strings with commas or quotes
+      if (typeof fieldValue === 'string' && (fieldValue.includes(',') || fieldValue.includes('"'))) {
+        return `"${fieldValue.replace(/"/g, '""')}"`;
+      }
+      
+      return fieldValue;
+    });
+    
+    csvContent += row.join(',') + '\n';
+  });
+  
+  return csvContent;
+};
 
 // Main component
 export default function BookKeepingSystem() {
@@ -529,29 +560,167 @@ export default function BookKeepingSystem() {
   };
 
   // EXPORT/IMPORT FUNCTIONALITY
-  // Function to export data to a JSON file
-  const exportData = () => {
+  // Add state for export dropdown
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+
+  // Update the export function to support CSV format
+  const exportData = (format: 'json' | 'csv-inventory' | 'csv-transactions' | 'csv-receipts' | 'csv-customers' | 'csv-all') => {
     try {
       const currentTime = new Date().toISOString().replace(/[:.]/g, '-');
-      const dataToExport: AppData = {
-        inventory,
-        transactions,
-        receipts, // Add receipts to exported data
-        customers, // Add customers to exported data
-        lastUpdated: new Date().toISOString(),
-        version: "1.0",
-        selectedCurrency: selectedCurrency.code,
-        selectedTheme: currentTheme.id, // Include theme in exports
-        categories,
-      };
       
-      const json = JSON.stringify(dataToExport, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
+      // JSON format (existing code)
+      if (format === 'json') {
+        const dataToExport: AppData = {
+          inventory,
+          transactions,
+          receipts,
+          customers,
+          lastUpdated: new Date().toISOString(),
+          version: "1.0",
+          selectedCurrency: selectedCurrency.code,
+          selectedTheme: currentTheme.id,
+          categories,
+        };
+        
+        const json = JSON.stringify(dataToExport, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const href = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = href;
+        link.download = `bookkeep-export-${currentTime}.json`;
+        document.body.appendChild(link);
+        link.click();
+        
+        document.body.removeChild(link);
+        URL.revokeObjectURL(href);
+        
+        return;
+      }
+      
+      // CSV formats
+      let csvContent = '';
+      let fileName = '';
+      const currencySymbol = selectedCurrency.symbol;
+      
+      if (format === 'csv-inventory' || format === 'csv-all') {
+        const headers = ['ID', 'Name', 'Category', 'Quantity', `Cost Price (${currencySymbol})`, 
+          `Selling Price (${currencySymbol})`, 'Last Restocked', 'SKU'];
+        
+        const inventoryData = inventory.map(item => {
+          const category = categories.find(c => c.id === item.category);
+          return {
+            ...item,
+            category: category ? category.name : item.category
+          };
+        });
+        
+        const inventoryMappings = [
+          'id', 'name', 'category', 'quantity', 'costPrice', 'sellingPrice', 'lastRestocked', 'sku'
+        ];
+        
+        const inventoryCSV = convertToCSV(inventoryData, inventoryMappings);
+        
+        if (format === 'csv-inventory') {
+          csvContent = 'Product Inventory\n' + headers.join(',') + '\n' + inventoryCSV;
+          fileName = `inventory-export-${currentTime}.csv`;
+        } else {
+          csvContent = 'INVENTORY DATA\n' + headers.join(',') + '\n' + inventoryCSV + '\n\n';
+        }
+      }
+      
+      if (format === 'csv-transactions' || format === 'csv-all') {
+        const headers = ['ID', 'Date', 'Description', 'Type', 'Category', 
+          `Amount (${currencySymbol})`, 'Related Inventory', 'Customer'];
+        
+        const transactionData = transactions.map(t => {
+          const category = categories.find(c => c.id === t.category);
+          const relatedItem = t.relatedInventoryId ? 
+            inventory.find(i => i.id === t.relatedInventoryId)?.name : '';
+          const customer = t.customerId ?
+            customers.find(c => c.id === t.customerId)?.name : '';
+            
+          return {
+            ...t,
+            category: category ? category.name : t.category,
+            relatedInventory: relatedItem,
+            customer
+          };
+        });
+        
+        const transactionMappings = [
+          'id', 'date', 'description', 'type', 'category', 'amount', 'relatedInventory', 'customer'
+        ];
+        
+        const transactionsCSV = convertToCSV(transactionData, transactionMappings);
+        
+        if (format === 'csv-transactions') {
+          csvContent = 'Financial Transactions\n' + headers.join(',') + '\n' + transactionsCSV;
+          fileName = `transactions-export-${currentTime}.csv`;
+        } else {
+          csvContent += 'TRANSACTION DATA\n' + headers.join(',') + '\n' + transactionsCSV + '\n\n';
+        }
+      }
+      
+      if (format === 'csv-receipts' || format === 'csv-all') {
+        const headers = ['ID', 'Date', 'Customer', 'Type', 'Items Count', 
+          `Total Amount (${currencySymbol})`, 'Description'];
+        
+        const receiptData = unifiedReceipts.map(r => {
+          return {
+            id: r.id,
+            date: r.date,
+            customer: r.customerName,
+            type: r.type,
+            itemsCount: r.items.length,
+            totalAmount: r.totalAmount,
+            description: r.description || ""
+          };
+        });
+        
+        const receiptMappings = [
+          'id', 'date', 'customer', 'type', 'itemsCount', 'totalAmount', 'description'
+        ];
+        
+        const receiptsCSV = convertToCSV(receiptData, receiptMappings);
+        
+        if (format === 'csv-receipts') {
+          csvContent = 'Receipts and Invoices\n' + headers.join(',') + '\n' + receiptsCSV;
+          fileName = `receipts-export-${currentTime}.csv`;
+        } else {
+          csvContent += 'RECEIPT DATA\n' + headers.join(',') + '\n' + receiptsCSV + '\n\n';
+        }
+      }
+      
+      if (format === 'csv-customers' || format === 'csv-all') {
+        const headers = ['ID', 'Name', 'Email', 'Phone', 'Address', 
+          'Purchases Count', 'Created Date', 'Notes'];
+        
+        const customerMappings = [
+          'id', 'name', 'email', 'phone', 'address', 'totalPurchases', 'createdAt', 'notes'
+        ];
+        
+        const customersCSV = convertToCSV(customers, customerMappings);
+        
+        if (format === 'csv-customers') {
+          csvContent = 'Customer Database\n' + headers.join(',') + '\n' + customersCSV;
+          fileName = `customers-export-${currentTime}.csv`;
+        } else {
+          csvContent += 'CUSTOMER DATA\n' + headers.join(',') + '\n' + customersCSV;
+        }
+      }
+      
+      if (format === 'csv-all') {
+        fileName = `bookkeep-all-data-${currentTime}.csv`;
+      }
+      
+      // Create and download the CSV file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const href = URL.createObjectURL(blob);
       
       const link = document.createElement('a');
       link.href = href;
-      link.download = `bookkeep-export-${currentTime}.json`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       
@@ -1768,13 +1937,90 @@ export default function BookKeepingSystem() {
                 {isSaving ? 'Saving...' : 'Save'}
               </button>
               
-              <button
-                title="Export Data"
-                onClick={exportData}
-                className={`px-2 py-1 rounded bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} text-sm flex items-center`}
-              >
-                <FaDownload className="mr-1" /> Export
-              </button>
+              <div className="relative" id="export-dropdown">
+                <button
+                  title="Export Data"
+                  onClick={() => setShowExportDropdown(!showExportDropdown)}
+                  className={`px-2 py-1 rounded bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} text-sm flex items-center`}
+                >
+                  <FaDownload className="mr-1" /> Export
+                  <FaChevronDown size={8} className="ml-1" />
+                </button>
+                
+                {showExportDropdown && (
+                  <div className={`absolute right-0 mt-1 w-48 bg-${currentTheme.cardBackground} rounded shadow-lg z-20 py-1 border border-${currentTheme.border}`}>
+                    <h3 className={`px-3 py-1 text-xs text-${currentTheme.accent} font-semibold border-b border-${currentTheme.border}`}>
+                      Export Options
+                    </h3>
+                    
+                    {/* JSON option */}
+                    <button
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                      onClick={() => {
+                        exportData('json');
+                        setShowExportDropdown(false);
+                      }}
+                    >
+                      <span className="mr-2">📄</span> Complete Backup (JSON)
+                    </button>
+                    
+                    {/* Excel-ready options */}
+                    <div className={`border-t border-${currentTheme.border} mt-1 pt-1`}>
+                      <p className={`px-3 py-1 text-xs text-${currentTheme.text} opacity-70`}>Excel-Ready (CSV):</p>
+                      
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-all');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.success}`} /> All Data
+                      </button>
+                      
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-inventory');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.primary}`} /> Inventory Only
+                      </button>
+                      
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-transactions');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.accent}`} /> Transactions Only
+                      </button>
+                      
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-receipts');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.secondary}`} /> Receipts Only
+                      </button>
+                      
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-customers');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.warning}`} /> Customers Only
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               
               <label className={`px-2 py-1 rounded bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} text-sm flex items-center cursor-pointer`}>
                 <FaUpload className="mr-1" /> Import
@@ -3961,7 +4207,7 @@ export default function BookKeepingSystem() {
       </AnimatePresence>
 
       {/* Add a conversion info alert when currency is not USD and showing converted values */}
-      {selectedCurrency.code !== "USD" && !showUsdPrices && (
+      {/* {selectedCurrency.code !== "USD" && !showUsdPrices && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -3980,7 +4226,7 @@ export default function BookKeepingSystem() {
             </button>
           </div>
         </motion.div>
-      )}
+      )} */}
     </div>
   );
 }
