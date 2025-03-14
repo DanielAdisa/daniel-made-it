@@ -26,6 +26,16 @@ interface Transaction {
   relatedInventoryId?: string;
 }
 
+// New interface for Receipt
+interface Receipt {
+  id: string;
+  date: Date;
+  customerId: string;
+  customerName: string;
+  items: { id: string; name: string; quantity: number; price: number }[];
+  totalAmount: number;
+}
+
 // Form state interfaces
 interface InventoryFormData {
   name: string;
@@ -45,6 +55,15 @@ interface TransactionFormData {
   relatedInventoryId?: string;
 }
 
+// New interface for ReceiptFormData
+interface ReceiptFormData {
+  date: string;
+  customerId: string;
+  customerName: string;
+  items: { id: string; name: string; quantity: number; price: number }[];
+  totalAmount: number;
+}
+
 // Currency interface
 interface Currency {
   code: string;
@@ -56,6 +75,7 @@ interface Currency {
 interface AppData {
   inventory: InventoryItem[];
   transactions: Transaction[];
+  receipts: Receipt[]; // Add receipts to AppData
   lastUpdated: string;
   version: string;
   selectedCurrency: string;
@@ -63,7 +83,7 @@ interface AppData {
 
 // Main component
 export default function BookKeepingSystem() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts">("dashboard");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -87,7 +107,12 @@ export default function BookKeepingSystem() {
   // Edit states - add these for tracking the item being edited
   const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  
+
+  // New state for receipts
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+
   // Form states
   const [inventoryFormData, setInventoryFormData] = useState<InventoryFormData>({
     name: "",
@@ -104,6 +129,15 @@ export default function BookKeepingSystem() {
     category: "",
     amount: 0,
     date: new Date().toISOString().split('T')[0],
+  });
+
+  // New form state for receipts
+  const [receiptFormData, setReceiptFormData] = useState<ReceiptFormData>({
+    date: new Date().toISOString().split('T')[0],
+    customerId: "",
+    customerName: "",
+    items: [],
+    totalAmount: 0,
   });
 
   // Theme colors
@@ -144,11 +178,11 @@ export default function BookKeepingSystem() {
 
   // Save data to localStorage whenever inventory or transactions change
   useEffect(() => {
-    if (inventory.length > 0 || transactions.length > 0) {
+    if (inventory.length > 0 || transactions.length > 0 || receipts.length > 0) {
       saveToLocalStorage();
       setDataChanged(true);
     }
-  }, [inventory, transactions, selectedCurrency]);
+  }, [inventory, transactions, receipts, selectedCurrency]);
 
   // Function to load data from localStorage
   const loadFromLocalStorage = () => {
@@ -172,6 +206,15 @@ export default function BookKeepingSystem() {
         
         setInventory(loadedInventory);
         setTransactions(loadedTransactions);
+        
+        // Load receipts if they exist
+        if (parsedData.receipts) {
+          const loadedReceipts = parsedData.receipts.map(receipt => ({
+            ...receipt,
+            date: new Date(receipt.date)
+          }));
+          setReceipts(loadedReceipts);
+        }
         
         // Set selected currency if available
         const currencyCode = parsedData.selectedCurrency;
@@ -199,6 +242,7 @@ export default function BookKeepingSystem() {
       const dataToSave: AppData = {
         inventory,
         transactions,
+        receipts, // Add receipts to saved data
         lastUpdated: currentTime,
         version: "1.0",
         selectedCurrency: selectedCurrency.code
@@ -226,6 +270,7 @@ export default function BookKeepingSystem() {
       const dataToExport: AppData = {
         inventory,
         transactions,
+        receipts, // Add receipts to exported data
         lastUpdated: new Date().toISOString(),
         version: "1.0",
         selectedCurrency: selectedCurrency.code
@@ -287,6 +332,15 @@ export default function BookKeepingSystem() {
           
           setInventory(processedInventory);
           setTransactions(processedTransactions);
+          
+          // Load receipts if they exist
+          if (importedData.receipts) {
+            const loadedReceipts = importedData.receipts.map(receipt => ({
+              ...receipt,
+              date: new Date(receipt.date)
+            }));
+            setReceipts(loadedReceipts);
+          }
           
           // Set currency if available
           if (importedData.selectedCurrency) {
@@ -433,6 +487,58 @@ export default function BookKeepingSystem() {
     });
   };
 
+  // New functions for receipts
+  const addReceipt = () => {
+    const newReceipt: Receipt = {
+      id: `rcp-${Date.now()}`,
+      date: new Date(receiptFormData.date),
+      customerId: receiptFormData.customerId,
+      customerName: receiptFormData.customerName,
+      items: receiptFormData.items,
+      totalAmount: receiptFormData.totalAmount,
+    };
+    setReceipts([...receipts, newReceipt]);
+    setShowReceiptModal(false);
+    resetReceiptForm();
+  };
+
+  const updateReceipt = () => {
+    if (!editingReceipt) return;
+
+    const updatedReceipt: Receipt = {
+      ...editingReceipt,
+      date: new Date(receiptFormData.date),
+      customerId: receiptFormData.customerId,
+      customerName: receiptFormData.customerName,
+      items: receiptFormData.items,
+      totalAmount: receiptFormData.totalAmount,
+    };
+
+    setReceipts(receipts.map(receipt =>
+      receipt.id === updatedReceipt.id ? updatedReceipt : receipt
+    ));
+
+    setShowReceiptModal(false);
+    setEditingReceipt(null);
+    resetReceiptForm();
+  };
+
+  const deleteReceipt = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this receipt?")) {
+      setReceipts(receipts.filter(receipt => receipt.id !== id));
+    }
+  };
+
+  const resetReceiptForm = () => {
+    setReceiptFormData({
+      date: new Date().toISOString().split('T')[0],
+      customerId: "",
+      customerName: "",
+      items: [],
+      totalAmount: 0,
+    });
+  };
+
   // Handle inventory form changes
   const handleInventoryFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -451,6 +557,15 @@ export default function BookKeepingSystem() {
     });
   };
 
+  // New handler for receipt form changes
+  const handleReceiptFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setReceiptFormData({
+      ...receiptFormData,
+      [name]: value,
+    });
+  };
+
   // Calculate summary statistics
   const totalInventoryValue = inventory.reduce(
     (sum, item) => sum + item.costPrice * item.quantity,
@@ -459,7 +574,8 @@ export default function BookKeepingSystem() {
   
   const totalSalesValue = transactions
     .filter(t => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + t.amount, 0) + 
+    receipts.reduce((sum, r) => sum + r.totalAmount, 0); // Add receipts to total sales
   
   const totalExpenses = transactions
     .filter(t => t.type === "expense")
@@ -501,6 +617,20 @@ export default function BookKeepingSystem() {
       setShowTransactionModal(true);
     }
   }, [editingTransaction]);
+
+  // useEffect to set form data when editing a receipt
+  useEffect(() => {
+    if (editingReceipt) {
+      setReceiptFormData({
+        date: editingReceipt.date.toISOString().split('T')[0],
+        customerId: editingReceipt.customerId,
+        customerName: editingReceipt.customerName,
+        items: editingReceipt.items,
+        totalAmount: editingReceipt.totalAmount,
+      });
+      setShowReceiptModal(true);
+    }
+  }, [editingReceipt]);
 
   // Close currency dropdown when clicking outside
   useEffect(() => {
@@ -652,6 +782,17 @@ export default function BookKeepingSystem() {
                 >
                   <FaBook className="mr-3" />
                   <span>Transactions</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  className={`w-full flex items-center p-3 rounded-md text-sm ${
+                    activeTab === "receipts" ? "bg-indigo-900/50 text-indigo-400" : "hover:bg-gray-700 text-gray-300"
+                  }`}
+                  onClick={() => setActiveTab("receipts")}
+                >
+                  <FaBook className="mr-3" />
+                  <span>Receipts</span>
                 </button>
               </li>
             </ul>
@@ -860,6 +1001,70 @@ export default function BookKeepingSystem() {
                             <button 
                               className="text-rose-400 hover:text-rose-300 text-sm"
                               onClick={() => deleteTransaction(transaction.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "receipts" && (
+            <div>
+              <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-3">
+                <h2 className="text-2xl font-bold text-white">Receipts Management</h2>
+                <button
+                  className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow text-sm"
+                  onClick={() => {
+                    setEditingReceipt(null);
+                    resetReceiptForm();
+                    setShowReceiptModal(true);
+                  }}
+                >
+                  <FaPlus className="mr-2" /> Add Receipt
+                </button>
+              </div>
+
+              {receipts.length === 0 ? (
+                <div className="text-center py-12 bg-gray-900 rounded-lg border border-gray-700">
+                  <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
+                  <h3 className="text-xl font-medium text-gray-300">No receipts recorded</h3>
+                  <p className="text-gray-400 mt-2">Add your first receipt to start tracking</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-gray-700">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-gray-900">
+                        <th className="p-4 text-gray-400 font-semibold">Date</th>
+                        <th className="p-4 text-gray-400 font-semibold">Customer ID</th>
+                        <th className="p-4 text-gray-400 font-semibold">Customer Name</th>
+                        <th className="p-4 text-gray-400 font-semibold">Total Amount</th>
+                        <th className="p-4 text-gray-400 font-semibold">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {receipts.map((receipt) => (
+                        <tr key={receipt.id} className="border-b border-gray-700 hover:bg-gray-700/50">
+                          <td className="p-4 text-gray-300">{receipt.date.toLocaleDateString()}</td>
+                          <td className="p-4 text-gray-300">{receipt.customerId}</td>
+                          <td className="p-4 text-gray-300">{receipt.customerName}</td>
+                          <td className="p-4 text-emerald-400">{formatCurrency(receipt.totalAmount)}</td>
+                          <td className="p-4 space-x-2">
+                            <button
+                              className="text-indigo-400 hover:text-indigo-300 text-sm"
+                              onClick={() => setEditingReceipt(receipt)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="text-rose-400 hover:text-rose-300 text-sm"
+                              onClick={() => deleteReceipt(receipt.id)}
                             >
                               Delete
                             </button>
@@ -1155,18 +1360,260 @@ export default function BookKeepingSystem() {
                     Cancel
                   </button>
                   <button 
-                                      type="submit"
-                                      className={`px-5 py-2.5 ${transactionFormData.type === "income" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"} text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                                    >
-                                      <FaPlus className="mr-2 h-4 w-4" />
-                                      {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
-                                    </button>
-                                  </div>
-                                </form>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                    type="submit"
+                    className={`px-5 py-2.5 ${transactionFormData.type === "income" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"} text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                  >
+                    <FaPlus className="mr-2 h-4 w-4" /> 
+                    {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
+          <div
+            className="bg-gray-800 p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
+              <h3 className="text-xl font-bold text-white flex items-center">
+                <FaBook className="mr-2 text-indigo-400" />
+                {editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowReceiptModal(false);
+                  setEditingReceipt(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-full hover:bg-gray-700"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="px-6 py-4">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                editingReceipt ? updateReceipt() : addReceipt();
+              }}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
+                  <input
+                    type="date"
+                    name="date"
+                    value={receiptFormData.date}
+                    onChange={handleReceiptFormChange}
+                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    required
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Customer ID</label>
+                  <input
+                    type="text"
+                    name="customerId"
+                    value={receiptFormData.customerId}
+                    onChange={handleReceiptFormChange}
+                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    required
+                    placeholder="Enter customer ID"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Customer Name</label>
+                  <input
+                    type="text"
+                    name="customerName"
+                    value={receiptFormData.customerName}
+                    onChange={handleReceiptFormChange}
+                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    required
+                    placeholder="Enter customer name"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Items</label>
+                  
+                  <div className="bg-gray-700 rounded-lg border border-gray-600 p-4 mb-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-xs text-gray-400 mb-1">Select Item</label>
+                        <select
+                          className="w-full p-2 bg-gray-800 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const selectedItem = inventory.find(item => item.id === e.target.value);
+                              if (selectedItem) {
+                                const receiptItem = {
+                                  id: selectedItem.id,
+                                  name: selectedItem.name,
+                                  quantity: 1,
+                                  price: selectedItem.sellingPrice
+                                };
+                                setReceiptFormData({
+                                  ...receiptFormData,
+                                  items: [...receiptFormData.items, receiptItem],
+                                  totalAmount: receiptFormData.totalAmount + selectedItem.sellingPrice
+                                });
+                                e.target.value = ""; // Reset select
+                              }
+                            }
+                          }}
+                        >
+                          <option value="">-- Select an item --</option>
+                          {inventory
+                            .filter(item => item.quantity > 0)
+                            .filter(item => !receiptFormData.items.some(receiptItem => receiptItem.id === item.id))
+                            .map(item => (
+                              <option key={item.id} value={item.id}>
+                                {item.name} - {formatCurrency(item.sellingPrice)}
+                              </option>
+                            ))
+                          }
+                        </select>
                       </div>
-                    );
-                  }
+                      
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          className="w-full p-2 bg-gray-800 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                          min="1"
+                          placeholder="Qty"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Item List */}
+                  {receiptFormData.items.length > 0 ? (
+                    <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-700">
+                        <thead>
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-400"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700">
+                          {receiptFormData.items.map((item, index) => (
+                            <tr key={`${item.id}-${index}`}>
+                              <td className="px-3 py-2 text-sm text-gray-300">{item.name}</td>
+                              <td className="px-3 py-2 text-right">
+                                <input 
+                                  type="number" 
+                                  className="w-16 p-1 bg-gray-800 border border-gray-600 text-white rounded text-sm text-center"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const newQuantity = parseInt(e.target.value) || 1;
+                                    const newItems = [...receiptFormData.items];
+                                    const oldTotal = item.quantity * item.price;
+                                    const newTotal = newQuantity * item.price;
+                                    
+                                    newItems[index] = {
+                                      ...item,
+                                      quantity: newQuantity
+                                    };
+                                    
+                                    setReceiptFormData({
+                                      ...receiptFormData,
+                                      items: newItems,
+                                      totalAmount: receiptFormData.totalAmount - oldTotal + newTotal
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-right text-sm text-gray-300">{formatCurrency(item.price)}</td>
+                              <td className="px-3 py-2 text-right text-sm text-emerald-400">
+                                {formatCurrency(item.price * item.quantity)}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <button
+                                  type="button"
+                                  className="text-rose-400 hover:text-rose-300"
+                                  onClick={() => {
+                                    const newItems = receiptFormData.items.filter((_, i) => i !== index);
+                                    const itemTotal = item.price * item.quantity;
+                                    
+                                    setReceiptFormData({
+                                      ...receiptFormData,
+                                      items: newItems,
+                                      totalAmount: receiptFormData.totalAmount - itemTotal
+                                    });
+                                  }}
+                                >
+                                  <FaTimes />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-indigo-800">
+                            <td className="px-3 py-2 text-sm font-medium text-white" colSpan={3}>
+                              Total
+                            </td>
+                            <td className="px-3 py-2 text-right text-sm font-bold text-emerald-400">
+                              {formatCurrency(receiptFormData.totalAmount)}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 bg-gray-900 rounded-lg border border-gray-700">
+                      <p className="text-gray-400 text-sm">No items added to receipt</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Remove the manual total amount input field since we're calculating it automatically */}
+                {/* Instead, add this hidden field to keep the form working */}
+                <input
+                  type="hidden"
+                  name="totalAmount"
+                  value={receiptFormData.totalAmount}
+                />
+
+                <div className="flex justify-end space-x-3 mt-8 pt-4 border-t border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReceiptModal(false);
+                      setEditingReceipt(null);
+                    }}
+                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg shadow-sm font-medium transition-all duration-200 border border-gray-600 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm"
+                  >
+                    <FaPlus className="mr-2 h-4 w-4" />
+                    {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
