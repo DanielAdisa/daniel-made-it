@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus } from "react-icons/fa";
+  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
+import { toPng, toJpeg } from 'html-to-image';
 
 // Define TypeScript interfaces for our data models
 interface InventoryItem {
@@ -1556,6 +1557,60 @@ export default function BookKeepingSystem() {
     }
   };
 
+  // Add state for receipt preview modal
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState<Receipt | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Add receipt card ref for generating image
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Function to view receipt details
+  const viewReceipt = (receipt: Receipt) => {
+    setViewingReceipt(receipt);
+    setShowReceiptPreview(true);
+  };
+
+  // Function to generate and download receipt image
+  const generateReceiptImage = async () => {
+    if (!cardRef.current) return;
+    setIsLoading(true);
+    
+    try {
+      const content = cardRef.current;
+      
+      // First attempt with PNG
+      let dataUrl;
+      try {
+        dataUrl = await toPng(content, {
+          quality: 0.95,
+          pixelRatio: 2,
+          skipFonts: true, // Skip font embedding which causes issues
+          fontEmbedCSS: "" // Empty string to avoid font embedding
+        });
+      } catch (pngError) {
+        console.warn('PNG generation failed, falling back to JPEG:', pngError);
+        // Fall back to JPEG if PNG fails
+        dataUrl = await toJpeg(content, {
+          quality: 0.95,
+          pixelRatio: 2,
+          skipFonts: true // Skip font embedding for JPEG as well
+        });
+      }
+      
+      const link = document.createElement('a');
+      const title = viewingReceipt?.customerName || 'receipt';
+      link.download = `${title}-receipt-${Date.now()}.${dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'}`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Error generating image:', error);
+      alert('Failed to generate image. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className={`min-h-screen bg-${currentTheme.background}`}>
       {/* Header - with gradient background */}
@@ -2236,6 +2291,13 @@ export default function BookKeepingSystem() {
                             <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerName}</td>
                             <td className={`p-4 text-${currentTheme.success}`}>{formatCurrency(receipt.totalAmount)}</td>
                             <td className="p-4 space-x-2">
+                              <button
+                                className={`text-${currentTheme.primary} hover:text-${currentTheme.accent} text-sm`}
+                                onClick={() => viewReceipt(receipt)}
+                                title="View receipt"
+                              >
+                                <FaEye />
+                              </button>
                               <button
                                 className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
                                 onClick={() => setEditingReceipt(receipt)}
@@ -3034,28 +3096,28 @@ export default function BookKeepingSystem() {
                             {inventory
                               .filter(item => item.quantity > 0)
                               .filter(item => {
-                                const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
+                                const existingItem = receiptFormData.items.find((receiptItem) => receiptItem.id === item.id);
                                 
                                 // If editing, we need to consider the original receipt quantities
                                 if (editingReceipt && existingItem) {
-                                  const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                  const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
                                   if (originalItem) {
                                     // Only filter out if quantity in form exceeds available + original
-                                    return existingItem.quantity < (item.quantity + originalItem.quantity);
+                                    return existingItem.quantity < item.quantity + originalItem.quantity;
                                   }
                                 }
                                 
                                 // For new receipts, just check if there's still available inventory
                                 return !existingItem || existingItem.quantity < item.quantity;
                               })
-                              .map(item => {
+                              .map((item) => {
                                 // Calculate available quantity
-                                const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
+                                const existingItem = receiptFormData.items.find((receiptItem) => receiptItem.id === item.id);
                                 let availableQty = item.quantity;
                                 
                                 if (existingItem) {
                                   if (editingReceipt) {
-                                    const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                    const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
                                     if (originalItem) {
                                       availableQty = item.quantity + originalItem.quantity - existingItem.quantity;
                                     } else {
@@ -3071,8 +3133,7 @@ export default function BookKeepingSystem() {
                                     {item.name} - {formatCurrency(item.sellingPrice)} (Available: {availableQty})
                                   </option>
                                 );
-                              })
-                            }
+                              })}
                           </select>
                         </div>
                         
@@ -3111,14 +3172,11 @@ export default function BookKeepingSystem() {
                             className={`divide-y divide-${currentTheme.border}`}
                           >
                             {receiptFormData.items.map((item, index) => (
-                              <motion.tr 
-                                key={`${item.id}-${index}`}
-                                variants={tableRowVariant}
-                              >
+                              <motion.tr key={`${item.id}-${index}`} variants={tableRowVariant}>
                                 <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
                                 <td className="px-3 py-2 text-right">
-                                  <input 
-                                    type="number" 
+                                  <input
+                                    type="number"
                                     title={`Quantity for ${item.name}`}
                                     placeholder="Qty"
                                     aria-label={`Quantity for ${item.name}`}
@@ -3126,12 +3184,12 @@ export default function BookKeepingSystem() {
                                     min="1"
                                     value={item.quantity}
                                     max={(() => {
-                                      const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+                                      const inventoryItem = inventory.find((invItem) => invItem.id === item.id);
                                       if (!inventoryItem) return 1;
                                       
                                       // If editing, we need to account for the original quantity
                                       if (editingReceipt) {
-                                        const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                        const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
                                         if (originalItem) {
                                           return originalItem.quantity + inventoryItem.quantity;
                                         }
@@ -3140,14 +3198,14 @@ export default function BookKeepingSystem() {
                                       return inventoryItem.quantity;
                                     })()}
                                     onChange={(e) => {
-                                      const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+                                      const inventoryItem = inventory.find((invItem) => invItem.id === item.id);
                                       if (!inventoryItem) return;
                                       
                                       let maxAllowed = inventoryItem.quantity;
                                       
                                       // If editing, we need to account for the original quantity
                                       if (editingReceipt) {
-                                        const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                        const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
                                         if (originalItem) {
                                           maxAllowed += originalItem.quantity;
                                         }
@@ -3168,13 +3226,13 @@ export default function BookKeepingSystem() {
                                       
                                       newItems[index] = {
                                         ...item,
-                                        quantity: newQuantity
+                                        quantity: newQuantity,
                                       };
                                       
                                       setReceiptFormData({
                                         ...receiptFormData,
                                         items: newItems,
-                                        totalAmount: receiptFormData.totalAmount - oldTotal + newTotal
+                                        totalAmount: receiptFormData.totalAmount - oldTotal + newTotal,
                                       });
                                     }}
                                   />
@@ -3196,7 +3254,7 @@ export default function BookKeepingSystem() {
                                       setReceiptFormData({
                                         ...receiptFormData,
                                         items: newItems,
-                                        totalAmount: receiptFormData.totalAmount - itemTotal
+                                        totalAmount: receiptFormData.totalAmount - itemTotal,
                                       });
                                     }}
                                   >
@@ -3554,6 +3612,162 @@ export default function BookKeepingSystem() {
                 <span className={`h-4 w-4 rounded-full bg-${theme.primary}`}></span>
               </button>
             ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Receipt Preview Modal */}
+      <AnimatePresence>
+        {showReceiptPreview && viewingReceipt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} overflow-hidden`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 bg-${currentTheme.background} border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaBook className={`mr-2 text-${currentTheme.accent}`} />
+                  Receipt
+                </h3>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={generateReceiptImage}
+                    disabled={isLoading}
+                    className={`p-2 rounded-full bg-${currentTheme.primary}/20 text-${currentTheme.primary} hover:bg-${currentTheme.primary}/30 transition-colors duration-200`}
+                    title="Download receipt"
+                  >
+                    {isLoading ? <FaSync className="animate-spin" /> : <FaDownload />}
+                  </button>
+                  <button
+                    onClick={() => setShowReceiptPreview(false)}
+                    className={`p-2 rounded-full bg-${currentTheme.background}/50 text-gray-400 hover:bg-${currentTheme.background} transition-colors duration-200`}
+                    title="Close"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-6 py-5 overflow-y-auto max-h-[70vh]">
+                {/* Receipt card design - this will be captured to image */}
+                <div
+                  ref={cardRef}
+                  className="bg-white text-gray-800 p-6 rounded-lg shadow-md"
+                  style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}
+                >
+                  {/* Business section at the top */}
+                  <div className="text-center border-b border-gray-200 pb-4 mb-4">
+                    <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "Arial, sans-serif" }}>BookKeep Pro</h2>
+                    <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Official Receipt</p>
+                  </div>
+                  
+                  {/* Receipt metadata */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>Receipt No.</p>
+                      <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>{viewingReceipt.id.slice(-8).toUpperCase()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>Date</p>
+                      <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>{viewingReceipt.date.toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Customer details */}
+                  <div className="border border-gray-200 rounded-md p-3 mb-4 bg-gray-50">
+                    <h3 className="font-medium text-sm text-gray-800 mb-1" style={{ fontFamily: "Arial, sans-serif" }}>Customer Details</h3>
+                    <p className="text-sm" style={{ fontFamily: "Arial, sans-serif" }}>{viewingReceipt.customerName}</p>
+                    <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: "Arial, sans-serif" }}>ID: {viewingReceipt.customerId}</p>
+                    
+                    {/* Show customer details if available */}
+                    {(() => {
+                      const customer = customers.find(c => c.id === viewingReceipt.customerId);
+                      if (customer) {
+                        return (
+                          <div className="mt-1">
+                            {customer.phone && <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{customer.phone}</p>}
+                            {customer.email && <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{customer.email}</p>}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  
+                  {/* Items purchased */}
+                  <div className="mb-4">
+                    <h3 className="font-medium text-sm text-gray-800 mb-2" style={{ fontFamily: "Arial, sans-serif" }}>Items</h3>
+                    <div className="border-t border-b border-gray-200 py-2">
+                      {viewingReceipt.items.map((item, index) => (
+                        <div 
+                          key={index} 
+                          className="flex justify-between py-2 border-b border-gray-100 last:border-0"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>{item.name}</p>
+                            <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{item.quantity} x {selectedCurrency.symbol}{item.price.toFixed(2)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>{selectedCurrency.symbol}{(item.quantity * item.price).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Total section */}
+                  <div className="border-t border-gray-200 pt-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Subtotal</p>
+                      <p className="text-sm" style={{ fontFamily: "Arial, sans-serif" }}>{formatCurrency(viewingReceipt.totalAmount)}</p>
+                    </div>
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Tax</p>
+                      <p className="text-sm" style={{ fontFamily: "Arial, sans-serif" }}>{formatCurrency(0)}</p>
+                    </div>
+                    <div className="flex justify-between items-center font-bold border-t border-gray-200 mt-2 pt-2">
+                      <p style={{ fontFamily: "Arial, sans-serif" }}>Total</p>
+                      <p style={{ fontFamily: "Arial, sans-serif" }}>{formatCurrency(viewingReceipt.totalAmount)}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Footer */}
+                  <div className="text-center mt-6 pt-4 border-t border-gray-200">
+                    <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>Thank you for your business!</p>
+                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: "Arial, sans-serif" }}>Generated on {new Date().toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Download button below the receipt */}
+                <div className="flex justify-center mt-6">
+                  <button
+                    onClick={generateReceiptImage}
+                    disabled={isLoading}
+                    className={`flex items-center px-4 py-2 bg-${currentTheme.primary} text-white rounded-md hover:bg-${currentTheme.primary}/80 transition-colors duration-200`}
+                  >
+                    {isLoading ? (
+                      <>
+                        <FaSync className="animate-spin mr-2" /> Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FaDownload className="mr-2" /> Download Receipt
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
