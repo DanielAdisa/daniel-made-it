@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, FaChevronDown } from "react-icons/fa";
+import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
+  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave } from "react-icons/fa";
 
 // Define TypeScript interfaces for our data models
 interface InventoryItem {
@@ -49,6 +50,15 @@ interface Currency {
   code: string;
   symbol: string;
   name: string;
+}
+
+// Add interface for app data
+interface AppData {
+  inventory: InventoryItem[];
+  transactions: Transaction[];
+  lastUpdated: string;
+  version: string;
+  selectedCurrency: string;
 }
 
 // Main component
@@ -119,6 +129,190 @@ export default function BookKeepingSystem() {
     textLight: "gray-400",
     white: "white",
     black: "black",
+  };
+
+  // Add state for data persistence
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [dataChanged, setDataChanged] = useState(false);
+
+  // LOCAL STORAGE INTEGRATION
+  // Load data from localStorage on initial mount
+  useEffect(() => {
+    loadFromLocalStorage();
+  }, []);
+
+  // Save data to localStorage whenever inventory or transactions change
+  useEffect(() => {
+    if (inventory.length > 0 || transactions.length > 0) {
+      saveToLocalStorage();
+      setDataChanged(true);
+    }
+  }, [inventory, transactions, selectedCurrency]);
+
+  // Function to load data from localStorage
+  const loadFromLocalStorage = () => {
+    try {
+      const savedData = localStorage.getItem('bookkeep-data');
+      
+      if (savedData) {
+        const parsedData: AppData = JSON.parse(savedData);
+        
+        // Convert date strings back to Date objects for transactions
+        const loadedTransactions = parsedData.transactions.map(transaction => ({
+          ...transaction,
+          date: new Date(transaction.date)
+        }));
+        
+        // Convert date strings back to Date objects for inventory items
+        const loadedInventory = parsedData.inventory.map(item => ({
+          ...item,
+          lastRestocked: new Date(item.lastRestocked)
+        }));
+        
+        setInventory(loadedInventory);
+        setTransactions(loadedTransactions);
+        
+        // Set selected currency if available
+        const currencyCode = parsedData.selectedCurrency;
+        if (currencyCode) {
+          const foundCurrency = currencies.find(c => c.code === currencyCode);
+          if (foundCurrency) {
+            setSelectedCurrency(foundCurrency);
+          }
+        }
+        
+        setLastSaved(new Date(parsedData.lastUpdated));
+        console.log('Data loaded from localStorage');
+      }
+    } catch (error) {
+      console.error('Failed to load data from localStorage:', error);
+    }
+  };
+
+  // Function to save data to localStorage
+  const saveToLocalStorage = () => {
+    try {
+      setIsSaving(true);
+      const currentTime = new Date().toISOString();
+      
+      const dataToSave: AppData = {
+        inventory,
+        transactions,
+        lastUpdated: currentTime,
+        version: "1.0",
+        selectedCurrency: selectedCurrency.code
+      };
+      
+      localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
+      setLastSaved(new Date());
+      setDataChanged(false);
+      
+      setTimeout(() => {
+        setIsSaving(false);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Failed to save data to localStorage:', error);
+      setIsSaving(false);
+    }
+  };
+
+  // EXPORT/IMPORT FUNCTIONALITY
+  // Function to export data to a JSON file
+  const exportData = () => {
+    try {
+      const currentTime = new Date().toISOString().replace(/[:.]/g, '-');
+      const dataToExport: AppData = {
+        inventory,
+        transactions,
+        lastUpdated: new Date().toISOString(),
+        version: "1.0",
+        selectedCurrency: selectedCurrency.code
+      };
+      
+      const json = JSON.stringify(dataToExport, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const href = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = `bookkeep-export-${currentTime}.json`;
+      document.body.appendChild(link);
+      link.click();
+      
+      document.body.removeChild(link);
+      URL.revokeObjectURL(href);
+      
+    } catch (error) {
+      console.error('Failed to export data:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
+  // Function to import data from a JSON file
+  const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const importedData: AppData = JSON.parse(e.target?.result as string);
+          
+          // Validate imported data structure
+          if (!importedData.inventory || !importedData.transactions) {
+            throw new Error('Invalid data format');
+          }
+          
+          // Confirm before overwriting existing data
+          if (inventory.length > 0 || transactions.length > 0) {
+            if (!window.confirm('Importing will replace your existing data. Continue?')) {
+              return;
+            }
+          }
+          
+          // Convert date strings to Date objects
+          const processedTransactions = importedData.transactions.map(transaction => ({
+            ...transaction,
+            date: new Date(transaction.date)
+          }));
+          
+          const processedInventory = importedData.inventory.map(item => ({
+            ...item,
+            lastRestocked: new Date(item.lastRestocked)
+          }));
+          
+          setInventory(processedInventory);
+          setTransactions(processedTransactions);
+          
+          // Set currency if available
+          if (importedData.selectedCurrency) {
+            const foundCurrency = currencies.find(c => c.code === importedData.selectedCurrency);
+            if (foundCurrency) {
+              setSelectedCurrency(foundCurrency);
+            }
+          }
+          
+          alert('Data imported successfully!');
+          
+        } catch (error) {
+          console.error('Failed to parse imported data:', error);
+          alert('The selected file contains invalid data. Please try again with a valid export file.');
+        }
+      };
+      
+      reader.readAsText(file);
+      
+    } catch (error) {
+      console.error('Failed to import data:', error);
+      alert('Failed to import data. Please try again.');
+    }
+    
+    // Reset input
+    event.target.value = '';
   };
 
   // Function to add a new inventory item
@@ -333,6 +527,34 @@ export default function BookKeepingSystem() {
             BookKeep Pro
           </h1>
           <div className="flex flex-col sm:flex-row items-center space-x-0 space-y-2 sm:space-y-0 sm:space-x-4">
+            {/* Data Actions */}
+            <div className="flex space-x-2">
+              <button
+                title="Save Data"
+                onClick={saveToLocalStorage}
+                className={`px-2 py-1 rounded ${isSaving ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'} hover:bg-gray-700 border border-gray-700 text-sm flex items-center`}
+              >
+                <FaSave className={`mr-1 ${isSaving ? 'animate-pulse' : ''}`} />
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                title="Export Data"
+                onClick={exportData}
+                className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-sm flex items-center"
+              >
+                <FaDownload className="mr-1" /> Export
+              </button>
+              <label className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-sm flex items-center cursor-pointer">
+                <FaUpload className="mr-1" /> Import
+                <input 
+                  type="file"
+                  accept=".json"
+                  onChange={importData}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            
             {/* Currency Selector */}
             <div className="relative" id="currency-dropdown">
               <button 
@@ -375,6 +597,20 @@ export default function BookKeepingSystem() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+          </div>
+        </div>
+        
+        {/* Data status indicator */}
+        <div className="bg-gray-900 text-xs text-gray-400 px-4 py-1 flex justify-between">
+          <div>
+            {lastSaved ? (
+              <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
+            ) : (
+              <span>Not saved yet</span>
+            )}
+          </div>
+          <div>
+            {dataChanged && <span className="text-amber-400">Unsaved changes</span>}
           </div>
         </div>
       </header>
@@ -919,18 +1155,18 @@ export default function BookKeepingSystem() {
                     Cancel
                   </button>
                   <button 
-                    type="submit"
-                    className={`px-5 py-2.5 ${transactionFormData.type === "income" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"} text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                  >
-                    <FaPlus className="mr-2 h-4 w-4" /> 
-                    {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                                      type="submit"
+                                      className={`px-5 py-2.5 ${transactionFormData.type === "income" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"} text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                                    >
+                                      <FaPlus className="mr-2 h-4 w-4" />
+                                      {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
+                                    </button>
+                                  </div>
+                                </form>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
