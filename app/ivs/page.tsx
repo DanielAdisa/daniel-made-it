@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint } from "react-icons/fa";
+  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -107,6 +107,7 @@ interface Currency {
   code: string;
   symbol: string;
   name: string;
+  rate?: number;
 }
 
 // Add interface for app data
@@ -148,6 +149,21 @@ interface Category {
   color: string; // For visual distinction
 }
 
+// Add exchange rates after the Currency interface
+const exchangeRates = {
+  USD: 1, // Base currency
+  NGN: 1515, 
+  EUR: 0.92, 
+  GBP: 0.78,
+  GHS: 15.54,
+  JPY: 151.05,
+  INR: 83.42,
+};
+
+// Add conversion function
+// Add conversion function
+const convertCurrency = (usdPrice: number, rate: number): string => (usdPrice * rate).toFixed(2);
+
 // Main component
 export default function BookKeepingSystem() {
   // Update the activeTab state to include customers
@@ -158,15 +174,17 @@ export default function BookKeepingSystem() {
   
   // Currency state
   const [currencies] = useState<Currency[]>([
-    { code: "USD", symbol: "$", name: "US Dollar" },
-    { code: "EUR", symbol: "€", name: "Euro" },
-    { code: "GBP", symbol: "£", name: "British Pound" },
-    { code: "JPY", symbol: "¥", name: "Japanese Yen" },
-    { code: "NGN", symbol: "₦", name: "Nigerian Naira" },
-    { code: "INR", symbol: "₹", name: "Indian Rupee" },
+    { code: "USD", symbol: "$", name: "US Dollar", rate: exchangeRates.USD },
+    { code: "EUR", symbol: "€", name: "Euro", rate: exchangeRates.EUR },
+    { code: "GBP", symbol: "£", name: "British Pound", rate: exchangeRates.GBP },
+    { code: "JPY", symbol: "¥", name: "Japanese Yen", rate: exchangeRates.JPY },
+    { code: "NGN", symbol: "₦", name: "Nigerian Naira", rate: exchangeRates.NGN },
+    { code: "INR", symbol: "₹", name: "Indian Rupee", rate: exchangeRates.INR },
+    { code: "GHS", symbol: "₵", name: "Ghanaian Cedi", rate: exchangeRates.GHS },
   ]);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(currencies[0]);
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+  const [showUsdPrices, setShowUsdPrices] = useState<boolean>(true);
   
   // Modal states
   const [showInventoryModal, setShowInventoryModal] = useState(false);
@@ -1171,7 +1189,13 @@ export default function BookKeepingSystem() {
 
   // Format currency function
   const formatCurrency = (amount: number): string => {
-    return `${selectedCurrency.symbol}${amount.toFixed(2)}`;
+    if (showUsdPrices || selectedCurrency.code === "USD") {
+      return `${selectedCurrency.symbol}${amount.toFixed(2)}`;
+    } else {
+      // Convert from USD to selected currency
+      const convertedAmount = parseFloat(convertCurrency(amount, selectedCurrency.rate || 1));
+      return `${selectedCurrency.symbol}${convertedAmount.toFixed(2)}`;
+    }
   };
 
   // useEffect to set form data when editing an inventory item
@@ -1784,6 +1808,7 @@ export default function BookKeepingSystem() {
                       }`}
                       onClick={() => {
                         setSelectedCurrency(currency);
+                        setShowUsdPrices(currency.code === "USD"); // Only show raw USD prices for USD
                         setShowCurrencyDropdown(false);
                       }}
                     >
@@ -1791,6 +1816,22 @@ export default function BookKeepingSystem() {
                       <span className="text-gray-400 font-medium">{currency.symbol}</span>
                     </button>
                   ))}
+                  <div className={`px-4 py-2 border-t border-${currentTheme.border} mt-1`}>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showUsdPrices}
+                        onChange={(e) => setShowUsdPrices(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className={`relative w-10 h-5 bg-${currentTheme.border} peer-checked:bg-${currentTheme.primary} rounded-full peer-focus:outline-none transition-colors duration-200`}>
+                        <div className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${showUsdPrices ? 'translate-x-0' : 'translate-x-5'}`}></div>
+                      </div>
+                      <span className="ml-2 text-xs">
+                        {showUsdPrices ? 'Show USD values' : 'Show converted values'}
+                      </span>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>
@@ -2597,7 +2638,7 @@ export default function BookKeepingSystem() {
                           {customer.email && (
                             <p className="flex items-center text-gray-400">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a1 1 0 00-1-1H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                               </svg>
                               {customer.email}
                             </p>
@@ -3918,6 +3959,28 @@ export default function BookKeepingSystem() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Add a conversion info alert when currency is not USD and showing converted values */}
+      {selectedCurrency.code !== "USD" && !showUsdPrices && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`fixed top-20 left-1/2 transform -translate-x-1/2 bg-${currentTheme.cardBackground} text-${currentTheme.text} px-4 py-2 rounded-md shadow-md border border-${currentTheme.border} text-sm z-10`}
+        >
+          <div className="flex items-center space-x-2">
+            <FaInfoCircle className={`text-${currentTheme.accent}`} />
+            <span>
+              Showing prices in {selectedCurrency.code} (1 USD = {selectedCurrency.symbol}{selectedCurrency.rate})
+            </span>
+            <button 
+              onClick={() => setShowUsdPrices(true)} 
+              className={`text-${currentTheme.primary} hover:underline`}
+            >
+              Revert to USD
+            </button>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
