@@ -80,6 +80,24 @@ interface AppData {
   lastUpdated: string;
   version: string;
   selectedCurrency: string;
+  selectedTheme: string; // Add this to save theme preference
+}
+
+// First, let's add a Theme interface and available themes
+interface Theme {
+  id: string;
+  name: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  cardBackground: string;
+  text: string;
+  border: string;
+  buttonText: string;
+  success: string;
+  danger: string;
+  warning: string;
 }
 
 // Main component
@@ -166,6 +184,89 @@ export default function BookKeepingSystem() {
     black: "black",
   };
 
+  // Define available themes
+  const themes: Theme[] = [
+    {
+      id: "default",
+      name: "Midnight Blue",
+      primary: "indigo-600",
+      secondary: "violet-500",
+      accent: "indigo-400",
+      background: "gray-900",
+      cardBackground: "gray-800",
+      text: "white",
+      border: "gray-700",
+      buttonText: "white",
+      success: "emerald-500",
+      danger: "rose-500",
+      warning: "amber-500"
+    },
+    {
+      id: "dark-purple",
+      name: "Dark Purple",
+      primary: "purple-600",
+      secondary: "fuchsia-500",
+      accent: "purple-400",
+      background: "gray-900",
+      cardBackground: "gray-800",
+      text: "white",
+      border: "purple-900",
+      buttonText: "white",
+      success: "green-500",
+      danger: "red-500",
+      warning: "yellow-500"
+    },
+    {
+      id: "emerald",
+      name: "Emerald",
+      primary: "emerald-600",
+      secondary: "teal-500",
+      accent: "emerald-400",
+      background: "gray-900",
+      cardBackground: "gray-800",
+      text: "white",
+      border: "emerald-900",
+      buttonText: "white",
+      success: "green-500",
+      danger: "rose-500",
+      warning: "amber-500"
+    },
+    {
+      id: "crimson",
+      name: "Crimson",
+      primary: "rose-600",
+      secondary: "pink-500",
+      accent: "rose-400",
+      background: "gray-900",
+      cardBackground: "gray-800",
+      text: "white",
+      border: "rose-900",
+      buttonText: "white",
+      success: "emerald-500",
+      danger: "red-600",
+      warning: "amber-500"
+    },
+    {
+      id: "navy",
+      name: "Navy",
+      primary: "blue-600",
+      secondary: "sky-500",
+      accent: "blue-400",
+      background: "slate-900",
+      cardBackground: "slate-800",
+      text: "white",
+      border: "blue-900",
+      buttonText: "white", 
+      success: "emerald-500",
+      danger: "rose-500",
+      warning: "amber-500"
+    }
+  ];
+  
+  // Theme state
+  const [currentTheme, setCurrentTheme] = useState<Theme>(themes[0]);
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
+  
   // Add state for data persistence
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -184,6 +285,24 @@ export default function BookKeepingSystem() {
       setDataChanged(true);
     }
   }, [inventory, transactions, receipts, selectedCurrency]);
+
+  // Load theme from localStorage
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem('bookkeep-data');
+      if (savedData) {
+        const parsedData: AppData = JSON.parse(savedData);
+        if (parsedData.selectedTheme) {
+          const savedTheme = themes.find(theme => theme.id === parsedData.selectedTheme);
+          if (savedTheme) {
+            setCurrentTheme(savedTheme);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load theme from localStorage:', error);
+    }
+  }, []);
 
   // Function to load data from localStorage
   const loadFromLocalStorage = () => {
@@ -246,7 +365,8 @@ export default function BookKeepingSystem() {
         receipts, // Add receipts to saved data
         lastUpdated: currentTime,
         version: "1.0",
-        selectedCurrency: selectedCurrency.code
+        selectedCurrency: selectedCurrency.code,
+        selectedTheme: currentTheme.id // Save selected theme
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -274,7 +394,8 @@ export default function BookKeepingSystem() {
         receipts, // Add receipts to exported data
         lastUpdated: new Date().toISOString(),
         version: "1.0",
-        selectedCurrency: selectedCurrency.code
+        selectedCurrency: selectedCurrency.code,
+        selectedTheme: currentTheme.id // Include theme in exports
       };
       
       const json = JSON.stringify(dataToExport, null, 2);
@@ -348,6 +469,14 @@ export default function BookKeepingSystem() {
             const foundCurrency = currencies.find(c => c.code === importedData.selectedCurrency);
             if (foundCurrency) {
               setSelectedCurrency(foundCurrency);
+            }
+          }
+
+          // Load theme if available
+          if (importedData.selectedTheme) {
+            const importedTheme = themes.find(theme => theme.id === importedData.selectedTheme);
+            if (importedTheme) {
+              setCurrentTheme(importedTheme);
             }
           }
           
@@ -820,34 +949,135 @@ export default function BookKeepingSystem() {
     };
   }, []);
 
+  // Add these filtered data states to keep the original data intact
+  // Add near the beginning of the component after the other state declarations
+  const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [filteredReceipts, setFilteredReceipts] = useState<Receipt[]>([]);
+
+  // Update useEffect to initialize filtered data when original data loads
+  useEffect(() => {
+    setFilteredInventory(inventory);
+    setFilteredTransactions(transactions);
+    setFilteredReceipts(receipts);
+  }, [inventory, transactions, receipts]);
+
+  // Add this useEffect for search functionality
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      // If search is empty, show all data
+      setFilteredInventory(inventory);
+      setFilteredTransactions(transactions);
+      setFilteredReceipts(receipts);
+      return;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Filter inventory items
+    const matchedInventory = inventory.filter(item => 
+      item.name.toLowerCase().includes(query) || 
+      item.category.toLowerCase().includes(query) || 
+      item.sku.toLowerCase().includes(query)
+    );
+    setFilteredInventory(matchedInventory);
+    
+    // Filter transactions
+    const matchedTransactions = transactions.filter(transaction => 
+      transaction.description.toLowerCase().includes(query) || 
+      transaction.category.toLowerCase().includes(query) || 
+      transaction.type.toLowerCase().includes(query) ||
+      transaction.amount.toString().includes(query)
+    );
+    setFilteredTransactions(matchedTransactions);
+    
+    // Filter receipts
+    const matchedReceipts = receipts.filter(receipt => 
+      receipt.customerName.toLowerCase().includes(query) || 
+      receipt.customerId.toLowerCase().includes(query) ||
+      receipt.totalAmount.toString().includes(query) ||
+      // Also search items within receipts
+      receipt.items.some(item => 
+        item.name.toLowerCase().includes(query) ||
+        item.price.toString().includes(query)
+      )
+    );
+    setFilteredReceipts(matchedReceipts);
+  }, [searchQuery, inventory, transactions, receipts]);
+
+  // Add a stats object to display search results count 
+  const searchStats = {
+    inventory: searchQuery ? `${filteredInventory.length} of ${inventory.length}` : `${inventory.length} items`,
+    transactions: searchQuery ? `${filteredTransactions.length} of ${transactions.length}` : `${transactions.length} records`,
+    receipts: searchQuery ? `${filteredReceipts.length} of ${receipts.length}` : `${receipts.length} records`
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className={`min-h-screen bg-${currentTheme.background}`}>
       {/* Header - with gradient background */}
-      <header className="bg-gradient-to-r from-gray-900 to-gray-800 text-white shadow-lg border-b border-gray-700 sticky top-0 z-10">
+      <header className={`bg-gradient-to-r from-${currentTheme.background} to-${currentTheme.cardBackground} text-${currentTheme.text} shadow-lg border-b border-${currentTheme.border} sticky top-0 z-10`}>
         <div className="container mx-auto p-4 flex flex-col sm:flex-row justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center mb-2 sm:mb-0">
-            <FaBook className="mr-2 text-indigo-400" />
+            <FaBook className={`mr-2 text-${currentTheme.accent}`} />
             BookKeep Pro
           </h1>
           <div className="flex flex-col sm:flex-row items-center space-x-0 space-y-2 sm:space-y-0 sm:space-x-4">
             {/* Data Actions */}
             <div className="flex space-x-2">
+              {/* Theme Selector Button */}
+              <div className="relative">
+                <button
+                  title="Change Theme"
+                  onClick={() => setShowThemeSelector(!showThemeSelector)}
+                  className={`px-2 py-1 rounded bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} text-sm flex items-center`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                  Theme
+                </button>
+                
+                {showThemeSelector && (
+                  <div className={`absolute right-0 mt-2 w-48 bg-${currentTheme.cardBackground} rounded-md shadow-lg z-10 py-1 border border-${currentTheme.border} overflow-hidden animate-fadeIn`}>
+                    {themes.map((theme) => (
+                      <button
+                        key={theme.id}
+                        className={`flex items-center justify-between w-full text-left px-4 py-3 text-sm hover:bg-${theme.background} transition-colors duration-150 ${
+                          theme.id === currentTheme.id ? `bg-${theme.background} text-${theme.accent}` : `text-${theme.text}`
+                        }`}
+                        onClick={() => {
+                          setCurrentTheme(theme);
+                          setShowThemeSelector(false);
+                          // Trigger save to persist theme choice
+                          setTimeout(() => saveToLocalStorage(), 100);
+                        }}
+                      >
+                        <span>{theme.name}</span>
+                        <span className={`h-4 w-4 rounded-full bg-${theme.primary}`}></span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
               <button
                 title="Save Data"
                 onClick={saveToLocalStorage}
-                className={`px-2 py-1 rounded ${isSaving ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'} hover:bg-gray-700 border border-gray-700 text-sm flex items-center`}
+                className={`px-2 py-1 rounded ${isSaving ? `bg-${currentTheme.success} text-${currentTheme.buttonText}` : `bg-${currentTheme.cardBackground} text-${currentTheme.text}`} hover:bg-${currentTheme.background} border border-${currentTheme.border} text-sm flex items-center`}
               >
                 <FaSave className={`mr-1 ${isSaving ? 'animate-pulse' : ''}`} />
                 {isSaving ? 'Saving...' : 'Save'}
               </button>
+              
               <button
                 title="Export Data"
                 onClick={exportData}
-                className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-sm flex items-center"
+                className={`px-2 py-1 rounded bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} text-sm flex items-center`}
               >
                 <FaDownload className="mr-1" /> Export
               </button>
-              <label className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-sm flex items-center cursor-pointer">
+              
+              <label className={`px-2 py-1 rounded bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} text-sm flex items-center cursor-pointer`}>
                 <FaUpload className="mr-1" /> Import
                 <input 
                   type="file"
@@ -861,21 +1091,21 @@ export default function BookKeepingSystem() {
             {/* Currency Selector */}
             <div className="relative" id="currency-dropdown">
               <button 
-                className="flex items-center bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded transition-all duration-200 border border-gray-700 text-sm"
+                className={`flex items-center bg-${currentTheme.cardBackground} hover:bg-${currentTheme.background} text-${currentTheme.text} px-3 py-2 rounded transition-all duration-200 border border-${currentTheme.border} text-sm`}
                 onClick={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
               >
-                <FaDollarSign className="mr-1 text-indigo-400" />
+                <FaDollarSign className={`mr-1 text-${currentTheme.accent}`} />
                 <span className="mr-1">{selectedCurrency.code}</span>
                 <FaChevronDown size={12} className={`transform transition-transform duration-200 ${showCurrencyDropdown ? 'rotate-180' : ''}`} />
               </button>
               
               {showCurrencyDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg z-10 py-1 border border-gray-700 overflow-hidden animate-fadeIn">
+                <div className={`absolute right-0 mt-2 w-48 bg-${currentTheme.cardBackground} rounded-md shadow-lg z-10 py-1 border border-${currentTheme.border} overflow-hidden animate-fadeIn`}>
                   {currencies.map((currency) => (
                     <button
                       key={currency.code}
-                      className={`flex items-center justify-between w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors duration-150 ${
-                        currency.code === selectedCurrency.code ? 'bg-gray-700 text-indigo-400' : 'text-white'
+                      className={`flex items-center justify-between w-full text-left px-4 py-2 text-sm hover:bg-${currentTheme.background} transition-colors duration-150 ${
+                        currency.code === selectedCurrency.code ? `bg-${currentTheme.background} text-${currentTheme.accent}` : `text-${currentTheme.text}`
                       }`}
                       onClick={() => {
                         setSelectedCurrency(currency);
@@ -891,20 +1121,29 @@ export default function BookKeepingSystem() {
             </div>
 
             <div className="relative w-full sm:w-auto">
-              <FaSearch className="absolute left-3 top-3 text-gray-400" />
+              <FaSearch className={`absolute left-3 top-3 ${searchQuery ? `text-${currentTheme.accent}` : 'text-gray-400'}`} />
               <input
                 type="text"
                 placeholder="Search..."
-                className="pl-10 pr-4 py-2 rounded-md bg-gray-800 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-gray-700 w-full sm:w-48 text-sm"
+                className={`pl-10 pr-10 py-2 rounded-md bg-${currentTheme.cardBackground} text-${currentTheme.text} placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} border ${searchQuery ? `border-${currentTheme.accent}` : `border-${currentTheme.border}`} w-full sm:w-48 text-sm`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              {searchQuery && (
+                <button
+                  className={`absolute right-2 top-2 text-${currentTheme.text} hover:text-${currentTheme.accent} rounded p-1`}
+                  onClick={() => setSearchQuery('')}
+                  title="Clear search"
+                >
+                  <FaTimes size={16} />
+                </button>
+              )}
             </div>
           </div>
         </div>
         
         {/* Data status indicator */}
-        <div className="bg-gray-900 text-xs text-gray-400 px-4 py-1 flex justify-between">
+        <div className={`bg-${currentTheme.background} text-xs text-gray-400 px-4 py-1 flex justify-between`}>
           <div>
             {lastSaved ? (
               <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
@@ -921,13 +1160,13 @@ export default function BookKeepingSystem() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row">
         {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-64 bg-gray-800 rounded-lg shadow-md p-4 mb-6 lg:mb-0 lg:mr-8 border border-gray-700">
+        <aside className={`w-full lg:w-64 bg-${currentTheme.cardBackground} rounded-lg shadow-md p-4 mb-6 lg:mb-0 lg:mr-8 border border-${currentTheme.border}`}>
           <nav>
             <ul className="space-y-2">
               <li>
                 <button
                   className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "dashboard" ? "bg-indigo-900/50 text-indigo-400" : "hover:bg-gray-700 text-gray-300"
+                    activeTab === "dashboard" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
                   }`}
                   onClick={() => setActiveTab("dashboard")}
                 >
@@ -938,7 +1177,7 @@ export default function BookKeepingSystem() {
               <li>
                 <button
                   className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "inventory" ? "bg-indigo-900/50 text-indigo-400" : "hover:bg-gray-700 text-gray-300"
+                    activeTab === "inventory" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
                   }`}
                   onClick={() => setActiveTab("inventory")}
                 >
@@ -949,7 +1188,7 @@ export default function BookKeepingSystem() {
               <li>
                 <button
                   className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "transactions" ? "bg-indigo-900/50 text-indigo-400" : "hover:bg-gray-700 text-gray-300"
+                    activeTab === "transactions" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
                   }`}
                   onClick={() => setActiveTab("transactions")}
                 >
@@ -960,7 +1199,7 @@ export default function BookKeepingSystem() {
               <li>
                 <button
                   className={`w-full flex items-center p-3 rounded-md text-sm ${
-                    activeTab === "receipts" ? "bg-indigo-900/50 text-indigo-400" : "hover:bg-gray-700 text-gray-300"
+                    activeTab === "receipts" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
                   }`}
                   onClick={() => setActiveTab("receipts")}
                 >
@@ -973,32 +1212,33 @@ export default function BookKeepingSystem() {
         </aside>
 
         {/* Main Content Area */}
-        <div className="flex-1 bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
+        <div className={`flex-1 bg-${currentTheme.cardBackground} rounded-lg shadow-md p-6 border border-${currentTheme.border}`}>
+          {/* Dashboard tab - use currentTheme for cards and tables */}
           {activeTab === "dashboard" && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center text-white">
-                <FaChartLine className="mr-2 text-indigo-400" />
+              <h2 className={`text-2xl font-bold mb-4 flex items-center text-${currentTheme.text}`}>
+                <FaChartLine className={`mr-2 text-${currentTheme.accent}`} />
                 Dashboard Overview
               </h2>
               
               {/* Summary Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-gray-900 rounded-lg shadow-md p-6 border-l-4 border-indigo-500">
+                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.primary}`}>
                   <h3 className="text-gray-400 text-sm">Inventory Value</h3>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(totalInventoryValue)}</p>
+                  <p className={`text-2xl font-bold text-${currentTheme.text}`}>{formatCurrency(totalInventoryValue)}</p>
                 </div>
                 
-                <div className="bg-gray-900 rounded-lg shadow-md p-6 border-l-4 border-emerald-500">
+                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.success}`}>
                   <h3 className="text-gray-400 text-sm">Total Sales</h3>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(totalSalesValue)}</p>
+                  <p className={`text-2xl font-bold text-${currentTheme.text}`}>{formatCurrency(totalSalesValue)}</p>
                 </div>
                 
-                <div className="bg-gray-900 rounded-lg shadow-md p-6 border-l-4 border-rose-500">
+                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.danger}`}>
                   <h3 className="text-gray-400 text-sm">Total Expenses</h3>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(totalExpenses)}</p>
+                  <p className={`text-2xl font-bold text-${currentTheme.text}`}>{formatCurrency(totalExpenses)}</p>
                 </div>
                 
-                <div className="bg-gray-900 rounded-lg shadow-md p-6 border-l-4 border-violet-500">
+                <div className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.secondary}`}>
                   <h3 className="text-gray-400 text-sm">Profit</h3>
                   <p className={`text-2xl font-bold ${profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                     {formatCurrency(profit)}
@@ -1008,14 +1248,16 @@ export default function BookKeepingSystem() {
               
               {/* Recent Activity */}
               <div>
-                <h3 className="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Recent Activity</h3>
-                {transactions.length === 0 ? (
-                  <p className="text-gray-400">No transactions recorded yet.</p>
+                <h3 className={`text-xl font-semibold mb-4 text-${currentTheme.text} border-b border-${currentTheme.border} pb-2`}>Recent Activity</h3>
+                {filteredTransactions.length === 0 ? (
+                  <p className="text-gray-400">
+                    {searchQuery ? "No matching transactions found." : "No transactions recorded yet."}
+                  </p>
                 ) : (
-                  <div className="overflow-x-auto rounded-lg border border-gray-700">
+                  <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-gray-900">
+                        <tr className={`bg-${currentTheme.background}`}>
                           <th className="p-4 text-gray-400 font-semibold">Date</th>
                           <th className="p-4 text-gray-400 font-semibold">Description</th>
                           <th className="p-4 text-gray-400 font-semibold">Category</th>
@@ -1023,8 +1265,8 @@ export default function BookKeepingSystem() {
                         </tr>
                       </thead>
                       <tbody>
-                        {transactions.slice(0, 5).map((transaction) => (
-                          <tr key={transaction.id} className="border-b border-gray-700 hover:bg-gray-700/50">
+                        {filteredTransactions.slice(0, 5).map((transaction) => (
+                          <tr key={transaction.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
                             <td className="p-4 text-gray-300">{transaction.date.toLocaleDateString()}</td>
                             <td className="p-4 text-gray-300">{transaction.description}</td>
                             <td className="p-4 text-gray-300">{transaction.category}</td>
@@ -1041,33 +1283,51 @@ export default function BookKeepingSystem() {
             </div>
           )}
 
+          {/* Inventory tab */}
           {activeTab === "inventory" && (
             <div>
-              <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-3">
-                <h2 className="text-2xl font-bold text-white">Inventory Management</h2>
+              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                <div>
+                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Inventory Management</h2>
+                  {searchQuery && (
+                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                      Showing {searchStats.inventory}
+                    </p>
+                  )}
+                </div>
                 <button 
-                  className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow text-sm"
+                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
                   onClick={() => {
-                    setEditingInventoryItem(null);  // Ensure we're not in edit mode
-                    resetInventoryForm();  // Reset the form
-                    setShowInventoryModal(true);  // Show the modal
+                    setEditingInventoryItem(null);
+                    resetInventoryForm();
+                    setShowInventoryModal(true);
                   }}
                 >
                   <FaPlus className="mr-2" /> Add Item
                 </button>
               </div>
               
-              {inventory.length === 0 ? (
-                <div className="text-center py-12 bg-gray-900 rounded-lg border border-gray-700">
-                  <FaBoxOpen className="mx-auto text-4xl text-gray-500 mb-4" />
-                  <h3 className="text-xl font-medium text-gray-300">No inventory items yet</h3>
-                  <p className="text-gray-400 mt-2">Add your first inventory item to get started</p>
+              {filteredInventory.length === 0 ? (
+                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
+                  {searchQuery ? (
+                    <>
+                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching inventory items</h3>
+                      <p className="text-gray-400 mt-2">Try different search terms</p>
+                    </>
+                  ) : (
+                    <>
+                      <FaBoxOpen className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No inventory items yet</h3>
+                      <p className="text-gray-400 mt-2">Add your first inventory item to get started</p>
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-700">
+                <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-gray-900">
+                      <tr className={`bg-${currentTheme.background}`}>
                         <th className="p-4 text-gray-400 font-semibold">Item Name</th>
                         <th className="p-4 text-gray-400 font-semibold">SKU</th>
                         <th className="p-4 text-gray-400 font-semibold">Category</th>
@@ -1078,27 +1338,27 @@ export default function BookKeepingSystem() {
                       </tr>
                     </thead>
                     <tbody>
-                      {inventory.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                          <td className="p-4 text-gray-300">{item.name}</td>
+                      {filteredInventory.map((item) => (
+                        <tr key={item.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
+                          <td className={`p-4 text-${currentTheme.text}`}>{item.name}</td>
                           <td className="p-4 text-gray-400">{item.sku}</td>
                           <td className="p-4">
-                            <span className="px-2 py-1 rounded-full text-xs bg-indigo-900 text-indigo-300 border border-indigo-700">
+                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`}>
                               {item.category}
                             </span>
                           </td>
-                          <td className="p-4 text-gray-300">{item.quantity}</td>
-                          <td className="p-4 text-gray-300">{formatCurrency(item.costPrice)}</td>
-                          <td className="p-4 text-gray-300">{formatCurrency(item.sellingPrice)}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{item.quantity}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.costPrice)}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.sellingPrice)}</td>
                           <td className="p-4 space-x-2">
                             <button 
-                              className="text-indigo-400 hover:text-indigo-300 text-sm"
+                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
                               onClick={() => setEditingInventoryItem(item)}
                             >
                               Edit
                             </button>
                             <button 
-                              className="text-rose-400 hover:text-rose-300 text-sm"
+                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
                               onClick={() => deleteInventoryItem(item.id)}
                             >
                               Delete
@@ -1113,33 +1373,51 @@ export default function BookKeepingSystem() {
             </div>
           )}
 
+          {/* Transaction tab */}
           {activeTab === "transactions" && (
             <div>
-              <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-3">
-                <h2 className="text-2xl font-bold text-white">Financial Transactions</h2>
+              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                <div>
+                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Financial Transactions</h2>
+                  {searchQuery && (
+                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                      Showing {searchStats.transactions}
+                    </p>
+                  )}
+                </div>
                 <button 
-                  className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow text-sm"
+                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
                   onClick={() => {
-                    setEditingTransaction(null);  // Ensure we're not in edit mode
-                    resetTransactionForm();  // Reset the form
-                    setShowTransactionModal(true);  // Show the modal
+                    setEditingTransaction(null);
+                    resetTransactionForm();
+                    setShowTransactionModal(true);
                   }}
                 >
                   <FaPlus className="mr-2" /> Add Transaction
                 </button>
               </div>
               
-              {transactions.length === 0 ? (
-                <div className="text-center py-12 bg-gray-900 rounded-lg border border-gray-700">
-                  <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
-                  <h3 className="text-xl font-medium text-gray-300">No transactions recorded</h3>
-                  <p className="text-gray-400 mt-2">Add your first transaction to start tracking finances</p>
+              {filteredTransactions.length === 0 ? (
+                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
+                  {searchQuery ? (
+                    <>
+                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching transactions</h3>
+                      <p className="text-gray-400 mt-2">Try different search terms</p>
+                    </>
+                  ) : (
+                    <>
+                      <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No transactions recorded</h3>
+                      <p className="text-gray-400 mt-2">Add your first transaction to start tracking finances</p>
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-700">
+                <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-gray-900">
+                      <tr className={`bg-${currentTheme.background}`}>
                         <th className="p-4 text-gray-400 font-semibold">Date</th>
                         <th className="p-4 text-gray-400 font-semibold">Description</th>
                         <th className="p-4 text-gray-400 font-semibold">Category</th>
@@ -1149,30 +1427,30 @@ export default function BookKeepingSystem() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.map((transaction) => (
-                        <tr key={transaction.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                          <td className="p-4 text-gray-300">{transaction.date.toLocaleDateString()}</td>
-                          <td className="p-4 text-gray-300">{transaction.description}</td>
-                          <td className="p-4 text-gray-300">{transaction.category}</td>
+                      {filteredTransactions.map((transaction) => (
+                        <tr key={transaction.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
+                          <td className={`p-4 text-${currentTheme.text}`}>{transaction.date.toLocaleDateString()}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{transaction.description}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{transaction.category}</td>
                           <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-xs ${
-                              transaction.type === "income" ? "bg-emerald-900 text-emerald-300 border border-emerald-700" : "bg-rose-900 text-rose-300 border border-rose-700"
+                              transaction.type === "income" ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
                             }`}>
                               {transaction.type}
                             </span>
                           </td>
-                          <td className={`p-4 ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
+                          <td className={`p-4 ${transaction.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
                             {formatCurrency(transaction.amount)}
                           </td>
                           <td className="p-4 space-x-2">
                             <button 
-                              className="text-indigo-400 hover:text-indigo-300 text-sm"
+                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
                               onClick={() => setEditingTransaction(transaction)}
                             >
                               Edit
                             </button>
                             <button 
-                              className="text-rose-400 hover:text-rose-300 text-sm"
+                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
                               onClick={() => deleteTransaction(transaction.id)}
                             >
                               Delete
@@ -1187,12 +1465,20 @@ export default function BookKeepingSystem() {
             </div>
           )}
 
+          {/* Receipts tab */}
           {activeTab === "receipts" && (
             <div>
-              <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-3">
-                <h2 className="text-2xl font-bold text-white">Receipts Management</h2>
+              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                <div>
+                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Receipts Management</h2>
+                  {searchQuery && (
+                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                      Showing {searchStats.receipts}
+                    </p>
+                  )}
+                </div>
                 <button
-                  className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow text-sm"
+                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
                   onClick={() => {
                     setEditingReceipt(null);
                     resetReceiptForm();
@@ -1203,17 +1489,27 @@ export default function BookKeepingSystem() {
                 </button>
               </div>
 
-              {receipts.length === 0 ? (
-                <div className="text-center py-12 bg-gray-900 rounded-lg border border-gray-700">
-                  <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
-                  <h3 className="text-xl font-medium text-gray-300">No receipts recorded</h3>
-                  <p className="text-gray-400 mt-2">Add your first receipt to start tracking</p>
+              {filteredReceipts.length === 0 ? (
+                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
+                  {searchQuery ? (
+                    <>
+                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching receipts</h3>
+                      <p className="text-gray-400 mt-2">Try different search terms</p>
+                    </>
+                  ) : (
+                    <>
+                      <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No receipts recorded</h3>
+                      <p className="text-gray-400 mt-2">Add your first receipt to start tracking</p>
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-700">
+                <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-gray-900">
+                      <tr className={`bg-${currentTheme.background}`}>
                         <th className="p-4 text-gray-400 font-semibold">Date</th>
                         <th className="p-4 text-gray-400 font-semibold">Customer ID</th>
                         <th className="p-4 text-gray-400 font-semibold">Customer Name</th>
@@ -1222,21 +1518,21 @@ export default function BookKeepingSystem() {
                       </tr>
                     </thead>
                     <tbody>
-                      {receipts.map((receipt) => (
-                        <tr key={receipt.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                          <td className="p-4 text-gray-300">{receipt.date.toLocaleDateString()}</td>
-                          <td className="p-4 text-gray-300">{receipt.customerId}</td>
-                          <td className="p-4 text-gray-300">{receipt.customerName}</td>
-                          <td className="p-4 text-emerald-400">{formatCurrency(receipt.totalAmount)}</td>
+                      {filteredReceipts.map((receipt) => (
+                        <tr key={receipt.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
+                          <td className={`p-4 text-${currentTheme.text}`}>{receipt.date.toLocaleDateString()}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerId}</td>
+                          <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerName}</td>
+                          <td className={`p-4 text-${currentTheme.success}`}>{formatCurrency(receipt.totalAmount)}</td>
                           <td className="p-4 space-x-2">
                             <button
-                              className="text-indigo-400 hover:text-indigo-300 text-sm"
+                              className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
                               onClick={() => setEditingReceipt(receipt)}
                             >
                               Edit
                             </button>
                             <button
-                              className="text-rose-400 hover:text-rose-300 text-sm"
+                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
                               onClick={() => deleteReceipt(receipt.id)}
                             >
                               Delete
@@ -1257,12 +1553,12 @@ export default function BookKeepingSystem() {
       {showInventoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
           <div 
-            className="bg-gray-800 p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-gray-700"
+            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
-              <h3 className="text-xl font-bold text-white flex items-center">
-                <FaBoxOpen className="mr-2 text-indigo-400" />
+            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                <FaBoxOpen className={`mr-2 text-${currentTheme.accent}`} />
                 {editingInventoryItem ? 'Edit Inventory Item' : 'Add Inventory Item'}
               </h3>
               <button 
@@ -1270,7 +1566,7 @@ export default function BookKeepingSystem() {
                   setShowInventoryModal(false);
                   setEditingInventoryItem(null);
                 }}
-                className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-full hover:bg-gray-700"
+                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
               >
                 <FaTimes />
               </button>
@@ -1282,39 +1578,39 @@ export default function BookKeepingSystem() {
                 editingInventoryItem ? updateInventoryItem() : addInventoryItem();
               }}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Item Name</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Item Name</label>
                   <input 
                     type="text" 
                     name="name"
                     value={inventoryFormData.name}
                     onChange={handleInventoryFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Enter item name"
                   />
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">SKU</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>SKU</label>
                   <input 
                     type="text" 
                     name="sku"
                     value={inventoryFormData.sku}
                     onChange={handleInventoryFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Stock keeping unit"
                   />
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
                   <input 
                     type="text" 
                     name="category"
                     value={inventoryFormData.category}
                     onChange={handleInventoryFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Item category"
                   />
@@ -1322,28 +1618,30 @@ export default function BookKeepingSystem() {
                 
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Quantity</label>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Quantity</label>
                     <input 
                       type="number" 
                       name="quantity"
+                      title="Quantity"
                       value={inventoryFormData.quantity}
                       onChange={handleInventoryFormChange}
-                      className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                       min="0"
                       required
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
                       Cost <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
                     </label>
                     <input 
                       type="number" 
                       name="costPrice"
+                      title="Cost Price"
                       value={inventoryFormData.costPrice}
                       onChange={handleInventoryFormChange}
-                      className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                       min="0"
                       step="0.01"
                       required
@@ -1351,15 +1649,16 @@ export default function BookKeepingSystem() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
                       Price <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
                     </label>
                     <input 
                       type="number" 
                       name="sellingPrice"
+                      title="Selling Price"
                       value={inventoryFormData.sellingPrice}
                       onChange={handleInventoryFormChange}
-                      className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                       min="0"
                       step="0.01"
                       required
@@ -1367,20 +1666,20 @@ export default function BookKeepingSystem() {
                   </div>
                 </div>
                 
-                <div className="flex justify-end space-x-3 mt-8 pt-4 border-t border-gray-700">
+                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
                   <button 
                     type="button"
                     onClick={() => {
                       setShowInventoryModal(false);
                       setEditingInventoryItem(null);
                     }}
-                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg shadow-sm font-medium transition-all duration-200 border border-gray-600 text-sm"
+                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm"
+                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
                   >
                     <FaPlus className="mr-2 h-4 w-4" /> 
                     {editingInventoryItem ? 'Update Item' : 'Save Item'}
@@ -1396,12 +1695,12 @@ export default function BookKeepingSystem() {
       {showTransactionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
           <div 
-            className="bg-gray-800 p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-gray-700"
+            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
-              <h3 className="text-xl font-bold text-white flex items-center">
-                <FaBook className="mr-2 text-indigo-400" />
+            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                <FaBook className={`mr-2 text-${currentTheme.accent}`} />
                 {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
               </h3>
               <button 
@@ -1409,7 +1708,7 @@ export default function BookKeepingSystem() {
                   setShowTransactionModal(false);
                   setEditingTransaction(null);
                 }}
-                className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-full hover:bg-gray-700"
+                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
               >
                 <FaTimes />
               </button>
@@ -1421,27 +1720,27 @@ export default function BookKeepingSystem() {
                 editingTransaction ? updateTransaction() : addTransaction();
               }}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
                   <input 
                     type="text" 
                     name="description"
                     value={transactionFormData.description}
                     onChange={handleTransactionFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Transaction description"
                   />
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Type</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Type</label>
                   <div className="flex space-x-2 mb-2">
                     <button
                       type="button"
                       className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
                         transactionFormData.type === "income" 
-                          ? "bg-emerald-900/80 text-emerald-300 border-emerald-700" 
-                          : "bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600"
+                          ? `bg-${currentTheme.success}/30 text-${currentTheme.success} border-${currentTheme.success}/30`
+                          : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
                       }`}
                       onClick={() => setTransactionFormData({...transactionFormData, type: "income"})}
                     >
@@ -1451,8 +1750,8 @@ export default function BookKeepingSystem() {
                       type="button"
                       className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
                         transactionFormData.type === "expense" 
-                          ? "bg-rose-900/80 text-rose-300 border-rose-700" 
-                          : "bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600"
+                          ? `bg-${currentTheme.danger}/30 text-${currentTheme.danger} border-${currentTheme.danger}/30`
+                          : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
                       }`}
                       onClick={() => setTransactionFormData({...transactionFormData, type: "expense"})}
                     >
@@ -1462,13 +1761,13 @@ export default function BookKeepingSystem() {
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
                   <input 
                     type="text" 
                     name="category"
                     value={transactionFormData.category}
                     onChange={handleTransactionFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Transaction category"
                   />
@@ -1476,15 +1775,16 @@ export default function BookKeepingSystem() {
                 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
                       Amount <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
                     </label>
                     <input 
                       type="number" 
+                      title="Transaction amount"
                       name="amount"
                       value={transactionFormData.amount}
                       onChange={handleTransactionFormChange}
-                      className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                       min="0"
                       step="0.01"
                       required
@@ -1492,13 +1792,14 @@ export default function BookKeepingSystem() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
                     <input 
                       type="date" 
                       name="date"
+                      title="Transaction date"
                       value={transactionFormData.date}
                       onChange={handleTransactionFormChange}
-                      className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                       required
                     />
                   </div>
@@ -1506,12 +1807,13 @@ export default function BookKeepingSystem() {
                 
                 {inventory.length > 0 && (
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Related Inventory Item (Optional)</label>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Related Inventory Item (Optional)</label>
                     <select 
                       name="relatedInventoryId"
+                      title="Related Inventory Item"
                       value={transactionFormData.relatedInventoryId || ""}
                       onChange={handleTransactionFormChange}
-                      className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     >
                       <option value="">None</option>
                       {inventory.map(item => (
@@ -1521,20 +1823,20 @@ export default function BookKeepingSystem() {
                   </div>
                 )}
                 
-                <div className="flex justify-end space-x-3 mt-8 pt-4 border-t border-gray-700">
+                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
                   <button 
                     type="button"
                     onClick={() => {
                       setShowTransactionModal(false);
                       setEditingTransaction(null);
                     }}
-                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg shadow-sm font-medium transition-all duration-200 border border-gray-600 text-sm"
+                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className={`px-5 py-2.5 ${transactionFormData.type === "income" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"} text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    className={`px-5 py-2.5 ${transactionFormData.type === "income" ? `bg-${currentTheme.success} hover:bg-${currentTheme.success}/80` : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80`} text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
                   >
                     <FaPlus className="mr-2 h-4 w-4" /> 
                     {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
@@ -1550,12 +1852,12 @@ export default function BookKeepingSystem() {
       {showReceiptModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
           <div
-            className="bg-gray-800 p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-gray-700"
+            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
-              <h3 className="text-xl font-bold text-white flex items-center">
-                <FaBook className="mr-2 text-indigo-400" />
+            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                <FaBook className={`mr-2 text-${currentTheme.accent}`} />
                 {editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
               </h3>
               <button
@@ -1563,7 +1865,7 @@ export default function BookKeepingSystem() {
                   setShowReceiptModal(false);
                   setEditingReceipt(null);
                 }}
-                className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-full hover:bg-gray-700"
+                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
               >
                 <FaTimes />
               </button>
@@ -1575,52 +1877,56 @@ export default function BookKeepingSystem() {
                 editingReceipt ? updateReceipt() : addReceipt();
               }}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
                   <input
                     type="date"
                     name="date"
+                    title="Receipt date"
+                    aria-label="Receipt date"
                     value={receiptFormData.date}
                     onChange={handleReceiptFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                   />
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Customer ID</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer ID</label>
                   <input
                     type="text"
                     name="customerId"
                     value={receiptFormData.customerId}
                     onChange={handleReceiptFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Enter customer ID"
                   />
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Customer Name</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer Name</label>
                   <input
                     type="text"
                     name="customerName"
                     value={receiptFormData.customerName}
                     onChange={handleReceiptFormChange}
-                    className="w-full p-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
                     placeholder="Enter customer name"
                   />
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Items</label>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Items</label>
                   
-                  <div className="bg-gray-700 rounded-lg border border-gray-600 p-4 mb-3">
+                  <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="col-span-2">
                         <label className="block text-xs text-gray-400 mb-1">Select Item</label>
                         <select
-                          className="w-full p-2 bg-gray-800 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                          title="Select inventory item"
+                          aria-label="Select inventory item"
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                           value=""
                           onChange={(e) => {
                             if (e.target.value) {
@@ -1692,9 +1998,11 @@ export default function BookKeepingSystem() {
                         <label className="block text-xs text-gray-400 mb-1">Quantity</label>
                         <input
                           type="number"
-                          className="w-full p-2 bg-gray-800 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                           min="1"
-                          placeholder="Qty"
+                          placeholder="Quantity"
+                          title="Item quantity"
+                          aria-label="Item quantity"
                           disabled
                         />
                       </div>
@@ -1703,7 +2011,7 @@ export default function BookKeepingSystem() {
                   
                   {/* Item List */}
                   {receiptFormData.items.length > 0 ? (
-                    <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
                       <table className="min-w-full divide-y divide-gray-700">
                         <thead>
                           <tr>
@@ -1714,14 +2022,17 @@ export default function BookKeepingSystem() {
                             <th className="px-3 py-2 text-xs font-medium text-gray-400"></th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-700">
+                        <tbody className={`divide-y divide-${currentTheme.border}`}>
                           {receiptFormData.items.map((item, index) => (
                             <tr key={`${item.id}-${index}`}>
-                              <td className="px-3 py-2 text-sm text-gray-300">{item.name}</td>
+                              <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
                               <td className="px-3 py-2 text-right">
                                 <input 
                                   type="number" 
-                                  className="w-16 p-1 bg-gray-800 border border-gray-600 text-white rounded text-sm text-center"
+                                  title={`Quantity for ${item.name}`}
+                                  placeholder="Qty"
+                                  aria-label={`Quantity for ${item.name}`}
+                                  className={`w-16 p-1 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded text-sm text-center`}
                                   min="1"
                                   value={item.quantity}
                                   max={(() => {
@@ -1778,14 +2089,16 @@ export default function BookKeepingSystem() {
                                   }}
                                 />
                               </td>
-                              <td className="px-3 py-2 text-right text-sm text-gray-300">{formatCurrency(item.price)}</td>
-                              <td className="px-3 py-2 text-right text-sm text-emerald-400">
+                              <td className={`px-3 py-2 text-right text-sm text-${currentTheme.text}`}>{formatCurrency(item.price)}</td>
+                              <td className={`px-3 py-2 text-right text-sm text-${currentTheme.success}`}>
                                 {formatCurrency(item.price * item.quantity)}
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <button
                                   type="button"
-                                  className="text-rose-400 hover:text-rose-300"
+                                  title="Remove item"
+                                  aria-label="Remove item from receipt"
+                                  className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80`}
                                   onClick={() => {
                                     const newItems = receiptFormData.items.filter((_, i) => i !== index);
                                     const itemTotal = item.price * item.quantity;
@@ -1804,11 +2117,11 @@ export default function BookKeepingSystem() {
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="border-t-2 border-indigo-800">
-                            <td className="px-3 py-2 text-sm font-medium text-white" colSpan={3}>
+                          <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
+                            <td className={`px-3 py-2 text-sm font-medium text-${currentTheme.text}`} colSpan={3}>
                               Total
                             </td>
-                            <td className="px-3 py-2 text-right text-sm font-bold text-emerald-400">
+                            <td className={`px-3 py-2 text-right text-sm font-bold text-${currentTheme.success}`}>
                               {formatCurrency(receiptFormData.totalAmount)}
                             </td>
                             <td></td>
@@ -1817,7 +2130,7 @@ export default function BookKeepingSystem() {
                       </table>
                     </div>
                   ) : (
-                    <div className="text-center py-4 bg-gray-900 rounded-lg border border-gray-700">
+                    <div className={`text-center py-4 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
                       <p className="text-gray-400 text-sm">No items added to receipt</p>
                     </div>
                   )}
@@ -1829,22 +2142,24 @@ export default function BookKeepingSystem() {
                   type="hidden"
                   name="totalAmount"
                   value={receiptFormData.totalAmount}
+                  title="Receipt Total Amount"
+                  placeholder="Receipt Total Amount"
                 />
 
-                <div className="flex justify-end space-x-3 mt-8 pt-4 border-t border-gray-700">
+                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
                   <button
                     type="button"
                     onClick={() => {
                       setShowReceiptModal(false);
                       setEditingReceipt(null);
                     }}
-                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg shadow-sm font-medium transition-all duration-200 border border-gray-600 text-sm"
+                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm"
+                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
                   >
                     <FaPlus className="mr-2 h-4 w-4" />
                     {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
