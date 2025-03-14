@@ -1591,8 +1591,8 @@ export default function BookKeepingSystem() {
       let dataUrl;
       try {
         dataUrl = await toPng(content, {
-          quality: 0.95,
-          pixelRatio: 2,
+          quality: 10,
+          pixelRatio: 10,
           skipFonts: true, // Skip font embedding which causes issues
           fontEmbedCSS: "" // Empty string to avoid font embedding
         });
@@ -1600,8 +1600,8 @@ export default function BookKeepingSystem() {
         console.warn('PNG generation failed, falling back to JPEG:', pngError);
         // Fall back to JPEG if PNG fails
         dataUrl = await toJpeg(content, {
-          quality: 0.95,
-          pixelRatio: 2,
+          quality: 10,
+          pixelRatio: 10,
           skipFonts: true // Skip font embedding for JPEG as well
         });
       }
