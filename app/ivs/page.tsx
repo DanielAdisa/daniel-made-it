@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave } from "react-icons/fa";
+  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
+import { v4 as uuidv4 } from 'uuid'; 
 
 // Define TypeScript interfaces for our data models
 interface InventoryItem {
@@ -25,6 +26,7 @@ interface Transaction {
   category: string;
   amount: number;
   relatedInventoryId?: string;
+  customerId?: string; // Associate transaction with customer
 }
 
 // Modify Receipt interface to include a linked transaction id
@@ -38,6 +40,18 @@ interface Receipt {
   transactionId?: string; // Add this to link to transactions
 }
 
+// Add Customer interface
+interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  notes: string;
+  createdAt: Date;
+  totalPurchases: number;
+}
+
 // Form state interfaces
 interface InventoryFormData {
   name: string;
@@ -48,6 +62,7 @@ interface InventoryFormData {
   sku: string;
 }
 
+// Update TransactionFormData to include optional customer association
 interface TransactionFormData {
   description: string;
   type: "income" | "expense";
@@ -55,15 +70,32 @@ interface TransactionFormData {
   amount: number;
   date: string;
   relatedInventoryId?: string;
+  customerId?: string; // Associate transaction with customer
 }
 
-// New interface for ReceiptFormData
+// Update ReceiptFormData to include customerId selection
 interface ReceiptFormData {
   date: string;
-  customerId: string;
+  customerId?: string;
   customerName: string;
   items: { id: string; name: string; quantity: number; price: number }[];
   totalAmount: number;
+  isNewCustomer: boolean; // Track if we're creating a new customer
+  newCustomerData?: {
+    email: string;
+    phone: string;
+    address: string;
+    notes: string;
+  };
+}
+
+// Add Customer form data interface
+interface CustomerFormData {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  notes: string;
 }
 
 // Currency interface
@@ -77,7 +109,8 @@ interface Currency {
 interface AppData {
   inventory: InventoryItem[];
   transactions: Transaction[];
-  receipts: Receipt[]; // Add receipts to AppData
+  receipts: Receipt[];
+  customers: Customer[]; // Add customers to AppData
   lastUpdated: string;
   version: string;
   selectedCurrency: string;
@@ -113,8 +146,8 @@ interface Category {
 
 // Main component
 export default function BookKeepingSystem() {
-  // Update the activeTab state to include categories
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "categories">("dashboard");
+  // Update the activeTab state to include customers
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "categories" | "customers">("dashboard");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -144,6 +177,14 @@ export default function BookKeepingSystem() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
 
+  // Add customers state
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+
+  // Add customer modal state
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
   // Form states
   const [inventoryFormData, setInventoryFormData] = useState<InventoryFormData>({
     name: "",
@@ -160,15 +201,31 @@ export default function BookKeepingSystem() {
     category: "",
     amount: 0,
     date: new Date().toISOString().split('T')[0],
+    customerId: ""
   });
 
-  // New form state for receipts
+  // Update form states with new customer fields
   const [receiptFormData, setReceiptFormData] = useState<ReceiptFormData>({
     date: new Date().toISOString().split('T')[0],
-    customerId: "",
     customerName: "",
     items: [],
     totalAmount: 0,
+    isNewCustomer: false,
+    newCustomerData: {
+      email: "",
+      phone: "",
+      address: "",
+      notes: ""
+    }
+  });
+
+  // Add customer form data state
+  const [customerFormData, setCustomerFormData] = useState<CustomerFormData>({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    notes: ""
   });
 
   // Theme colors
@@ -397,6 +454,15 @@ export default function BookKeepingSystem() {
           setCategories(parsedData.categories);
         }
 
+        // Load customers if they exist
+        if (parsedData.customers) {
+          const loadedCustomers = parsedData.customers.map(customer => ({
+            ...customer,
+            createdAt: new Date(customer.createdAt)
+          }));
+          setCustomers(loadedCustomers);
+        }
+
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
       }
@@ -415,6 +481,7 @@ export default function BookKeepingSystem() {
         inventory,
         transactions,
         receipts, // Add receipts to saved data
+        customers, // Add customers to saved data
         lastUpdated: currentTime,
         version: "1.0",
         selectedCurrency: selectedCurrency.code,
@@ -445,6 +512,7 @@ export default function BookKeepingSystem() {
         inventory,
         transactions,
         receipts, // Add receipts to exported data
+        customers, // Add customers to exported data
         lastUpdated: new Date().toISOString(),
         version: "1.0",
         selectedCurrency: selectedCurrency.code,
@@ -538,6 +606,15 @@ export default function BookKeepingSystem() {
           if (importedData.categories) {
             setCategories(importedData.categories);
           }
+
+          // Load customers if they exist
+          if (importedData.customers) {
+            const loadedCustomers = importedData.customers.map(customer => ({
+              ...customer,
+              createdAt: new Date(customer.createdAt)
+            }));
+            setCustomers(loadedCustomers);
+          }
           
           alert('Data imported successfully!');
           
@@ -617,7 +694,7 @@ export default function BookKeepingSystem() {
     });
   };
 
-  // Function to add a new transaction
+  // Updated add transaction function to associate with customer
   const addTransaction = () => {
     const newTransaction: Transaction = {
       id: `txn-${Date.now()}`,
@@ -627,15 +704,24 @@ export default function BookKeepingSystem() {
       amount: Number(transactionFormData.amount),
       date: new Date(transactionFormData.date),
       relatedInventoryId: transactionFormData.relatedInventoryId,
+      customerId: transactionFormData.customerId || undefined, // Add customerId if provided
     };
+    
+    // Update customer purchase count if transaction is income and has a customer
+    if (transactionFormData.type === "income" && transactionFormData.customerId) {
+      setCustomers(customers.map(customer =>
+        customer.id === transactionFormData.customerId
+          ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
+          : customer
+      ));
+    }
+    
     setTransactions([...transactions, newTransaction]);
     setShowTransactionModal(false);
-    
-    // Reset form
     resetTransactionForm();
   };
   
-  // Function to update a transaction
+  // Updated update transaction function to handle customer association changes
   const updateTransaction = () => {
     if (!editingTransaction) return;
     
@@ -647,7 +733,20 @@ export default function BookKeepingSystem() {
       amount: Number(transactionFormData.amount),
       date: new Date(transactionFormData.date),
       relatedInventoryId: transactionFormData.relatedInventoryId,
+      customerId: transactionFormData.customerId || undefined,
     };
+    
+    // Handle customer purchase count updates if the customer association changed
+    if (transactionFormData.type === "income" && 
+        transactionFormData.customerId && 
+        transactionFormData.customerId !== editingTransaction.customerId) {
+      // Increment new customer's purchase count
+      setCustomers(customers.map(customer =>
+        customer.id === transactionFormData.customerId
+          ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
+          : customer
+      ));
+    }
     
     setTransactions(transactions.map(transaction => 
       transaction.id === updatedTransaction.id ? updatedTransaction : transaction
@@ -673,11 +772,12 @@ export default function BookKeepingSystem() {
       category: "",
       amount: 0,
       date: new Date().toISOString().split('T')[0],
+      customerId: ""
     });
   };
 
   // New functions for receipts
-  // Update the addReceipt function to create a transaction and update inventory
+  // Updated add receipt function to handle customer creation/selection
   const addReceipt = () => {
     // Validate inventory quantities first
     let validInventory = true;
@@ -697,11 +797,40 @@ export default function BookKeepingSystem() {
       return;
     }
     
-    // Create the new receipt
+    // Create new customer if needed
+    let customerInfo = {
+      id: receiptFormData.customerId || uuidv4(),
+      name: receiptFormData.customerName
+    };
+    
+    // If creating a new customer, add them to customers list
+    if (receiptFormData.isNewCustomer && receiptFormData.customerName) {
+      const newCustomer: Customer = {
+        id: customerInfo.id,
+        name: customerInfo.name,
+        email: receiptFormData.newCustomerData?.email || "",
+        phone: receiptFormData.newCustomerData?.phone || "",
+        address: receiptFormData.newCustomerData?.address || "",
+        notes: receiptFormData.newCustomerData?.notes || "",
+        createdAt: new Date(),
+        totalPurchases: 1 // First purchase
+      };
+      
+      setCustomers([...customers, newCustomer]);
+    } else if (receiptFormData.customerId) {
+      // Update existing customer's purchase count
+      setCustomers(customers.map(customer => 
+        customer.id === receiptFormData.customerId
+          ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
+          : customer
+      ));
+    }
+    
+    // Create the new receipt with a UUID for customerId
     const newReceipt: Receipt = {
       id: `rcp-${Date.now()}`,
       date: new Date(receiptFormData.date),
-      customerId: receiptFormData.customerId,
+      customerId: receiptFormData.customerId || uuidv4(), // Generate UUID if not provided
       customerName: receiptFormData.customerName,
       items: receiptFormData.items,
       totalAmount: receiptFormData.totalAmount,
@@ -740,7 +869,7 @@ export default function BookKeepingSystem() {
     resetReceiptForm();
   };
 
-  // Update the updateReceipt function to handle the transaction and inventory changes
+  // Updated update receipt function to handle customer changes
   const updateReceipt = () => {
     if (!editingReceipt) return;
     
@@ -763,12 +892,55 @@ export default function BookKeepingSystem() {
       }
     });
     
+    // Handle customer updates
+    let customerInfo = {
+      id: editingReceipt.customerId,
+      name: editingReceipt.customerName
+    };
+    
+    // If customer was changed or new one created
+    if (receiptFormData.isNewCustomer && receiptFormData.customerName) {
+      // Create new customer
+      const newCustomer: Customer = {
+        id: uuidv4(),
+        name: receiptFormData.customerName,
+        email: receiptFormData.newCustomerData?.email || "",
+        phone: receiptFormData.newCustomerData?.phone || "",
+        address: receiptFormData.newCustomerData?.address || "",
+        notes: receiptFormData.newCustomerData?.notes || "",
+        createdAt: new Date(),
+        totalPurchases: 1
+      };
+      
+      customerInfo = {
+        id: newCustomer.id,
+        name: newCustomer.name
+      };
+      
+      setCustomers([...customers, newCustomer]);
+    } else if (receiptFormData.customerId && receiptFormData.customerId !== editingReceipt.customerId) {
+      // Update the selected customer's purchase count
+      const selectedCustomer = customers.find(c => c.id === receiptFormData.customerId);
+      if (selectedCustomer) {
+        customerInfo = {
+          id: selectedCustomer.id,
+          name: selectedCustomer.name
+        };
+        
+        setCustomers(customers.map(customer =>
+          customer.id === receiptFormData.customerId
+            ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
+            : customer
+        ));
+      }
+    }
+    
     // Create the updated receipt
     const updatedReceipt: Receipt = {
       ...editingReceipt,
       date: new Date(receiptFormData.date),
-      customerId: receiptFormData.customerId,
-      customerName: receiptFormData.customerName,
+      customerId: customerInfo.id,
+      customerName: customerInfo.name,
       items: receiptFormData.items,
       totalAmount: receiptFormData.totalAmount,
     };
@@ -890,14 +1062,20 @@ export default function BookKeepingSystem() {
     }
   };
 
-  // Function to reset receipt form
+  // Update reset receipt form function
   const resetReceiptForm = () => {
     setReceiptFormData({
       date: new Date().toISOString().split('T')[0],
-      customerId: "",
       customerName: "",
       items: [],
       totalAmount: 0,
+      isNewCustomer: false,
+      newCustomerData: {
+        email: "",
+        phone: "",
+        address: "",
+        notes: ""
+      }
     });
   };
 
@@ -919,13 +1097,51 @@ export default function BookKeepingSystem() {
     });
   };
 
-  // New handler for receipt form changes
-  const handleReceiptFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // Update handle receipt form changes
+  const handleReceiptFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setReceiptFormData({
-      ...receiptFormData,
-      [name]: value,
-    });
+    
+    // Handle customer selection dropdown
+    if (name === "customerSelect") {
+      if (value === "new") {
+        // Creating new customer
+        setReceiptFormData({
+          ...receiptFormData,
+          isNewCustomer: true,
+          customerId: undefined,
+          customerName: ""
+        });
+      } else if (value) {
+        // Selected existing customer
+        const selectedCustomer = customers.find(c => c.id === value);
+        if (selectedCustomer) {
+          setReceiptFormData({
+            ...receiptFormData,
+            isNewCustomer: false,
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.name
+          });
+        }
+      }
+    } 
+    // Handle nested new customer data fields
+    else if (name.startsWith("newCustomer.")) {
+      const field = name.split(".")[1];
+      setReceiptFormData({
+        ...receiptFormData,
+        newCustomerData: {
+          ...receiptFormData.newCustomerData!,
+          [field]: value
+        }
+      });
+    } 
+    // Handle all other fields
+    else {
+      setReceiptFormData({
+        ...receiptFormData,
+        [name]: value,
+      });
+    }
   };
 
   // Calculate summary statistics
@@ -974,6 +1190,7 @@ export default function BookKeepingSystem() {
         amount: editingTransaction.amount,
         date: editingTransaction.date.toISOString().split('T')[0],
         relatedInventoryId: editingTransaction.relatedInventoryId,
+        customerId: editingTransaction.customerId || ""
       });
       setShowTransactionModal(true);
     }
@@ -988,10 +1205,31 @@ export default function BookKeepingSystem() {
         customerName: editingReceipt.customerName,
         items: editingReceipt.items,
         totalAmount: editingReceipt.totalAmount,
+        isNewCustomer: false,
+        newCustomerData: {
+          email: "",
+          phone: "",
+          address: "",
+          notes: ""
+        }
       });
       setShowReceiptModal(true);
     }
   }, [editingReceipt]);
+
+  // useEffect to set form data when editing a customer
+  useEffect(() => {
+    if (editingCustomer) {
+      setCustomerFormData({
+        name: editingCustomer.name,
+        email: editingCustomer.email,
+        phone: editingCustomer.phone,
+        address: editingCustomer.address,
+        notes: editingCustomer.notes
+      });
+      setShowCustomerModal(true);
+    }
+  }, [editingCustomer]);
 
   // Close currency dropdown when clicking outside
   useEffect(() => {
@@ -1020,7 +1258,8 @@ export default function BookKeepingSystem() {
     setFilteredTransactions(transactions);
     setFilteredReceipts(receipts);
     setFilteredCategories(categories);
-  }, [inventory, transactions, receipts, categories]);
+    setFilteredCustomers(customers);
+  }, [inventory, transactions, receipts, categories, customers]);
 
   // Add this useEffect for search functionality
   useEffect(() => {
@@ -1030,6 +1269,7 @@ export default function BookKeepingSystem() {
       setFilteredTransactions(transactions);
       setFilteredReceipts(receipts);
       setFilteredCategories(categories);
+      setFilteredCustomers(customers);
       return;
     }
     
@@ -1072,14 +1312,24 @@ export default function BookKeepingSystem() {
       category.type.toLowerCase().includes(query)
     );
     setFilteredCategories(matchedCategories);
-  }, [searchQuery, inventory, transactions, receipts, categories]);
+
+    // Filter customers
+    const matchedCustomers = customers.filter(customer => 
+      customer.name.toLowerCase().includes(query) || 
+      customer.email.toLowerCase().includes(query) || 
+      customer.phone.toLowerCase().includes(query) ||
+      customer.address.toLowerCase().includes(query)
+    );
+    setFilteredCustomers(matchedCustomers);
+  }, [searchQuery, inventory, transactions, receipts, categories, customers]);
 
   // Add a stats object to display search results count 
   const searchStats = {
     inventory: searchQuery ? `${filteredInventory.length} of ${inventory.length}` : `${inventory.length} items`,
     transactions: searchQuery ? `${filteredTransactions.length} of ${transactions.length}` : `${transactions.length} records`,
     receipts: searchQuery ? `${filteredReceipts.length} of ${receipts.length}` : `${receipts.length} records`,
-    categories: searchQuery ? `${filteredCategories.length} of ${categories.length}` : `${categories.length} categories`
+    categories: searchQuery ? `${filteredCategories.length} of ${categories.length}` : `${categories.length} categories`,
+    customers: searchQuery ? `${filteredCustomers.length} of ${customers.length}` : `${customers.length} customers`
   };
 
   // Add functions to manage categories
@@ -1161,6 +1411,77 @@ export default function BookKeepingSystem() {
       setShowCategoryModal(true);
     }
   }, [editingCategory]);
+
+  // Add functions to manage customers
+  const addCustomer = () => {
+    const newCustomer: Customer = {
+      id: uuidv4(),
+      name: customerFormData.name,
+      email: customerFormData.email,
+      phone: customerFormData.phone,
+      address: customerFormData.address,
+      notes: customerFormData.notes,
+      createdAt: new Date(),
+      totalPurchases: 0
+    };
+    
+    setCustomers([...customers, newCustomer]);
+    setShowCustomerModal(false);
+    resetCustomerForm();
+  };
+
+  const updateCustomer = () => {
+    if (!editingCustomer) return;
+    
+    const updatedCustomer: Customer = {
+      ...editingCustomer,
+      name: customerFormData.name,
+      email: customerFormData.email,
+      phone: customerFormData.phone,
+      address: customerFormData.address,
+      notes: customerFormData.notes
+    };
+    
+    setCustomers(customers.map(customer => 
+      customer.id === updatedCustomer.id ? updatedCustomer : customer
+    ));
+    
+    setShowCustomerModal(false);
+    setEditingCustomer(null);
+    resetCustomerForm();
+  };
+
+  const deleteCustomer = (id: string) => {
+    // Check if customer has receipts before deletion
+    const hasReceipts = receipts.some(receipt => receipt.customerId === id);
+    
+    if (hasReceipts) {
+      alert("This customer has associated receipts and cannot be deleted.");
+      return;
+    }
+    
+    if (window.confirm("Are you sure you want to delete this customer?")) {
+      setCustomers(customers.filter(customer => customer.id !== id));
+    }
+  };
+
+  const resetCustomerForm = () => {
+    setCustomerFormData({
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      notes: ""
+    });
+  };
+
+  const handleCustomerFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setCustomerFormData({
+      ...customerFormData,
+      [name]: value,
+    });
+  };
 
   // Define animation variants for reuse
   const fadeIn = {
@@ -1454,6 +1775,17 @@ export default function BookKeepingSystem() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
                     <span>Categories</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "customers" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("customers")}
+                  >
+                    <FaUsers className="mr-3" />
+                    <span>Customers</span>
                   </button>
                 </li>
               </ul>
@@ -1900,7 +2232,7 @@ export default function BookKeepingSystem() {
                             className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
                           >
                             <td className={`p-4 text-${currentTheme.text}`}>{receipt.date.toLocaleDateString()}</td>
-                            <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerId}</td>
+                            <td className={`p-4 text-${currentTheme.text} text-xs font-mono`}>{receipt.customerId}</td>
                             <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerName}</td>
                             <td className={`p-4 text-${currentTheme.success}`}>{formatCurrency(receipt.totalAmount)}</td>
                             <td className="p-4 space-x-2">
@@ -2015,6 +2347,133 @@ export default function BookKeepingSystem() {
                       </motion.div>
                     ))}
                   </motion.div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Customers Tab */}
+            {activeTab === "customers" && (
+              <motion.div variants={fadeIn}>
+                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                  <div>
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Customer Management</h2>
+                    {searchQuery && (
+                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                        Showing {searchStats.customers}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+                    onClick={() => {
+                      setEditingCustomer(null);
+                      resetCustomerForm();
+                      setShowCustomerModal(true);
+                    }}
+                  >
+                    <FaPlus className="mr-2" /> Add Customer
+                  </button>
+                </div>
+
+                {filteredCustomers.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+                  >
+                    {searchQuery ? (
+                      <>
+                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching customers</h3>
+                        <p className="text-gray-400 mt-2">Try different search terms</p>
+                      </>
+                    ) : (
+                      <>
+                        <FaUsers className="mx-auto text-4xl text-gray-500 mb-4" />
+                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No customers yet</h3>
+                        <p className="text-gray-400 mt-2">Add your first customer to get started</p>
+                      </>
+                    )}
+                  </motion.div>
+                ) : (
+                  <div className={`grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3`}>
+                    {filteredCustomers.map(customer => (
+                      <motion.div
+                        key={customer.id}
+                        variants={cardVariant}
+                        whileHover="hover"
+                        className={`bg-${currentTheme.background} p-4 rounded-lg border border-${currentTheme.border} shadow-sm`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <h3 className={`text-lg font-medium text-${currentTheme.text}`}>{customer.name}</h3>
+                          <div className="flex space-x-2">
+                            <button
+                              className={`p-1 text-${currentTheme.accent} hover:text-${currentTheme.primary} transition-colors duration-200`}
+                              onClick={() => setEditingCustomer(customer)}
+                              title="Edit customer"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              </svg>
+                            </button>
+                            <button
+                              className={`p-1 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 transition-colors duration-200`}
+                              onClick={() => deleteCustomer(customer.id)}
+                              title="Delete customer"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 space-y-1 text-sm">
+                          {customer.email && (
+                            <p className="flex items-center text-gray-400">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {customer.email}
+                            </p>
+                          )}
+                          {customer.phone && (
+                            <p className="flex items-center text-gray-400">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              {customer.phone}
+                            </p>
+                          )}
+                          {customer.address && (
+                            <p className="flex items-start text-gray-400">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span className="line-clamp-2">{customer.address}</span>
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className={`mt-4 pt-3 border-t border-${currentTheme.border} flex justify-between items-center`}>
+                          <span className={`text-xs text-gray-500`}>
+                            Added: {customer.createdAt.toLocaleDateString()}
+                          </span>
+                          <span className={`text-xs bg-${currentTheme.primary}/20 text-${currentTheme.accent} px-2 py-1 rounded-full`}>
+                            {customer.totalPurchases} purchases
+                          </span>
+                        </div>
+                        
+                        {customer.notes && (
+                          <div className={`mt-3 p-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded text-xs text-gray-400`}>
+                            <p className="line-clamp-2">{customer.notes}</p>
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
                 )}
               </motion.div>
             )}
@@ -2339,6 +2798,29 @@ export default function BookKeepingSystem() {
                     </div>
                   )}
                   
+                  {/* Only show customer selection for income transactions */}
+                  {transactionFormData.type === "income" && (
+                    <div className="mb-4">
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                        Associated Customer (Optional)
+                      </label>
+                      <select 
+                        name="customerId"
+                        title="Associated customer"
+                        value={transactionFormData.customerId || ""}
+                        onChange={handleTransactionFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      >
+                        <option value="">None</option>
+                        {customers.map(customer => (
+                          <option key={customer.id} value={customer.id}>
+                            {customer.name} {customer.phone ? `(${customer.phone})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
                   <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
                     <button 
                       type="button"
@@ -2418,32 +2900,103 @@ export default function BookKeepingSystem() {
                     />
                   </div>
 
+                  {/* Customer Selection Section */}
                   <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer ID</label>
-                    <input
-                      type="text"
-                      name="customerId"
-                      value={receiptFormData.customerId}
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer</label>
+                    <select
+                      name="customerSelect"
+                      value={receiptFormData.isNewCustomer ? "new" : (receiptFormData.customerId || "")}
                       onChange={handleReceiptFormChange}
                       className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                      placeholder="Enter customer ID"
-                    />
+                    >
+                      <option value="">-- Select Customer --</option>
+                      {customers.map(customer => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name} {customer.phone ? `(${customer.phone})` : ""}
+                        </option>
+                      ))}
+                      <option value="new" className={`text-${currentTheme.accent} font-medium`}>+ Create New Customer</option>
+                    </select>
                   </div>
 
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer Name</label>
-                    <input
-                      type="text"
-                      name="customerName"
-                      value={receiptFormData.customerName}
-                      onChange={handleReceiptFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                      placeholder="Enter customer name"
-                    />
-                  </div>
+                  {/* New Customer Form */}
+                  {receiptFormData.isNewCustomer && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className={`mb-4 p-4 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}
+                    >
+                      <div className="flex items-center mb-3">
+                        <FaUserPlus className={`mr-2 text-${currentTheme.accent}`} />
+                        <h3 className={`text-sm font-medium text-${currentTheme.text}`}>New Customer Details</h3>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <label className={`block text-xs text-gray-400 mb-1`}>Customer Name *</label>
+                        <input
+                          type="text"
+                          name="customerName"
+                          value={receiptFormData.customerName}
+                          onChange={handleReceiptFormChange}
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                          placeholder="Enter customer name"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className={`block text-xs text-gray-400 mb-1`}>Email</label>
+                          <input
+                            type="email"
+                            name="newCustomer.email"
+                            value={receiptFormData.newCustomerData?.email || ""}
+                            onChange={handleReceiptFormChange}
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                            placeholder="Email"
+                          />
+                        </div>
+                        <div>
+                          <label className={`block text-xs text-gray-400 mb-1`}>Phone</label>
+                          <input
+                            type="tel"
+                            name="newCustomer.phone"
+                            value={receiptFormData.newCustomerData?.phone || ""}
+                            onChange={handleReceiptFormChange}
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                            placeholder="Phone number"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <label className={`block text-xs text-gray-400 mb-1`}>Address</label>
+                        <input
+                          type="text"
+                          name="newCustomer.address"
+                          value={receiptFormData.newCustomerData?.address || ""}
+                          onChange={handleReceiptFormChange}
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                          placeholder="Address"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className={`block text-xs text-gray-400 mb-1`}>Notes</label>
+                        <textarea
+                          name="newCustomer.notes"
+                          value={receiptFormData.newCustomerData?.notes || ""}
+                          onChange={handleReceiptFormChange}
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                          rows={2}
+                          placeholder="Any additional notes"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
 
+                  {/* Rest of the receipt form */}
                   <div className="mb-4">
                     <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Items</label>
                     
@@ -2822,6 +3375,132 @@ export default function BookKeepingSystem() {
                     >
                       <FaPlus className="mr-2 h-4 w-4" /> 
                       {editingCategory ? 'Update Category' : 'Save Category'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Customer Modal */}
+      <AnimatePresence>
+        {showCustomerModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaUser className={`mr-2 text-${currentTheme.accent}`} />
+                  {editingCustomer ? 'Edit Customer' : 'Add Customer'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowCustomerModal(false);
+                    setEditingCustomer(null);
+                  }}
+                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="px-6 py-4">
+                <form onSubmit={(e) => { 
+                  e.preventDefault(); 
+                  editingCustomer ? updateCustomer() : addCustomer();
+                }}>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Full Name *</label>
+                    <input 
+                      type="text" 
+                      name="name"
+                      value={customerFormData.name}
+                      onChange={handleCustomerFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Enter customer name"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Email Address</label>
+                    <input 
+                      type="email" 
+                      name="email"
+                      value={customerFormData.email}
+                      onChange={handleCustomerFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Phone Number</label>
+                    <input 
+                      type="tel" 
+                      name="phone"
+                      value={customerFormData.phone}
+                      onChange={handleCustomerFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="+1 (555) 123-4567"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Address</label>
+                    <input 
+                      type="text" 
+                      name="address"
+                      value={customerFormData.address}
+                      onChange={handleCustomerFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="123 Main St, City, Country"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Notes</label>
+                    <textarea 
+                      name="notes"
+                      value={customerFormData.notes}
+                      onChange={handleCustomerFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      rows={3}
+                      placeholder="Additional notes about this customer"
+                    ></textarea>
+                  </div>
+                  
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowCustomerModal(false);
+                        setEditingCustomer(null);
+                      }}
+                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaPlus className="mr-2 h-4 w-4" /> 
+                      {editingCustomer ? 'Update Customer' : 'Save Customer'}
                     </button>
                   </div>
                 </form>
