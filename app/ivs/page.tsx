@@ -26,7 +26,7 @@ interface Transaction {
   relatedInventoryId?: string;
 }
 
-// New interface for Receipt
+// Modify Receipt interface to include a linked transaction id
 interface Receipt {
   id: string;
   date: Date;
@@ -34,6 +34,7 @@ interface Receipt {
   customerName: string;
   items: { id: string; name: string; quantity: number; price: number }[];
   totalAmount: number;
+  transactionId?: string; // Add this to link to transactions
 }
 
 // Form state interfaces
@@ -488,7 +489,27 @@ export default function BookKeepingSystem() {
   };
 
   // New functions for receipts
+  // Update the addReceipt function to create a transaction and update inventory
   const addReceipt = () => {
+    // Validate inventory quantities first
+    let validInventory = true;
+    const updatedInventory = [...inventory];
+    
+    for (const item of receiptFormData.items) {
+      const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+      if (!inventoryItem || inventoryItem.quantity < item.quantity) {
+        const itemName = inventoryItem ? inventoryItem.name : "Unknown item";
+        alert(`Error: Not enough inventory for ${itemName}`);
+        validInventory = false;
+        break;
+      }
+    }
+    
+    if (!validInventory) {
+      return;
+    }
+    
+    // Create the new receipt
     const newReceipt: Receipt = {
       id: `rcp-${Date.now()}`,
       date: new Date(receiptFormData.date),
@@ -497,14 +518,64 @@ export default function BookKeepingSystem() {
       items: receiptFormData.items,
       totalAmount: receiptFormData.totalAmount,
     };
+    
+    // Create a corresponding income transaction
+    const transactionId = `txn-${Date.now()}`;
+    const newTransaction: Transaction = {
+      id: transactionId,
+      date: new Date(receiptFormData.date),
+      description: `Sale to ${receiptFormData.customerName}`,
+      type: "income",
+      category: "Sales",
+      amount: receiptFormData.totalAmount,
+    };
+    
+    // Update the receipt with the transaction ID
+    newReceipt.transactionId = transactionId;
+    
+    // Update inventory quantities
+    receiptFormData.items.forEach(item => {
+      const inventoryIndex = updatedInventory.findIndex(invItem => invItem.id === item.id);
+      if (inventoryIndex !== -1) {
+        updatedInventory[inventoryIndex] = {
+          ...updatedInventory[inventoryIndex],
+          quantity: updatedInventory[inventoryIndex].quantity - item.quantity
+        };
+      }
+    });
+    
+    // Save all updates
     setReceipts([...receipts, newReceipt]);
+    setTransactions([...transactions, newTransaction]);
+    setInventory(updatedInventory);
     setShowReceiptModal(false);
     resetReceiptForm();
   };
 
+  // Update the updateReceipt function to handle the transaction and inventory changes
   const updateReceipt = () => {
     if (!editingReceipt) return;
-
+    
+    // Find quantities that have changed to update inventory correctly
+    const quantityDifferences = editingReceipt.items.map(oldItem => {
+      const newItem = receiptFormData.items.find(item => item.id === oldItem.id);
+      return {
+        id: oldItem.id,
+        difference: newItem ? newItem.quantity - oldItem.quantity : -oldItem.quantity
+      };
+    });
+    
+    // Add new items not in original receipt
+    receiptFormData.items.forEach(item => {
+      if (!editingReceipt.items.some(oldItem => oldItem.id === item.id)) {
+        quantityDifferences.push({
+          id: item.id,
+          difference: item.quantity
+        });
+      }
+    });
+    
+    // Create the updated receipt
     const updatedReceipt: Receipt = {
       ...editingReceipt,
       date: new Date(receiptFormData.date),
@@ -513,22 +584,125 @@ export default function BookKeepingSystem() {
       items: receiptFormData.items,
       totalAmount: receiptFormData.totalAmount,
     };
+    
+    // Find or create corresponding transaction
+    let updatedTransaction: Transaction | null = null;
+    let existingTransactionIndex = -1;
+    
+    if (editingReceipt.transactionId) {
+      // Find existing transaction
+      existingTransactionIndex = transactions.findIndex(t => t.id === editingReceipt.transactionId);
+      
+      if (existingTransactionIndex !== -1) {
+        updatedTransaction = {
+          ...transactions[existingTransactionIndex],
+          date: new Date(receiptFormData.date),
+          description: `Sale to ${receiptFormData.customerName}`,
+          amount: receiptFormData.totalAmount,
+        };
+      }
+    }
+    
+    // If no valid transaction found or linked, create a new one
+    if (updatedTransaction === null) {
+      const transactionId = `txn-${Date.now()}`;
+      updatedTransaction = {
+        id: transactionId,
+        date: new Date(receiptFormData.date),
+        description: `Sale to ${receiptFormData.customerName}`,
+        type: "income",
+        category: "Sales",
+        amount: receiptFormData.totalAmount,
+      };
+      updatedReceipt.transactionId = transactionId;
+    }
+    
+    // Update inventory quantities - check for valid inventory first
+    const updatedInventory = [...inventory];
+    let validInventoryChanges = true;
 
+    // Verify all inventory changes are valid before applying
+    quantityDifferences.forEach(diff => {
+      const inventoryIndex = updatedInventory.findIndex(invItem => invItem.id === diff.id);
+      if (inventoryIndex !== -1) {
+        const newQuantity = updatedInventory[inventoryIndex].quantity - diff.difference;
+        if (newQuantity < 0) {
+          validInventoryChanges = false;
+          alert(`Error: Not enough inventory for ${updatedInventory[inventoryIndex].name}`);
+        }
+      }
+    });
+
+    if (!validInventoryChanges) {
+      return;
+    }
+    
+    // Apply inventory updates if all changes are valid
+    quantityDifferences.forEach(diff => {
+      const inventoryIndex = updatedInventory.findIndex(invItem => invItem.id === diff.id);
+      if (inventoryIndex !== -1 && diff.difference !== 0) {
+        updatedInventory[inventoryIndex] = {
+          ...updatedInventory[inventoryIndex],
+          quantity: updatedInventory[inventoryIndex].quantity - diff.difference
+        };
+      }
+    });
+    
+    // Save all updates
     setReceipts(receipts.map(receipt =>
       receipt.id === updatedReceipt.id ? updatedReceipt : receipt
     ));
-
+    
+    // Update transactions array based on whether we're updating or adding
+    if (existingTransactionIndex !== -1) {
+      const newTransactions = [...transactions];
+      newTransactions[existingTransactionIndex] = updatedTransaction;
+      setTransactions(newTransactions);
+    } else {
+      setTransactions([...transactions, updatedTransaction]);
+    }
+    
+    setInventory(updatedInventory);
     setShowReceiptModal(false);
     setEditingReceipt(null);
     resetReceiptForm();
   };
 
+  // Update the deleteReceipt function to handle linked transactions and restore inventory
   const deleteReceipt = (id: string) => {
     if (window.confirm("Are you sure you want to delete this receipt?")) {
-      setReceipts(receipts.filter(receipt => receipt.id !== id));
+      const receiptToDelete = receipts.find(receipt => receipt.id === id);
+      
+      if (receiptToDelete) {
+        // Restore inventory quantities
+        const updatedInventory = [...inventory];
+        receiptToDelete.items.forEach(item => {
+          const inventoryIndex = updatedInventory.findIndex(invItem => invItem.id === item.id);
+          if (inventoryIndex !== -1) {
+            updatedInventory[inventoryIndex] = {
+              ...updatedInventory[inventoryIndex],
+              quantity: updatedInventory[inventoryIndex].quantity + item.quantity
+            };
+          }
+        });
+        
+        // Delete linked transaction if exists
+        if (receiptToDelete.transactionId) {
+          setTransactions(transactions.filter(
+            transaction => transaction.id !== receiptToDelete.transactionId
+          ));
+        }
+        
+        // Delete receipt and update inventory
+        setReceipts(receipts.filter(receipt => receipt.id !== id));
+        setInventory(updatedInventory);
+      } else {
+        setReceipts(receipts.filter(receipt => receipt.id !== id));
+      }
     }
   };
 
+  // Function to reset receipt form
   const resetReceiptForm = () => {
     setReceiptFormData({
       date: new Date().toISOString().split('T')[0],
@@ -574,8 +748,7 @@ export default function BookKeepingSystem() {
   
   const totalSalesValue = transactions
     .filter(t => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0) + 
-    receipts.reduce((sum, r) => sum + r.totalAmount, 0); // Add receipts to total sales
+    .reduce((sum, t) => sum + t.amount, 0);
   
   const totalExpenses = transactions
     .filter(t => t.type === "expense")
@@ -1472,12 +1645,45 @@ export default function BookKeepingSystem() {
                           <option value="">-- Select an item --</option>
                           {inventory
                             .filter(item => item.quantity > 0)
-                            .filter(item => !receiptFormData.items.some(receiptItem => receiptItem.id === item.id))
-                            .map(item => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} - {formatCurrency(item.sellingPrice)}
-                              </option>
-                            ))
+                            .filter(item => {
+                              const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
+                              
+                              // If editing, we need to consider the original receipt quantities
+                              if (editingReceipt && existingItem) {
+                                const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                if (originalItem) {
+                                  // Only filter out if quantity in form exceeds available + original
+                                  return existingItem.quantity < (item.quantity + originalItem.quantity);
+                                }
+                              }
+                              
+                              // For new receipts, just check if there's still available inventory
+                              return !existingItem || existingItem.quantity < item.quantity;
+                            })
+                            .map(item => {
+                              // Calculate available quantity
+                              const existingItem = receiptFormData.items.find(receiptItem => receiptItem.id === item.id);
+                              let availableQty = item.quantity;
+                              
+                              if (existingItem) {
+                                if (editingReceipt) {
+                                  const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                  if (originalItem) {
+                                    availableQty = item.quantity + originalItem.quantity - existingItem.quantity;
+                                  } else {
+                                    availableQty = item.quantity - existingItem.quantity;
+                                  }
+                                } else {
+                                  availableQty = item.quantity - existingItem.quantity;
+                                }
+                              }
+                              
+                              return (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} - {formatCurrency(item.sellingPrice)} (Available: {availableQty})
+                                </option>
+                              );
+                            })
                           }
                         </select>
                       </div>
@@ -1518,8 +1724,43 @@ export default function BookKeepingSystem() {
                                   className="w-16 p-1 bg-gray-800 border border-gray-600 text-white rounded text-sm text-center"
                                   min="1"
                                   value={item.quantity}
+                                  max={(() => {
+                                    const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+                                    if (!inventoryItem) return 1;
+                                    
+                                    // If editing, we need to account for the original quantity
+                                    if (editingReceipt) {
+                                      const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                      if (originalItem) {
+                                        return originalItem.quantity + inventoryItem.quantity;
+                                      }
+                                    }
+                                    
+                                    return inventoryItem.quantity;
+                                  })()}
                                   onChange={(e) => {
-                                    const newQuantity = parseInt(e.target.value) || 1;
+                                    const inventoryItem = inventory.find(invItem => invItem.id === item.id);
+                                    if (!inventoryItem) return;
+                                    
+                                    let maxAllowed = inventoryItem.quantity;
+                                    
+                                    // If editing, we need to account for the original quantity
+                                    if (editingReceipt) {
+                                      const originalItem = editingReceipt.items.find(origItem => origItem.id === item.id);
+                                      if (originalItem) {
+                                        maxAllowed += originalItem.quantity;
+                                      }
+                                    }
+                                    
+                                    // Parse and cap the new quantity
+                                    const newValue = parseInt(e.target.value) || 1;
+                                    const newQuantity = Math.min(newValue, maxAllowed);
+                                    
+                                    if (newValue > maxAllowed) {
+                                      // Provide feedback that we've limited the quantity
+                                      alert(`Maximum available quantity for ${item.name} is ${maxAllowed}`);
+                                    }
+                                    
                                     const newItems = [...receiptFormData.items];
                                     const oldTotal = item.quantity * item.price;
                                     const newTotal = newQuantity * item.price;
