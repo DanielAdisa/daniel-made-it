@@ -2905,6 +2905,7 @@ export default function BookKeepingSystem() {
                     <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer</label>
                     <select
                       name="customerSelect"
+                      title="Select customer"
                       value={receiptFormData.isNewCustomer ? "new" : (receiptFormData.customerId || "")}
                       onChange={handleReceiptFormChange}
                       className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
