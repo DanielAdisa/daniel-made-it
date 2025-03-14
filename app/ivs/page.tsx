@@ -81,6 +81,7 @@ interface AppData {
   version: string;
   selectedCurrency: string;
   selectedTheme: string; // Add this to save theme preference
+  categories: Category[]; // Add categories to AppData
 }
 
 // First, let's add a Theme interface and available themes
@@ -100,9 +101,19 @@ interface Theme {
   warning: string;
 }
 
+// Add Category interface to the existing interfaces section
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  type: "inventory" | "transaction" | "both"; // categorize by usage type
+  color: string; // For visual distinction
+}
+
 // Main component
 export default function BookKeepingSystem() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts">("dashboard");
+  // Update the activeTab state to include categories
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "categories">("dashboard");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -272,6 +283,41 @@ export default function BookKeepingSystem() {
   const [isSaving, setIsSaving] = useState(false);
   const [dataChanged, setDataChanged] = useState(false);
 
+  // Add categories state
+  const [categories, setCategories] = useState<Category[]>([
+    // Some default categories to start with
+    { id: "cat-1", name: "Electronics", description: "Electronic items and gadgets", type: "inventory", color: "blue-500" },
+    { id: "cat-2", name: "Stationery", description: "Office supplies and stationery", type: "inventory", color: "green-500" },
+    { id: "cat-3", name: "Sales", description: "Income from sales", type: "transaction", color: "emerald-500" },
+    { id: "cat-4", name: "Utilities", description: "Utility bills and expenses", type: "transaction", color: "amber-500" },
+    { id: "cat-5", name: "Salaries", description: "Staff salaries", type: "transaction", color: "rose-500" }
+  ]);
+  const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
+  
+  // Add category form state
+  const [categoryFormData, setCategoryFormData] = useState<{
+    name: string;
+    description: string;
+    type: "inventory" | "transaction" | "both";
+    color: string;
+  }>({
+    name: "",
+    description: "",
+    type: "both",
+    color: "blue-500"
+  });
+  
+  // Add category modal state
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
+  // Available colors for categories
+  const categoryColors = [
+    "blue-500", "indigo-500", "purple-500", "pink-500", "rose-500", 
+    "red-500", "orange-500", "amber-500", "yellow-500", "lime-500",
+    "green-500", "emerald-500", "teal-500", "cyan-500", "sky-500"
+  ];
+
   // LOCAL STORAGE INTEGRATION
   // Load data from localStorage on initial mount
   useEffect(() => {
@@ -345,6 +391,11 @@ export default function BookKeepingSystem() {
           }
         }
         
+        // Load categories if they exist
+        if (parsedData.categories) {
+          setCategories(parsedData.categories);
+        }
+
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
       }
@@ -366,7 +417,8 @@ export default function BookKeepingSystem() {
         lastUpdated: currentTime,
         version: "1.0",
         selectedCurrency: selectedCurrency.code,
-        selectedTheme: currentTheme.id // Save selected theme
+        selectedTheme: currentTheme.id, // Save selected theme
+        categories,
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -395,7 +447,8 @@ export default function BookKeepingSystem() {
         lastUpdated: new Date().toISOString(),
         version: "1.0",
         selectedCurrency: selectedCurrency.code,
-        selectedTheme: currentTheme.id // Include theme in exports
+        selectedTheme: currentTheme.id, // Include theme in exports
+        categories,
       };
       
       const json = JSON.stringify(dataToExport, null, 2);
@@ -478,6 +531,11 @@ export default function BookKeepingSystem() {
             if (importedTheme) {
               setCurrentTheme(importedTheme);
             }
+          }
+
+          // Load categories if they exist
+          if (importedData.categories) {
+            setCategories(importedData.categories);
           }
           
           alert('Data imported successfully!');
@@ -960,7 +1018,8 @@ export default function BookKeepingSystem() {
     setFilteredInventory(inventory);
     setFilteredTransactions(transactions);
     setFilteredReceipts(receipts);
-  }, [inventory, transactions, receipts]);
+    setFilteredCategories(categories);
+  }, [inventory, transactions, receipts, categories]);
 
   // Add this useEffect for search functionality
   useEffect(() => {
@@ -969,6 +1028,7 @@ export default function BookKeepingSystem() {
       setFilteredInventory(inventory);
       setFilteredTransactions(transactions);
       setFilteredReceipts(receipts);
+      setFilteredCategories(categories);
       return;
     }
     
@@ -1003,14 +1063,103 @@ export default function BookKeepingSystem() {
       )
     );
     setFilteredReceipts(matchedReceipts);
-  }, [searchQuery, inventory, transactions, receipts]);
+
+    // Filter categories
+    const matchedCategories = categories.filter(category => 
+      category.name.toLowerCase().includes(query) || 
+      category.description.toLowerCase().includes(query) ||
+      category.type.toLowerCase().includes(query)
+    );
+    setFilteredCategories(matchedCategories);
+  }, [searchQuery, inventory, transactions, receipts, categories]);
 
   // Add a stats object to display search results count 
   const searchStats = {
     inventory: searchQuery ? `${filteredInventory.length} of ${inventory.length}` : `${inventory.length} items`,
     transactions: searchQuery ? `${filteredTransactions.length} of ${transactions.length}` : `${transactions.length} records`,
-    receipts: searchQuery ? `${filteredReceipts.length} of ${receipts.length}` : `${receipts.length} records`
+    receipts: searchQuery ? `${filteredReceipts.length} of ${receipts.length}` : `${receipts.length} records`,
+    categories: searchQuery ? `${filteredCategories.length} of ${categories.length}` : `${categories.length} categories`
   };
+
+  // Add functions to manage categories
+  const addCategory = () => {
+    const newCategory: Category = {
+      id: `cat-${Date.now()}`,
+      name: categoryFormData.name,
+      description: categoryFormData.description,
+      type: categoryFormData.type,
+      color: categoryFormData.color
+    };
+    
+    setCategories([...categories, newCategory]);
+    setShowCategoryModal(false);
+    resetCategoryForm();
+  };
+
+  const updateCategory = () => {
+    if (!editingCategory) return;
+    
+    const updatedCategory: Category = {
+      ...editingCategory,
+      name: categoryFormData.name,
+      description: categoryFormData.description,
+      type: categoryFormData.type,
+      color: categoryFormData.color
+    };
+    
+    setCategories(categories.map(category => 
+      category.id === updatedCategory.id ? updatedCategory : category
+    ));
+    
+    setShowCategoryModal(false);
+    setEditingCategory(null);
+    resetCategoryForm();
+  };
+
+  const deleteCategory = (id: string) => {
+    // Check if the category is in use before deleting
+    const isUsedInInventory = inventory.some(item => item.category === id);
+    const isUsedInTransactions = transactions.some(transaction => transaction.category === id);
+    
+    if (isUsedInInventory || isUsedInTransactions) {
+      alert("This category is currently in use and cannot be deleted.");
+      return;
+    }
+    
+    if (window.confirm("Are you sure you want to delete this category?")) {
+      setCategories(categories.filter(category => category.id !== id));
+    }
+  };
+
+  const resetCategoryForm = () => {
+    setCategoryFormData({
+      name: "",
+      description: "",
+      type: "both",
+      color: "blue-500"
+    });
+  };
+
+  const handleCategoryFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setCategoryFormData({
+      ...categoryFormData,
+      [name]: value,
+    });
+  };
+
+  // Update useEffect for editingCategory
+  useEffect(() => {
+    if (editingCategory) {
+      setCategoryFormData({
+        name: editingCategory.name,
+        description: editingCategory.description,
+        type: editingCategory.type,
+        color: editingCategory.color
+      });
+      setShowCategoryModal(true);
+    }
+  }, [editingCategory]);
 
   return (
     <div className={`min-h-screen bg-${currentTheme.background}`}>
@@ -1207,6 +1356,19 @@ export default function BookKeepingSystem() {
                   <span>Receipts</span>
                 </button>
               </li>
+              <li>
+                <button
+                  className={`w-full flex items-center p-3 rounded-md text-sm ${
+                    activeTab === "categories" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                  }`}
+                  onClick={() => setActiveTab("categories")}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <span>Categories</span>
+                </button>
+              </li>
             </ul>
           </nav>
         </aside>
@@ -1343,8 +1505,20 @@ export default function BookKeepingSystem() {
                           <td className={`p-4 text-${currentTheme.text}`}>{item.name}</td>
                           <td className="p-4 text-gray-400">{item.sku}</td>
                           <td className="p-4">
-                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`}>
-                              {item.category}
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              // Find matching category to apply its color
+                              (() => {
+                                const category = categories.find(c => c.id === item.category);
+                                return category 
+                                  ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
+                                  : `bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`;
+                              })()
+                            }`}>
+                              {/* Display category name instead of ID */}
+                              {(() => {
+                                const category = categories.find(c => c.id === item.category);
+                                return category ? category.name : item.category;
+                              })()}
                             </span>
                           </td>
                           <td className={`p-4 text-${currentTheme.text}`}>{item.quantity}</td>
@@ -1431,7 +1605,25 @@ export default function BookKeepingSystem() {
                         <tr key={transaction.id} className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}>
                           <td className={`p-4 text-${currentTheme.text}`}>{transaction.date.toLocaleDateString()}</td>
                           <td className={`p-4 text-${currentTheme.text}`}>{transaction.description}</td>
-                          <td className={`p-4 text-${currentTheme.text}`}>{transaction.category}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              // Find matching category to apply its color
+                              (() => {
+                                const category = categories.find(c => c.id === transaction.category);
+                                return category 
+                                  ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
+                                  : transaction.type === "income"
+                                    ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
+                                    : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`;
+                              })()
+                            }`}>
+                              {/* Display category name instead of ID */}
+                              {(() => {
+                                const category = categories.find(c => c.id === transaction.category);
+                                return category ? category.name : transaction.category;
+                              })()}
+                            </span>
+                          </td>
                           <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-xs ${
                               transaction.type === "income" ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
@@ -1546,6 +1738,87 @@ export default function BookKeepingSystem() {
               )}
             </div>
           )}
+
+          {/* Categories Tab */}
+          {activeTab === "categories" && (
+            <div>
+              <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+                <div>
+                  <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Category Management</h2>
+                  {searchQuery && (
+                    <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+                      Showing {searchStats.categories}
+                    </p>
+                  )}
+                </div>
+                <button
+                  className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+                  onClick={() => {
+                    setEditingCategory(null);
+                    resetCategoryForm();
+                    setShowCategoryModal(true);
+                  }}
+                >
+                  <FaPlus className="mr-2" /> Add Category
+                </button>
+              </div>
+
+              {filteredCategories.length === 0 ? (
+                <div className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
+                  {searchQuery ? (
+                    <>
+                      <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching categories</h3>
+                      <p className="text-gray-400 mt-2">Try different search terms</p>
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No categories defined</h3>
+                      <p className="text-gray-400 mt-2">Add categories to organize your inventory and transactions</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredCategories.map(category => (
+                    <div 
+                      key={category.id} 
+                      className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200`}
+                    >
+                      <div className={`bg-${category.color} h-2 w-full`}></div>
+                      <div className="p-4">
+                        <div className="flex justify-between items-start">
+                          <h3 className={`text-lg font-medium text-${currentTheme.text}`}>{category.name}</h3>
+                          <span className={`px-2 py-1 bg-${currentTheme.background} text-xs rounded-full border border-${currentTheme.border} text-gray-400`}>
+                            {category.type === "both" ? "Inventory & Transactions" : 
+                             category.type === "inventory" ? "Inventory Only" : "Transactions Only"}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-gray-400 text-sm">{category.description}</p>
+                        <div className="mt-4 flex justify-end space-x-2">
+                          <button 
+                            className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                            onClick={() => setEditingCategory(category)}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                            onClick={() => deleteCategory(category.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1605,15 +1878,23 @@ export default function BookKeepingSystem() {
                 
                 <div className="mb-4">
                   <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
-                  <input 
-                    type="text" 
+                  <select 
                     name="category"
                     value={inventoryFormData.category}
                     onChange={handleInventoryFormChange}
                     className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
-                    placeholder="Item category"
-                  />
+                  >
+                    <option value="">Select a category</option>
+                    {categories
+                      .filter(cat => cat.type === "inventory" || cat.type === "both")
+                      .map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    }
+                  </select>
                 </div>
                 
                 <div className="grid grid-cols-3 gap-4 mb-4">
@@ -1762,15 +2043,23 @@ export default function BookKeepingSystem() {
                 
                 <div className="mb-4">
                   <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
-                  <input 
-                    type="text" 
+                  <select 
                     name="category"
                     value={transactionFormData.category}
                     onChange={handleTransactionFormChange}
                     className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
                     required
-                    placeholder="Transaction category"
-                  />
+                  >
+                    <option value="">Select a category</option>
+                    {categories
+                      .filter(cat => cat.type === "transaction" || cat.type === "both")
+                      .map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    }
+                  </select>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4 mb-4">
@@ -2163,6 +2452,117 @@ export default function BookKeepingSystem() {
                   >
                     <FaPlus className="mr-2 h-4 w-4" />
                     {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
+          <div 
+            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100 border border-${currentTheme.border}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${currentTheme.accent}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                {editingCategory ? 'Edit Category' : 'Add Category'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setEditingCategory(null);
+                }}
+                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+              >
+                <FaTimes />
+              </button>
+            </div>
+            
+            <div className="px-6 py-4">
+              <form onSubmit={(e) => { 
+                e.preventDefault(); 
+                editingCategory ? updateCategory() : addCategory();
+              }}>
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category Name</label>
+                  <input 
+                    type="text" 
+                    name="name"
+                    value={categoryFormData.name}
+                    onChange={handleCategoryFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                    placeholder="Enter category name"
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
+                  <textarea 
+                    name="description"
+                    value={categoryFormData.description}
+                    onChange={handleCategoryFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    rows={3}
+                    placeholder="Category description (optional)"
+                  ></textarea>
+                </div>
+                
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category Type</label>
+                  <select
+                    name="type"
+                    title="Category Type"
+                    value={categoryFormData.type}
+                    onChange={handleCategoryFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                  >
+                    <option value="both">Both Inventory & Transactions</option>
+                    <option value="inventory">Inventory Only</option>
+                    <option value="transaction">Transactions Only</option>
+                  </select>
+                </div>
+                
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Color</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {categoryColors.map(color => (
+                      <div 
+                        key={color} 
+                        className={`w-full aspect-square rounded-md cursor-pointer border-2 ${categoryFormData.color === color ? `border-${currentTheme.text}` : 'border-transparent'}`}
+                        onClick={() => setCategoryFormData({...categoryFormData, color})}
+                      >
+                        <div className={`w-full h-full rounded bg-${color} hover:opacity-80 transition-opacity`}></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowCategoryModal(false);
+                      setEditingCategory(null);
+                    }}
+                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                  >
+                    <FaPlus className="mr-2 h-4 w-4" /> 
+                    {editingCategory ? 'Update Category' : 'Save Category'}
                   </button>
                 </div>
               </form>
