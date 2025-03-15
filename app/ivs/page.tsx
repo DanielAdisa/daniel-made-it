@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit } from "react-icons/fa";
+  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -18,6 +18,8 @@ interface InventoryItem {
   lastRestocked: Date;
   sku: string;
 }
+
+
 
 interface Transaction {
   id: string;
@@ -102,6 +104,40 @@ interface CustomerFormData {
   notes: string;
 }
 
+// Add Invoice interface
+interface Invoice {
+  id: string;
+  date: Date;
+  dueDate: Date; // Add due date field
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  items: { id: string; name: string; quantity: number; price: number }[];
+  totalAmount: number;
+  notes: string;
+  paymentTerms: string; // Add payment terms field
+}
+
+// Add Invoice form data interface
+interface InvoiceFormData {
+  date: string;
+  dueDate: string; // Add due date field
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  items: { id: string; name: string; quantity: number; price: number }[];
+  totalAmount: number;
+  notes: string;
+  paymentTerms: string; // Add payment terms field
+  isNewCustomer: boolean; // Track if creating a new customer
+  newCustomerData?: { // Add new customer data
+    email: string;
+    phone: string;
+    address: string;
+    notes: string;
+  };
+}
+
 // Currency interface
 interface Currency {
   code: string;
@@ -130,6 +166,7 @@ interface AppData {
     logo?: string;
     established?: string;
   }; // Add business info to AppData
+  invoices: Invoice[]; // Add invoices to AppData
 }
 
 // First, let's add a Theme interface and available themes
@@ -204,14 +241,86 @@ const convertToCSV = (data: any[], headers: string[]): string => {
   return csvContent;
 };
 
+
+// Add this function to generate invoice numbers
+const generateInvoiceNumber = (businessInfo: any) => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  
+  // Use business initials if available
+  const businessInitials = businessInfo?.name
+    ? businessInfo.name
+        .split(' ')
+        .map((word: string) => word[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 3)
+    : 'INV';
+  
+  // Random 4-digit number
+  const random = Math.floor(1000 + Math.random() * 9000);
+  
+  return `${businessInitials}-${year}${month}-${random}`;
+};
+
+const formatDate = (dateValue: any): string => {
+  if (!dateValue) return '';
+  
+  try {
+    // If it's already a Date object
+    if (dateValue instanceof Date) {
+      return dateValue.toLocaleDateString();
+    }
+    
+    // If it's a string, convert to Date first
+    const date = new Date(dateValue);
+    
+    // Check if valid date
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    
+    return date.toLocaleDateString();
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return '';
+  }
+};
+
+const formatDateForInput = (dateValue: any): string => {
+  if (!dateValue) return '';
+  
+  try {
+    // Handle Date objects
+    if (dateValue instanceof Date) {
+      return dateValue.toISOString().split('T')[0];
+    }
+    
+    // Handle string dates by converting to Date first
+    const date = new Date(dateValue);
+    
+    // Check if valid date
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.error("Error formatting date for form:", error);
+    return '';
+  }
+};
+
+
 // Main component
 export default function BookKeepingSystem() {
   // Update the activeTab state to include customers
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "categories" | "customers">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "categories" | "customers" | "invoices">("dashboard");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  
+  const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
   // Add business information state
   const [showBusinessOnboarding, setShowBusinessOnboarding] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<{
@@ -229,6 +338,9 @@ export default function BookKeepingSystem() {
     phone: "",
     email: "",
   });
+
+  const invoiceCardRef = useRef<HTMLDivElement>(null);
+
   
   // Business type options
   const businessTypes = [
@@ -282,6 +394,14 @@ export default function BookKeepingSystem() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
+  // Add invoice state
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  // const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
+
+  // Add invoice modal state
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+
   // Form states
   const [inventoryFormData, setInventoryFormData] = useState<InventoryFormData>({
     name: "",
@@ -323,6 +443,73 @@ export default function BookKeepingSystem() {
     phone: "",
     address: "",
     notes: ""
+  });
+
+  // Add invoice form data state
+  const [invoiceFormData, setInvoiceFormData] = useState<InvoiceFormData>({
+    date: new Date().toISOString().split('T')[0],
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default due date 30 days ahead
+    invoiceNumber: "",
+    customerId: "",
+    customerName: "",
+    items: [],
+    totalAmount: 0,
+    notes: "",
+    paymentTerms: "30 days", // Default payment terms
+    isNewCustomer: false,
+    newCustomerData: {
+      email: "",
+      phone: "",
+      address: "",
+      notes: ""
+    }
+  });
+
+  const addInvoiceItem = () => {
+    if (!tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price) {
+      return;
+    }
+    
+    const newItem = { ...tempInvoiceItem, id: uuidv4() };
+    const newItems = [...invoiceFormData.items, newItem];
+    const newTotal = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    setInvoiceFormData({
+      ...invoiceFormData,
+      items: newItems,
+      totalAmount: newTotal
+    });
+    
+    // Reset the form
+    setTempInvoiceItem({
+      name: '',
+      quantity: 1,
+      price: 0
+    });
+  };
+
+  const removeInvoiceItem = (index: number) => {
+    const newItems = [...invoiceFormData.items];
+    newItems.splice(index, 1);
+    const newTotal = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    setInvoiceFormData({
+      ...invoiceFormData,
+      items: newItems,
+      totalAmount: newTotal
+    });
+  };
+
+
+
+  const [tempInvoiceItem, setTempInvoiceItem] = useState<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>({
+    name: '',
+    quantity: 1,
+    price: 0
   });
 
   // Theme colors
@@ -497,6 +684,33 @@ export default function BookKeepingSystem() {
     }
   }, []);
 
+ // Update the invoice editing useEffect
+useEffect(() => {
+  if (editingInvoice) {
+    // Create default due date (30 days from now) as fallback
+    const defaultDueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    setInvoiceFormData({
+      date: formatDateForInput(editingInvoice.date) || new Date().toISOString().split('T')[0],
+      dueDate: formatDateForInput(editingInvoice.dueDate) || defaultDueDate,
+      invoiceNumber: editingInvoice.invoiceNumber,
+      customerId: editingInvoice.customerId,
+      customerName: editingInvoice.customerName,
+      items: [...editingInvoice.items],
+      totalAmount: editingInvoice.totalAmount,
+      notes: editingInvoice.notes || '',
+      paymentTerms: editingInvoice.paymentTerms || 'Due on receipt',
+      isNewCustomer: false,
+      newCustomerData: {
+        email: '',
+        phone: '',
+        address: '',
+        notes: ''
+      }
+    });
+  }
+}, [editingInvoice]);
+
   // Save data to localStorage whenever inventory or transactions change
   useEffect(() => {
     if (inventory.length > 0 || transactions.length > 0 || receipts.length > 0) {
@@ -583,6 +797,15 @@ export default function BookKeepingSystem() {
           setBusinessInfo(parsedData.businessInfo);
         }
 
+        // Load invoices if they exist
+        if (parsedData.invoices) {
+          const loadedInvoices = parsedData.invoices.map(invoice => ({
+            ...invoice,
+            date: new Date(invoice.date)
+          }));
+          setInvoices(loadedInvoices);
+        }
+
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
       }
@@ -611,6 +834,7 @@ export default function BookKeepingSystem() {
         selectedTheme: currentTheme.id, // Save selected theme
         categories,
         businessInfo, // Save business info
+        invoices // Save invoices
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -673,6 +897,7 @@ export default function BookKeepingSystem() {
           selectedTheme: currentTheme.id,
           categories,
           businessInfo, // Include business info in export
+          invoices, // Include invoices in export
         };
         
         const json = JSON.stringify(dataToExport, null, 2);
@@ -1531,6 +1756,32 @@ export default function BookKeepingSystem() {
     }
   }, [editingCustomer]);
 
+  // useEffect to set form data when editing an invoice
+  useEffect(() => {
+    if (editingInvoice) {
+      setInvoiceFormData({
+        date: editingInvoice.date.toISOString().split('T')[0],
+        dueDate: editingInvoice.dueDate?.toISOString().split('T')[0] || 
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        invoiceNumber: editingInvoice.invoiceNumber,
+        customerId: editingInvoice.customerId,
+        customerName: editingInvoice.customerName,
+        items: editingInvoice.items,
+        totalAmount: editingInvoice.totalAmount,
+        notes: editingInvoice.notes,
+        paymentTerms: editingInvoice.paymentTerms || "30 days", // Set default if none
+        isNewCustomer: false,
+        newCustomerData: {
+          email: "",
+          phone: "",
+          address: "",
+          notes: ""
+        }
+      });
+      setShowInvoiceModal(true);
+    }
+  }, [editingInvoice]);
+
   // Close currency dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1552,6 +1803,9 @@ export default function BookKeepingSystem() {
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [filteredReceipts, setFilteredReceipts] = useState<Receipt[]>([]);
 
+  // Add filtered invoices state
+  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
+
   // Update useEffect to initialize filtered data when original data loads
   useEffect(() => {
     setFilteredInventory(inventory);
@@ -1559,7 +1813,8 @@ export default function BookKeepingSystem() {
     setFilteredReceipts(receipts);
     setFilteredCategories(categories);
     setFilteredCustomers(customers);
-  }, [inventory, transactions, receipts, categories, customers]);
+    setFilteredInvoices(invoices);
+  }, [inventory, transactions, receipts, categories, customers, invoices]);
 
   // Add this useEffect for search functionality
   useEffect(() => {
@@ -1570,6 +1825,7 @@ export default function BookKeepingSystem() {
       setFilteredReceipts(receipts);
       setFilteredCategories(categories);
       setFilteredCustomers(customers);
+      setFilteredInvoices(invoices);
       return;
     }
     
@@ -1621,7 +1877,19 @@ export default function BookKeepingSystem() {
       customer.address.toLowerCase().includes(query)
     );
     setFilteredCustomers(matchedCustomers);
-  }, [searchQuery, inventory, transactions, receipts, categories, customers]);
+
+    // Filter invoices
+    const matchedInvoices = invoices.filter(invoice =>
+      invoice.invoiceNumber.toLowerCase().includes(query) ||
+      invoice.customerName.toLowerCase().includes(query) ||
+      invoice.notes.toLowerCase().includes(query) ||
+      invoice.totalAmount.toString().includes(query) ||
+      invoice.items.some(item =>
+        item.name.toLowerCase().includes(query)
+      )
+    );
+    setFilteredInvoices(matchedInvoices);
+  }, [searchQuery, inventory, transactions, receipts, categories, customers, invoices]);
 
   // Add a stats object to display search results count 
   const searchStats = {
@@ -1629,7 +1897,8 @@ export default function BookKeepingSystem() {
     transactions: searchQuery ? `${filteredTransactions.length} of ${transactions.length}` : `${transactions.length} records`,
     receipts: searchQuery ? `${filteredReceipts.length} of ${receipts.length}` : `${receipts.length} records`,
     categories: searchQuery ? `${filteredCategories.length} of ${categories.length}` : `${categories.length} categories`,
-    customers: searchQuery ? `${filteredCustomers.length} of ${customers.length}` : `${customers.length} customers`
+    customers: searchQuery ? `${filteredCustomers.length} of ${customers.length}` : `${customers.length} customers`,
+    invoices: searchQuery ? `${filteredInvoices.length} of ${invoices.length}` : `${invoices.length} invoices`
   };
 
   // Add functions to manage categories
@@ -1783,6 +2052,171 @@ export default function BookKeepingSystem() {
     });
   };
 
+  // Add functions to manage invoices
+  const addInvoice = () => {
+    // Create new customer if needed
+    if (invoiceFormData.isNewCustomer && invoiceFormData.customerName) {
+      const newCustomerId = uuidv4();
+      const newCustomer: Customer = {
+        id: newCustomerId,
+        name: invoiceFormData.customerName,
+        email: invoiceFormData.newCustomerData?.email || "",
+        phone: invoiceFormData.newCustomerData?.phone || "",
+        address: invoiceFormData.newCustomerData?.address || "",
+        notes: invoiceFormData.newCustomerData?.notes || "",
+        createdAt: new Date(),
+        totalPurchases: 0
+      };
+      
+      // Update customers list
+      setCustomers([...customers, newCustomer]);
+      
+      // Update invoice customer ID
+      invoiceFormData.customerId = newCustomerId;
+    }
+    
+    const newInvoice: Invoice = {
+      ...invoiceFormData,
+      id: uuidv4(),
+      invoiceNumber: generateInvoiceNumber(businessInfo),
+      date: new Date(invoiceFormData.date),
+      dueDate: new Date(invoiceFormData.dueDate), // Convert string to Date
+      totalAmount: Number(invoiceFormData.totalAmount),
+      items: invoiceFormData.items.map(item => ({
+        ...item,
+        quantity: Number(item.quantity),
+        price: Number(item.price)
+      }))
+    };
+    
+    setInvoices([...invoices, newInvoice]);
+    setShowInvoiceModal(false);
+    resetInvoiceForm();
+  };
+
+  const updateInvoice = () => {
+    if (!editingInvoice) return;
+
+    // Handle new customer creation if needed
+    if (invoiceFormData.isNewCustomer && invoiceFormData.customerName) {
+      const newCustomerId = uuidv4();
+      const newCustomer: Customer = {
+        id: newCustomerId,
+        name: invoiceFormData.customerName,
+        email: invoiceFormData.newCustomerData?.email || "",
+        phone: invoiceFormData.newCustomerData?.phone || "",
+        address: invoiceFormData.newCustomerData?.address || "",
+        notes: invoiceFormData.newCustomerData?.notes || "",
+        createdAt: new Date(),
+        totalPurchases: 0
+      };
+      
+      // Update customers list
+      setCustomers([...customers, newCustomer]);
+      
+      // Update invoice customer ID
+      invoiceFormData.customerId = newCustomerId;
+    }
+
+    const updatedInvoice: Invoice = {
+      ...editingInvoice,
+      date: new Date(invoiceFormData.date),
+      dueDate: new Date(invoiceFormData.dueDate), // Convert string to Date
+      invoiceNumber: editingInvoice.invoiceNumber || generateInvoiceNumber(businessInfo),
+      customerId: invoiceFormData.customerId,
+      customerName: invoiceFormData.customerName,
+      items: invoiceFormData.items.map(item => ({
+        ...item,
+        quantity: Number(item.quantity),
+        price: Number(item.price)
+      })),
+      totalAmount: Number(invoiceFormData.totalAmount),
+      notes: invoiceFormData.notes,
+      paymentTerms: invoiceFormData.paymentTerms // Include payment terms
+    };
+
+    setInvoices(invoices.map(invoice =>
+      invoice.id === updatedInvoice.id ? updatedInvoice : invoice
+    ));
+
+    setShowInvoiceModal(false);
+    setEditingInvoice(null);
+    resetInvoiceForm();
+  };
+
+  const deleteInvoice = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this invoice?")) {
+      setInvoices(invoices.filter(invoice => invoice.id !== id));
+    }
+  };
+
+  const resetInvoiceForm = () => {
+    setInvoiceFormData({
+      date: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default due date 30 days ahead
+      invoiceNumber: "",
+      customerId: "",
+      customerName: "",
+      items: [],
+      totalAmount: 0,
+      notes: "",
+      paymentTerms: "30 days", // Default payment terms
+      isNewCustomer: false,
+      newCustomerData: {
+        email: "",
+        phone: "",
+        address: "",
+        notes: ""
+      }
+    });
+  };
+
+  const handleInvoiceFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    // Handle customer selection dropdown
+    if (name === "customerSelect") {
+      if (value === "new") {
+        // Creating new customer
+        setInvoiceFormData({
+          ...invoiceFormData,
+          isNewCustomer: true,
+          customerId: "",
+          customerName: ""
+        });
+      } else if (value) {
+        // Selected existing customer
+        const selectedCustomer = customers.find(c => c.id === value);
+        if (selectedCustomer) {
+          setInvoiceFormData({
+            ...invoiceFormData,
+            isNewCustomer: false,
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.name
+          });
+        }
+      }
+    } 
+    // Handle nested new customer data fields
+    else if (name.startsWith("newCustomer.")) {
+      const field = name.split(".")[1];
+      setInvoiceFormData({
+        ...invoiceFormData,
+        newCustomerData: {
+          ...invoiceFormData.newCustomerData!,
+          [field]: value
+        }
+      });
+    } 
+    // Handle all other fields
+    else {
+      setInvoiceFormData({
+        ...invoiceFormData,
+        [name]: value,
+      });
+    }
+  };
+
   // Define animation variants for reuse
   const fadeIn = {
     hidden: { opacity: 0 },
@@ -1910,6 +2344,48 @@ export default function BookKeepingSystem() {
       setIsLoading(false);
     }
   };
+
+  // Add this function to generate and download invoice image
+const generateInvoiceImage = async (invoice: Invoice) => {
+  // Get the card DOM element containing the invoice details
+  const contentElement = invoiceCardRef.current;
+  if (!contentElement) return;
+  
+  setIsLoading(true);
+  
+  try {
+    // First attempt with PNG
+    let dataUrl;
+    try {
+      dataUrl = await toPng(contentElement, {
+        quality: 10,
+        pixelRatio: 10,
+        skipFonts: true,
+        fontEmbedCSS: ""
+      });
+    } catch (pngError) {
+      console.warn('PNG generation failed, falling back to JPEG:', pngError);
+      // Fall back to JPEG if PNG fails
+      dataUrl = await toJpeg(contentElement, {
+        quality: 10,
+        pixelRatio: 10,
+        skipFonts: true
+      });
+    }
+    
+    // Create download link
+    const link = document.createElement('a');
+    const fileName = `Invoice-${invoice.invoiceNumber}-${invoice.customerName}-${Date.now()}.${dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'}`;
+    link.download = fileName;
+    link.href = dataUrl;
+    link.click();
+  } catch (error) {
+    console.error('Error generating invoice image:', error);
+    alert('Failed to generate image. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Update the state for receipts to include transaction-based receipts
   const [unifiedReceipts, setUnifiedReceipts] = useState<Receipt[]>([]);
@@ -2305,6 +2781,17 @@ export default function BookKeepingSystem() {
                   >
                     <FaUsers className="mr-3" />
                     <span>Customers</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "invoices" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("invoices")}
+                  >
+                    <FaDollarSign className="mr-3" />
+                    <span>Invoices</span>
                   </button>
                 </li>
               </ul>
@@ -3084,6 +3571,350 @@ export default function BookKeepingSystem() {
                 )}
               </motion.div>
             )}
+
+            {/* Invoices Tab */}
+            {activeTab === "invoices" && (
+  <motion.div variants={fadeIn}>
+    <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+      <div>
+        <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Invoice Management</h2>
+        {searchQuery && (
+          <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+            Showing {searchStats.invoices}
+          </p>
+        )}
+      </div>
+      <button
+        className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+        onClick={() => {
+          setEditingInvoice(null);
+          resetInvoiceForm();
+          setShowInvoiceModal(true);
+        }}
+      >
+        <FaPlus className="mr-2" /> Add Invoice
+      </button>
+    </div>
+
+    {filteredInvoices.length === 0 ? (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+      >
+        {searchQuery ? (
+          <>
+            <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching invoices</h3>
+            <p className="text-gray-400 mt-2">Try different search terms</p>
+          </>
+        ) : (
+          <>
+            <FaDollarSign className="mx-auto text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No invoices yet</h3>
+            <p className="text-gray-400 mt-2">Add your first invoice to get started</p>
+          </>
+        )}
+      </motion.div>
+    ) : (
+      <div className={`rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+        <table className="w-full text-left">
+          <thead>
+            <tr className={`bg-${currentTheme.background}`}>
+              <th className="p-4 text-gray-400 font-semibold">Invoice Number</th>
+              <th className="p-4 text-gray-400 font-semibold">Issue Date</th>
+              <th className="p-4 text-gray-400 font-semibold">Due Date</th>
+              <th className="p-4 text-gray-400 font-semibold">Customer</th>
+              <th className="p-4 text-gray-400 font-semibold">Total Amount</th>
+              <th className="p-4 text-gray-400 font-semibold">Status</th>
+              <th className="p-4 text-gray-400 font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <motion.tbody
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            {filteredInvoices.map((invoice) => (
+              <React.Fragment key={invoice.id}>
+                <motion.tr
+                  variants={tableRowVariant}
+                  className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 cursor-pointer`}
+                  onClick={() => {
+                    setExpandedInvoice(expandedInvoice === invoice.id ? null : invoice.id);
+                  }}
+                >
+                  <td className={`p-4 text-${currentTheme.text} font-medium`}>
+                    <div className="flex items-center">
+                      <span className={`mr-2 ${expandedInvoice === invoice.id ? 'transform rotate-90' : ''} transition-transform duration-200`}>
+                        <FaChevronRight size={10} />
+                      </span>
+                      {invoice.invoiceNumber}
+                    </div>
+                  </td>
+                  <td className={`p-4 text-${currentTheme.text}`}>{formatDate(invoice.date)}</td>
+                  <td className={`p-4 text-${currentTheme.text}`}>{formatDate(invoice.dueDate) || 'Not set'}</td>
+                  <td className={`p-4 text-${currentTheme.text}`}>{invoice.customerName}</td>
+                  <td className={`p-4 text-${currentTheme.text} font-semibold`}>{formatCurrency(invoice.totalAmount)}</td>
+                  <td className="p-4">
+                    {(() => {
+                      // Calculate invoice status based on due date
+                      const today = new Date();
+                      const dueDate = new Date(invoice.dueDate);
+                      
+                      if (!invoice.dueDate) {
+                        return (
+                          <span className={`px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800`}>
+                            No due date
+                          </span>
+                        );
+                      } else if (today > dueDate) {
+                        return (
+                          <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`}>
+                            Overdue
+                          </span>
+                        );
+                      } else if ((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24) < 7) {
+                        return (
+                          <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}>
+                            Due soon
+                          </span>
+                        );
+                      } else {
+                        return (
+                          <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`}>
+                            Outstanding
+                          </span>
+                        );
+                      }
+                    })()}
+                  </td>
+                  <td className="p-4 space-x-2">
+                    <button
+                      className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingInvoice(invoice);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteInvoice(invoice.id);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </motion.tr>
+                
+                {/* Expanded details row */}
+                {expandedInvoice === invoice.id && (
+                  <motion.tr 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`bg-${currentTheme.background}/30 border-b border-${currentTheme.border}`}
+                  >
+                    <td colSpan={7} className="p-0">
+                      <motion.div 
+                        initial={{ height: 0 }}
+                        animate={{ height: 'auto' }}
+                        exit={{ height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-3 md:p-6 space-y-4 md:space-y-6 bg-white text-black print:bg-white print:text-black" ref={invoiceCardRef}>
+                          {/* Invoice Header - stacked on mobile, flex on desktop */}
+                          <div className="flex flex-col md:flex-row justify-between items-center md:items-start pb-4 border-b-2 border-gray-200">
+                            <div className="w-full md:w-auto mb-4 md:mb-0 text-center md:text-left">
+                              <h1 className="text-xl md:text-2xl font-bold text-gray-800">INVOICE</h1>
+                              <p className="text-gray-500 mt-1 text-sm md:text-base">{invoice.invoiceNumber}</p>
+                            </div>
+                            <div className="w-full md:w-auto text-center md:text-right">
+                              <h2 className="font-bold text-lg md:text-xl text-gray-800">{businessInfo?.name || "Your Business"}</h2>
+                              {businessInfo?.address && <p className="text-gray-600 text-xs md:text-sm">{businessInfo.address}</p>}
+                              <div className="flex flex-col text-xs md:text-sm text-gray-600 mt-1">
+                                {businessInfo?.email && <span>{businessInfo.email}</span>}
+                                {businessInfo?.phone && <span>{businessInfo.phone}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Invoice Metadata - single column on mobile, 3 columns on desktop */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="border-b pb-2 md:border-b-0 md:pb-0 md:border-r md:border-gray-200 md:pr-4">
+                              <p className="text-xs font-semibold text-gray-500 uppercase">Payment Terms</p>
+                              <p className="text-sm font-medium text-gray-800 mt-1">{invoice.paymentTerms || 'Not specified'}</p>
+                            </div>
+                            <div className="border-b pb-2 md:border-b-0 md:pb-0 md:border-r md:border-gray-200 md:px-4">
+                              <p className="text-xs font-semibold text-gray-500 uppercase">Issue Date</p>
+                              <p className="text-sm font-medium text-gray-800 mt-1">{formatDate(invoice.date)}</p>
+                            </div>
+                            <div className="md:pl-4">
+                              <p className="text-xs font-semibold text-gray-500 uppercase">Due Date</p>
+                              <p className="text-sm font-medium text-gray-800 mt-1">{formatDate(invoice.dueDate) || 'Not set'}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Bill To Section - stacks on mobile */}
+                          <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <h4 className="text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wider">Bill To</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                              <div>
+                                <p className="text-sm md:text-base font-bold text-gray-800">{invoice.customerName}</p>
+                                
+                                {/* Customer contact information */}
+                                {(() => {
+                                  const customer = customers.find(c => c.id === invoice.customerId);
+                                  if (customer) {
+                                    return (
+                                      <div className="mt-2 text-xs md:text-sm text-gray-600">
+                                        {customer.phone && (
+                                          <div className="flex items-center mt-1">
+                                            <FaPhone className="mr-2 text-gray-400" size={10} />
+                                            <span>{customer.phone}</span>
+                                          </div>
+                                        )}
+                                        {customer.email && (
+                                          <div className="flex items-center mt-1">
+                                            <FaEnvelope className="mr-2 text-gray-400" size={10} />
+                                            <span className="break-all">{customer.email}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                              
+                              {/* Customer shipping address */}
+                              <div>
+                                {(() => {
+                                  const customer = customers.find(c => c.id === invoice.customerId);
+                                  if (customer && customer.address) {
+                                    return (
+                                      <div>
+                                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Address</p>
+                                        <p className="text-xs md:text-sm text-gray-700">{customer.address}</p>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Invoice Items - responsive table */}
+                          <div className="overflow-x-auto rounded-lg border border-gray-200">
+                            <table className="w-full text-left">
+                              <thead className="bg-gray-100 border-b border-gray-200">
+                                <tr>
+                                  <th scope="col" className="px-2 md:px-4 py-2 md:py-3 text-xs font-semibold text-gray-600 uppercase">Description</th>
+                                  <th scope="col" className="px-2 md:px-4 py-2 md:py-3 text-xs font-semibold text-gray-600 uppercase text-right">Qty</th>
+                                  <th scope="col" className="px-2 md:px-4 py-2 md:py-3 text-xs font-semibold text-gray-600 uppercase text-right">Price</th>
+                                  <th scope="col" className="px-2 md:px-4 py-2 md:py-3 text-xs font-semibold text-gray-600 uppercase text-right">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {invoice.items && invoice.items.length > 0 ? (
+                                  invoice.items.map((item, idx) => (
+                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800">{item.name}</td>
+                                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 text-right">{item.quantity}</td>
+                                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 text-right">{formatCurrency(item.price)}</td>
+                                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-800 text-right">
+                                        {formatCurrency(item.price * item.quantity)}
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan={4} className="px-2 md:px-4 py-3 text-center text-gray-500 text-xs md:text-sm">No items found</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                              <tfoot className="bg-gray-50 border-t border-gray-200">
+                                <tr>
+                                  <td colSpan={3} className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-semibold text-gray-700 text-right">Subtotal</td>
+                                  <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-semibold text-gray-800 text-right">{formatCurrency(invoice.totalAmount)}</td>
+                                </tr>
+                                <tr>
+                                  <td colSpan={3} className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-semibold text-gray-700 text-right">Tax</td>
+                                  <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-semibold text-gray-800 text-right">{formatCurrency(0)}</td>
+                                </tr>
+                                <tr className="border-t-2 border-gray-300">
+                                  <td colSpan={3} className="px-2 md:px-4 py-2 md:py-3 text-sm md:text-base font-bold text-gray-700 text-right">Total</td>
+                                  <td className="px-2 md:px-4 py-2 md:py-3 text-sm md:text-base font-bold text-green-700 text-right">{formatCurrency(invoice.totalAmount)}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                          
+                          {/* Notes section */}
+                          {invoice.notes && (
+                            <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Notes</h4>
+                              <p className="text-xs md:text-sm text-gray-700 whitespace-pre-wrap">{invoice.notes}</p>
+                            </div>
+                          )}
+                          
+                          {/* Payment Information and Footer */}
+                          <div className="mt-4 md:mt-6 pt-3 md:pt-4 border-t border-gray-200">
+                            <div className="text-center">
+                              <p className="text-xs md:text-sm font-medium text-gray-700">Thank you for your business!</p>
+                              <p className="text-xs text-gray-500 mt-1">This is a computer-generated document and requires no signature.</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Action buttons - stack on small screens */}
+                        <div className="flex flex-col sm:flex-row justify-end p-2 space-y-2 sm:space-y-0 sm:space-x-2 mt-2 md:mt-3">
+                          <button 
+                            className="w-full sm:w-auto px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 rounded border border-gray-300 flex items-center justify-center"
+                            onClick={() => {
+                              window.print();
+                            }}
+                          >
+                            <FaPrint className="mr-1" size={12} /> Print
+                          </button>
+                          <button 
+                            className={`w-full sm:w-auto px-3 py-1.5 text-xs ${
+                              isLoading ? "bg-gray-300 cursor-wait" : "bg-blue-600 hover:bg-blue-700"
+                            } text-white rounded flex items-center justify-center`}
+                            onClick={() => generateInvoiceImage(invoice)}
+                            disabled={isLoading}
+                          >
+                            {isLoading ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-t-transparent border-white rounded-full animate-spin mr-1"></div> 
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <FaDownload className="mr-1" size={12} /> Download
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </td>
+                  </motion.tr>
+                )}
+              </React.Fragment>
+            ))}
+          </motion.tbody>
+        </table>
+      </div>
+    )}
+  </motion.div>
+)}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -4105,6 +4936,378 @@ export default function BookKeepingSystem() {
                     >
                       <FaPlus className="mr-2 h-4 w-4" /> 
                       {editingCustomer ? 'Update Customer' : 'Save Customer'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Invoice Modal */}
+      <AnimatePresence>
+        {showInvoiceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaDollarSign className={`mr-2 text-${currentTheme.accent}`} />
+                  {editingInvoice ? 'Edit Invoice' : 'Create Invoice'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowInvoiceModal(false);
+                    setEditingInvoice(null);
+                  }}
+                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <div className="px-6 py-4">
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  editingInvoice ? updateInvoice() : addInvoice();
+                }}>
+                  {/* Dates section */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Issue Date</label>
+                      <input
+                        type="date"
+                        name="date"
+                        title="Invoice date"
+                        value={invoiceFormData.date}
+                        onChange={handleInvoiceFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Due Date</label>
+                      <input
+                        type="date"
+                        name="dueDate"
+                        title="Due date"
+                        value={invoiceFormData.dueDate}
+                        onChange={handleInvoiceFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Payment Terms */}
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Payment Terms</label>
+                    <select
+                      name="paymentTerms"
+                      title="Payment terms"
+                      value={invoiceFormData.paymentTerms}
+                      onChange={handleInvoiceFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    >
+                      <option value="Due on receipt">Due on receipt</option>
+                      <option value="Net 7">Net 7 days</option>
+                      <option value="Net 15">Net 15 days</option>
+                      <option value="Net 30">Net 30 days</option>
+                      <option value="Net 60">Net 60 days</option>
+                      <option value="End of month">End of month</option>
+                      <option value="End of next month">End of next month</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                  </div>
+
+                  {/* Customer Selection Section */}
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer</label>
+                    <select
+                      name="customerSelect"
+                      title="Select customer"
+                      value={invoiceFormData.isNewCustomer ? "new" : (invoiceFormData.customerId || "")}
+                      onChange={handleInvoiceFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    >
+                      <option value="">-- Select Customer --</option>
+                      {customers.map(customer => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name} {customer.phone ? `(${customer.phone})` : ""}
+                        </option>
+                      ))}
+                      <option value="new" className={`text-${currentTheme.accent} font-medium`}>+ Create New Customer</option>
+                    </select>
+                  </div>
+
+                  {/* New Customer Form */}
+                  {invoiceFormData.isNewCustomer && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className={`mb-4 p-4 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}
+                    >
+                      <div className="flex items-center mb-3">
+                        <FaUserPlus className={`mr-2 text-${currentTheme.accent}`} />
+                        <h3 className={`text-sm font-medium text-${currentTheme.text}`}>New Customer Details</h3>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <label className={`block text-xs text-gray-400 mb-1`}>Customer Name</label>
+                        <input
+                          type="text"
+                          name="customerName"
+                          value={invoiceFormData.customerName}
+                          onChange={handleInvoiceFormChange}
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                          placeholder="Enter customer name"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className={`block text-xs text-gray-400 mb-1`}>Email</label>
+                          <input
+                            type="email"
+                            name="newCustomer.email"
+                            value={invoiceFormData.newCustomerData?.email || ""}
+                            onChange={handleInvoiceFormChange}
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                            placeholder="Email"
+                          />
+                        </div>
+                        <div>
+                          <label className={`block text-xs text-gray-400 mb-1`}>Phone</label>
+                          <input
+                            type="text"
+                            name="newCustomer.phone"
+                            value={invoiceFormData.newCustomerData?.phone || ""}
+                            onChange={handleInvoiceFormChange}
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                            placeholder="Phone"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <label className={`block text-xs text-gray-400 mb-1`}>Address</label>
+                        <input
+                          type="text"
+                          name="newCustomer.address"
+                          value={invoiceFormData.newCustomerData?.address || ""}
+                          onChange={handleInvoiceFormChange}
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                          placeholder="Address"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className={`block text-xs text-gray-400 mb-1`}>Notes</label>
+                        <textarea
+                          name="newCustomer.notes"
+                          value={invoiceFormData.newCustomerData?.notes || ""}
+                          onChange={handleInvoiceFormChange}
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                          rows={2}
+                          placeholder="Any additional notes"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Invoice Items */}
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Invoice Items</label>
+                    
+                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
+                      {/* Inventory item selection dropdown */}
+                      <div className="mb-4">
+                        <label className="block text-xs text-gray-400 mb-1">Select from Inventory</label>
+                        <select
+                          title="Select inventory item"
+                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                          onChange={(e) => {
+                            const selectedItemId = e.target.value;
+                            if (!selectedItemId) return;
+                            
+                            const selectedItem = inventory.find(item => item.id === selectedItemId);
+                            if (selectedItem) {
+                              setTempInvoiceItem({
+                                name: selectedItem.name,
+                                quantity: 1,
+                                price: selectedItem.sellingPrice
+                              });
+                            }
+                            e.target.value = ""; // Reset selection after use
+                          }}
+                          value=""
+                        >
+                          <option value="">-- Select inventory item --</option>
+                          {inventory.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name} - {formatCurrency(item.sellingPrice)} ({item.quantity} in stock)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Item input form */}
+                      <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div className="col-span-2">
+                          <label className="block text-xs text-gray-400 mb-1">Item Name</label>
+                          <input
+                            type="text"
+                            placeholder="Item Name"
+                            value={tempInvoiceItem.name}
+                            onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, name: e.target.value})}
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+                          <input
+                            type="number"
+                            placeholder="Quantity"
+                            value={tempInvoiceItem.quantity || ''}
+                            onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, quantity: parseInt(e.target.value) || 0})}
+                            min="1"
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Price</label>
+                          <input
+                            type="number"
+                            placeholder="Price"
+                            value={tempInvoiceItem.price || ''}
+                            onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, price: parseFloat(e.target.value) || 0})}
+                            min="0"
+                            step="0.01"
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <button
+                          type="button"
+                          onClick={addInvoiceItem}
+                          disabled={!tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price}
+                          className={`px-4 py-2 ${
+                            !tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price
+                              ? `bg-${currentTheme.primary}/50 cursor-not-allowed`
+                              : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 cursor-pointer`
+                          } text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 text-sm`}
+                        >
+                          Add Item
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Item list */}
+                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+                      {invoiceFormData.items.length > 0 ? (
+                        <table className="min-w-full divide-y divide-gray-700">
+                          <thead>
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-400">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className={`divide-y divide-${currentTheme.border}`}>
+                            {invoiceFormData.items.map((item, index) => (
+                              <motion.tr
+                                key={index}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
+                                <td className="px-3 py-2 text-right text-sm text-gray-400">{item.quantity}</td>
+                                <td className="px-3 py-2 text-right text-sm text-gray-400">
+                                  {formatCurrency(item.price)}
+                                </td>
+                                <td className="px-3 py-2 text-right text-sm text-green-500">
+                                  {formatCurrency(item.price * item.quantity)}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeInvoiceItem(index)}
+                                    className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 p-1`}
+                                    title="Remove item"
+                                  >
+                                    <FaTrash size={14} />
+                                  </button>
+                                </td>
+                              </motion.tr>
+                            ))}
+                            <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
+                              <td colSpan={3} className={`px-3 py-2 text-right font-medium text-${currentTheme.text}`}>
+                                Total
+                              </td>
+                              <td className={`px-3 py-2 text-right font-bold text-${currentTheme.success}`}>
+                                {formatCurrency(invoiceFormData.totalAmount)}
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="p-4 text-center text-gray-400">
+                          No items added to this invoice yet
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Notes</label>
+                    <textarea
+                      name="notes"
+                      value={invoiceFormData.notes}
+                      onChange={handleInvoiceFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      rows={3}
+                      placeholder="Additional notes for the invoice"
+                    />
+                  </div>
+
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInvoiceModal(false);
+                        setEditingInvoice(null);
+                      }}
+                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaPlus className="mr-2 h-4 w-4" />
+                      {editingInvoice ? 'Update Invoice' : 'Create Invoice'}
                     </button>
                   </div>
                 </form>
