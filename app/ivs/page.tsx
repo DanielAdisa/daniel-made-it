@@ -3618,7 +3618,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
         )}
       </motion.div>
     ) : (
-      <div className={`rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+      <div className={`rounded-lg border border-${currentTheme.border} overflow-x-scroll`}>
         <table className="w-full text-left">
           <thead>
             <tr className={`bg-${currentTheme.background}`}>
