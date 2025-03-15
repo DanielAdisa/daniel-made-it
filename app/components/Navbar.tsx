@@ -317,7 +317,7 @@ const Navbar = () => {
                       className="px-4 py-2 text-lg font-medium text-purple-400 border-l-2 rounded-r-lg border-purple-500"
                       initial={{ x: -50, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: isHomePage ? navLinks.length * 0.1 : 0.1 }}
+                      transition={{ delay: 0.05 }} // Fixed shorter delay
                       exit={{ x: -50, opacity: 0 }}
                     >
                       Specials
@@ -332,7 +332,7 @@ const Navbar = () => {
                           className="px-4 py-2 text-base font-medium text-stone-300 block transition-all border-l-2 rounded-r-lg border-purple-500/20 hover:border-purple-500 hover:bg-white/5"
                           initial={{ x: -30, opacity: 0 }}
                           animate={{ x: 0, opacity: 1 }}
-                          transition={{ delay: (isHomePage ? navLinks.length : 0) + index * 0.1 + 0.1 }}
+                          transition={{ delay: 0.1 + index * 0.05 }} // Much shorter delay with small increment
                           exit={{ x: -30, opacity: 0 }}
                         >
                           {link.name}
