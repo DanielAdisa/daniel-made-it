@@ -4205,28 +4205,6 @@ export default function BookKeepingSystem() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Add a conversion info alert when currency is not USD and showing converted values */}
-      {/* {selectedCurrency.code !== "USD" && !showUsdPrices && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`fixed top-20 left-1/2 transform -translate-x-1/2 bg-${currentTheme.cardBackground} text-${currentTheme.text} px-4 py-2 rounded-md shadow-md border border-${currentTheme.border} text-sm z-10`}
-        >
-          <div className="flex items-center space-x-2">
-            <FaInfoCircle className={`text-${currentTheme.accent}`} />
-            <span>
-              Showing prices in {selectedCurrency.code} (1 USD = {selectedCurrency.symbol}{selectedCurrency.rate})
-            </span>
-            <button 
-              onClick={() => setShowUsdPrices(true)} 
-              className={`text-${currentTheme.primary} hover:underline`}
-            >
-              Revert to USD
-            </button>
-          </div>
-        </motion.div>
-      )} */}
     </div>
   );
 }

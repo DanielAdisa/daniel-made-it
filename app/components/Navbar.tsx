@@ -1,15 +1,22 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaGithub, FaInstagram, FaLinkedin, FaWhatsapp } from "react-icons/fa";
 import { HiMenuAlt4 } from "react-icons/hi";
 import { IoClose } from "react-icons/io5";
+import { IoMdArrowBack } from "react-icons/io";
+import { FaChevronDown } from "react-icons/fa";
 import Asset from "@/public/assets/Asset.webp";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSpecialsOpen, setIsSpecialsOpen] = useState(false);
+  const specialsRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const isHomePage = pathname === "/";
 
   // Handle scroll events to change navbar appearance
   useEffect(() => {
@@ -19,6 +26,18 @@ const Navbar = () => {
     
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Handle clicks outside dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (specialsRef.current && !specialsRef.current.contains(event.target as Node)) {
+        setIsSpecialsOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Social media links configuration
@@ -45,14 +64,19 @@ const Navbar = () => {
     },
   ];
 
-  // Navigation links
+  // Navigation links - updated to group Games and BKP+ under Specials
   const navLinks = [
-    { name: "About", href: "#hero" },
-    { name: "Experience", href: "#experience" },
-    { name: "Projects", href: "#projects" },
-    { name: "Pricing", href: "#pricing" },
-    { name: "Contact", href: "#contact" },
+    { name: "About", href: "/#hero" },
+    { name: "Experience", href: "/#experience" },
+    { name: "Projects", href: "/#projects" },
+    { name: "Pricing", href: "/#pricing" },
+    { name: "Contact", href: "/#contact" },
+  ];
+
+  // Special links for dropdown
+  const specialLinks = [
     { name: "Games", href: "/games" },
+    { name: "BKP+", href: "/ivs" },
   ];
 
   return (
@@ -101,37 +125,105 @@ const Navbar = () => {
             </a>
           </motion.div>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation - Conditional rendering */}
           <div className="items-center hidden space-x-1 md:flex">
-            {navLinks.map((link, index) => (
+            {isHomePage ? (
+              <>
+                {/* Home page navigation links */}
+                {navLinks.map((link, index) => (
+                  <motion.a
+                    key={link.name}
+                    href={link.href}
+                    className="relative px-4 py-2 text-sm font-medium transition-colors text-stone-300 hover:text-white"
+                    whileHover={{ scale: 1.05 }}
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    {link.name}
+                    <motion.span
+                      className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
+                      initial={{ width: 0 }}
+                      whileHover={{ width: "100%" }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    />
+                  </motion.a>
+                ))}
+              </>
+            ) : (
+              // Return to Portfolio button for non-home pages
               <motion.a
-                key={link.name}
-                href={link.href}
-                className="relative px-4 py-2 text-sm font-medium transition-colors text-stone-300 hover:text-white"
+                href="/"
+                className="flex items-center px-5 py-2 text-sm font-medium text-white transition-all rounded-full shadow-md bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 hover:shadow-purple-500/20"
                 whileHover={{ scale: 1.05 }}
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
               >
-                {link.name}
+                <IoMdArrowBack className="mr-2" />
+                Return to Portfolio
+              </motion.a>
+            )}
+            
+            {/* Specials Dropdown - Always visible regardless of route */}
+            <div ref={specialsRef} className="relative">
+              <motion.button
+                onClick={() => setIsSpecialsOpen(!isSpecialsOpen)}
+                className="relative flex items-center px-4 py-2 text-sm font-medium transition-colors text-stone-300 hover:text-white"
+                whileHover={{ scale: 1.05 }}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: isHomePage ? navLinks.length * 0.1 : 0.1 }}
+              >
+                Specials
+                <FaChevronDown className={`ml-1 transition-transform ${isSpecialsOpen ? 'rotate-180' : ''}`} size={12} />
                 <motion.span
                   className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
                   initial={{ width: 0 }}
                   whileHover={{ width: "100%" }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 />
+              </motion.button>
+              
+              <AnimatePresence>
+                {isSpecialsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute left-0 mt-2 w-40 rounded-lg bg-stone-900 border border-stone-700 shadow-xl overflow-hidden z-50"
+                  >
+                    {specialLinks.map((link, index) => (
+                      <motion.a
+                        key={link.name}
+                        href={link.href}
+                        className="block px-4 py-3 text-sm text-stone-300 hover:bg-stone-800 hover:text-white transition-colors"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        onClick={() => setIsSpecialsOpen(false)}
+                      >
+                        {link.name}
+                      </motion.a>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            
+            {/* Always show Get in Touch button */}
+            {isHomePage && (
+              <motion.a
+                href="/#contact"
+                className="px-5 py-2 ml-4 text-sm font-medium text-white transition-all rounded-full shadow-md bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 hover:shadow-purple-500/20"
+                whileHover={{ scale: 1.05 }}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: navLinks.length * 0.1 }}
+              >
+                Get in Touch
               </motion.a>
-            ))}
-            <motion.a
-              href="#contact"
-              className="px-5 py-2 ml-4 text-sm font-medium text-white transition-all rounded-full shadow-md bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 hover:shadow-purple-500/20"
-              whileHover={{ scale: 1.05 }}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: navLinks.length * 0.1 }}
-            >
-              Get in Touch
-            </motion.a>
+            )}
           </div>
 
           {/* Social Icons - Desktop */}
@@ -183,22 +275,71 @@ const Navbar = () => {
           >
             <div className="container px-6 py-8 mx-auto">
               <div className="flex flex-col space-y-6">
-                {/* Navigation Links */}
+                {/* Navigation Links - Conditional for mobile menu */}
                 <div className="flex flex-col space-y-4">
-                  {navLinks.map((link, index) => (
+                  {!isHomePage && (
                     <motion.a
-                      key={link.name}
-                      href={link.href}
+                      href="/"
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="px-4 py-3 text-lg font-medium text-white transition-all border-l-2 rounded-r-lg border-purple-500/30 hover:border-purple-500 hover:bg-white/5"
+                      className="flex items-center px-4 py-3 text-lg font-medium text-white transition-all border-l-2 rounded-r-lg border-purple-500 bg-white/10 hover:bg-white/20"
                       initial={{ x: -50, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: index * 0.1 }}
                       exit={{ x: -50, opacity: 0 }}
                     >
-                      {link.name}
+                      <IoMdArrowBack className="mr-2" />
+                      Return to Portfolio
                     </motion.a>
-                  ))}
+                  )}
+                  
+                  {isHomePage && (
+                    <>
+                      {/* Regular nav links */}
+                      {navLinks.map((link, index) => (
+                        <motion.a
+                          key={link.name}
+                          href={link.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="px-4 py-3 text-lg font-medium text-white transition-all border-l-2 rounded-r-lg border-purple-500/30 hover:border-purple-500 hover:bg-white/5"
+                          initial={{ x: -50, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: index * 0.1 }}
+                          exit={{ x: -50, opacity: 0 }}
+                        >
+                          {link.name}
+                        </motion.a>
+                      ))}
+                    </>
+                  )}
+                  
+                  {/* Specials group - Always visible in mobile menu */}
+                  <div className="mt-2">
+                    <motion.div
+                      className="px-4 py-2 text-lg font-medium text-purple-400 border-l-2 rounded-r-lg border-purple-500"
+                      initial={{ x: -50, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: isHomePage ? navLinks.length * 0.1 : 0.1 }}
+                      exit={{ x: -50, opacity: 0 }}
+                    >
+                      Specials
+                    </motion.div>
+                    
+                    <div className="pl-4 mt-1 space-y-2">
+                      {specialLinks.map((link, index) => (
+                        <motion.a
+                          key={link.name}
+                          href={link.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="px-4 py-2 text-base font-medium text-stone-300 block transition-all border-l-2 rounded-r-lg border-purple-500/20 hover:border-purple-500 hover:bg-white/5"
+                          initial={{ x: -30, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: (isHomePage ? navLinks.length : 0) + index * 0.1 + 0.1 }}
+                          exit={{ x: -30, opacity: 0 }}
+                        >
+                          {link.name}
+                        </motion.a>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 
                 {/* Social Links */}
@@ -222,17 +363,19 @@ const Navbar = () => {
                 </div>
                 
                 {/* CTA Button */}
-                <motion.a
-                  href="#contact"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-4 mt-2 font-medium text-center text-white rounded-lg shadow-lg bg-gradient-to-r from-purple-600 to-blue-600"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  exit={{ y: 20, opacity: 0 }}
-                >
-                  Let's Work Together
-                </motion.a>
+                {isHomePage && (
+                  <motion.a
+                    href="/#contact"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="py-4 mt-2 font-medium text-center text-white rounded-lg shadow-lg bg-gradient-to-r from-purple-600 to-blue-600"
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    exit={{ y: 20, opacity: 0 }}
+                  >
+                    Let's Work Together
+                  </motion.a>
+                )}
               </div>
             </div>
           </motion.div>
