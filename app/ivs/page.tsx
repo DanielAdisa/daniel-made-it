@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel } from "react-icons/fa";
+  FaChevronDown, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -121,6 +121,15 @@ interface AppData {
   selectedCurrency: string;
   selectedTheme: string; // Add this to save theme preference
   categories: Category[]; // Add categories to AppData
+  businessInfo?: {
+    name: string;
+    type: string;
+    address: string;
+    phone: string;
+    email: string;
+    logo?: string;
+    established?: string;
+  }; // Add business info to AppData
 }
 
 // First, let's add a Theme interface and available themes
@@ -202,6 +211,41 @@ export default function BookKeepingSystem() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Add business information state
+  const [showBusinessOnboarding, setShowBusinessOnboarding] = useState(false);
+  const [businessInfo, setBusinessInfo] = useState<{
+    name: string;
+    type: string;
+    address: string;
+    phone: string;
+    email: string;
+    logo?: string;
+    established?: string;
+  }>({
+    name: "My Business",
+    type: "Retail",
+    address: "",
+    phone: "",
+    email: "",
+  });
+  
+  // Business type options
+  const businessTypes = [
+    "Retail", "Food & Beverage", "Professional Services", 
+    "Healthcare", "Manufacturing", "Technology", "Education",
+    "Construction", "Transportation", "Entertainment", "Other"
+  ];
+  
+  // Business onboarding form state
+  const [businessFormData, setBusinessFormData] = useState({
+    name: "",
+    type: businessTypes[0],
+    address: "",
+    phone: "",
+    email: "",
+    established: new Date().getFullYear().toString()
+  });
   
   // Currency state
   const [currencies] = useState<Currency[]>([
@@ -433,6 +477,24 @@ export default function BookKeepingSystem() {
   // Load data from localStorage on initial mount
   useEffect(() => {
     loadFromLocalStorage();
+    
+    // Check if business onboarding has been completed
+    try {
+      const savedData = localStorage.getItem('bookkeep-data');
+      if (savedData) {
+        const parsedData: AppData = JSON.parse(savedData);
+        if (parsedData.businessInfo) {
+          setBusinessInfo(parsedData.businessInfo);
+        } else {
+          setShowBusinessOnboarding(true);
+        }
+      } else {
+        setShowBusinessOnboarding(true);
+      }
+    } catch (error) {
+      console.error('Failed to load business info from localStorage:', error);
+      setShowBusinessOnboarding(true);
+    }
   }, []);
 
   // Save data to localStorage whenever inventory or transactions change
@@ -516,6 +578,11 @@ export default function BookKeepingSystem() {
           setCustomers(loadedCustomers);
         }
 
+        // Load business info if it exists
+        if (parsedData.businessInfo) {
+          setBusinessInfo(parsedData.businessInfo);
+        }
+
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
       }
@@ -543,6 +610,7 @@ export default function BookKeepingSystem() {
         selectedCurrency: selectedCurrency.code,
         selectedTheme: currentTheme.id, // Save selected theme
         categories,
+        businessInfo, // Save business info
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -557,6 +625,30 @@ export default function BookKeepingSystem() {
       console.error('Failed to save data to localStorage:', error);
       setIsSaving(false);
     }
+  };
+
+  // Save business info
+  const completeBusinessOnboarding = () => {
+    const updatedBusinessInfo = {
+      ...businessFormData
+    };
+    
+    setBusinessInfo(updatedBusinessInfo);
+    setShowBusinessOnboarding(false);
+    
+    // Save to localStorage
+    setTimeout(() => {
+      saveToLocalStorage();
+    }, 100);
+  };
+
+  // Handle business form changes
+  const handleBusinessFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setBusinessFormData({
+      ...businessFormData,
+      [name]: value,
+    });
   };
 
   // EXPORT/IMPORT FUNCTIONALITY
@@ -580,6 +672,7 @@ export default function BookKeepingSystem() {
           selectedCurrency: selectedCurrency.code,
           selectedTheme: currentTheme.id,
           categories,
+          businessInfo, // Include business info in export
         };
         
         const json = JSON.stringify(dataToExport, null, 2);
@@ -808,6 +901,11 @@ export default function BookKeepingSystem() {
               createdAt: new Date(customer.createdAt)
             }));
             setCustomers(loadedCustomers);
+          }
+
+          // Load business info if it exists
+          if (importedData.businessInfo) {
+            setBusinessInfo(importedData.businessInfo);
           }
           
           alert('Data imported successfully!');
@@ -1887,7 +1985,7 @@ export default function BookKeepingSystem() {
         <div className="container mx-auto p-4 flex flex-col sm:flex-row justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center mb-2 sm:mb-0">
             <FaBook className={`mr-2 text-${currentTheme.accent}`} />
-            BookKeep Pro
+            {businessInfo.name || "BookKeep Pro"}
           </h1>
           <div className="flex flex-col sm:flex-row items-center space-x-0 space-y-2 sm:space-y-0 sm:space-x-4">
             {/* Data Actions */}
@@ -2113,7 +2211,10 @@ export default function BookKeepingSystem() {
               <span>Not saved yet</span>
             )}
           </div>
-          <div>
+          <div className="flex items-center">
+            {businessInfo.type && (
+              <span className="mr-3">Business Type: {businessInfo.type}</span>
+            )}
             {dataChanged && <span className="text-amber-400">Unsaved changes</span>}
           </div>
         </div>
@@ -2223,8 +2324,58 @@ export default function BookKeepingSystem() {
               >
                 <h2 className={`text-2xl font-bold mb-4 flex items-center text-${currentTheme.text}`}>
                   <FaChartLine className={`mr-2 text-${currentTheme.accent}`} />
-                  Dashboard Overview
+                  {businessInfo.name}'s Dashboard
                 </h2>
+              
+                {/* Business Info Card */}
+                <motion.div
+                  variants={cardVariant}
+                  whileHover="hover" 
+                  className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border border-${currentTheme.border}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className={`text-lg font-semibold text-${currentTheme.text}`}>{businessInfo.name}</h3>
+                      <p className="text-gray-400 mt-1">{businessInfo.type}</p>
+                      
+                      {businessInfo.address && (
+                        <p className="text-gray-400 mt-2 flex items-center">
+                          <FaMapMarkerAlt className="mr-1" size={12} />
+                          {businessInfo.address}
+                        </p>
+                      )}
+                      
+                      <div className="flex mt-2 space-x-4">
+                        {businessInfo.phone && (
+                          <p className="text-gray-400 flex items-center">
+                            <FaPhone className="mr-1" size={12} />
+                            {businessInfo.phone}
+                          </p>
+                        )}
+                        
+                        {businessInfo.email && (
+                          <p className="text-gray-400 flex items-center">
+                            <FaEnvelope className="mr-1" size={12} />
+                            {businessInfo.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => {
+                        setBusinessFormData({
+                          ...businessInfo,
+                          established: businessInfo.established || new Date().getFullYear().toString()
+                        });
+                        setShowBusinessOnboarding(true);
+                      }}
+                      className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm flex items-center`}
+                    >
+                      <FaEdit className="mr-1" /> Edit
+                    </button>
+                  </div>
+                </motion.div>
               
                 {/* Summary Cards with staggered animation */}
                 <motion.div 
@@ -2329,7 +2480,12 @@ export default function BookKeepingSystem() {
                             >
                               <td className="p-4 text-gray-300">{transaction.date.toLocaleDateString()}</td>
                               <td className="p-4 text-gray-300">{transaction.description}</td>
-                              <td className="p-4 text-gray-300">{transaction.category}</td>
+                              <td className="p-4 text-gray-300">
+                                {(() => {
+                                  const category = categories.find(c => c.id === transaction.category);
+                                  return category ? category.name : transaction.category;
+                                })()}
+                              </td>
                               <td className={`p-4 ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
                                 {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
                               </td>
@@ -4056,10 +4212,16 @@ export default function BookKeepingSystem() {
                 >
                   {/* Business section at the top */}
                   <div className="text-center border-b border-gray-200 pb-4 mb-4">
-                    <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "Arial, sans-serif" }}>BookKeep Pro</h2>
+                    <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.name}</h2>
                     <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
                       {viewingReceipt.type === "expense" ? "Expense Receipt" : "Official Receipt"}
                     </p>
+                    {businessInfo.address && (
+                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.address}</p>
+                    )}
+                    {businessInfo.phone && (
+                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.phone}</p>
+                    )}
                   </div>
                   
                   {/* Receipt metadata */}
@@ -4200,6 +4362,155 @@ export default function BookKeepingSystem() {
                     )}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Business Onboarding Modal */}
+      <AnimatePresence>
+        {showBusinessOnboarding && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
+                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                  <FaStore className={`mr-2 text-${currentTheme.accent}`} />
+                  {businessInfo.name ? 'Update Business Info' : 'Welcome to BookKeep Pro!'}
+                </h3>
+                {businessInfo.name && (
+                  <button 
+                    onClick={() => setShowBusinessOnboarding(false)}
+                    className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                  >
+                    <FaTimes />
+                  </button>
+                )}
+              </div>
+              
+              <div className="px-6 py-4">
+                {!businessInfo.name && (
+                  <p className={`mb-4 text-${currentTheme.text}`}>
+                    Let's personalize your bookkeeping system. Please provide information about your business:
+                  </p>
+                )}
+                
+                <form onSubmit={(e) => { 
+                  e.preventDefault(); 
+                  completeBusinessOnboarding();
+                }}>
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Name *</label>
+                    <input 
+                      type="text" 
+                      name="name"
+                      value={businessFormData.name}
+                      onChange={handleBusinessFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                      placeholder="Enter your business name"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Type *</label>
+                    <select 
+                      name="type"
+                      title="Business Type"
+                      value={businessFormData.type}
+                      onChange={handleBusinessFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    >
+                      {businessTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Address</label>
+                    <input 
+                      type="text" 
+                      name="address"
+                      value={businessFormData.address}
+                      onChange={handleBusinessFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="Optional: Enter your business address"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="mb-4">
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Phone Number</label>
+                      <input 
+                        type="tel" 
+                        name="phone"
+                        value={businessFormData.phone}
+                        onChange={handleBusinessFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        placeholder="Optional: Phone number"
+                      />
+                    </div>
+                    
+                    <div className="mb-4">
+                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Email Address</label>
+                      <input 
+                        type="email" 
+                        name="email"
+                        value={businessFormData.email}
+                        onChange={handleBusinessFormChange}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        placeholder="Optional: Email address"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Year Established</label>
+                    <input 
+                      type="text" 
+                      name="established"
+                      value={businessFormData.established}
+                      onChange={handleBusinessFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="Optional: Year established"
+                      pattern="[0-9]*"
+                    />
+                  </div>
+                  
+                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
+                    {businessInfo.name && (
+                      <button 
+                        type="button"
+                        onClick={() => setShowBusinessOnboarding(false)}
+                        className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button 
+                      type="submit"
+                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
+                    >
+                      <FaSave className="mr-2 h-4 w-4" /> 
+                      {businessInfo.name ? 'Update Business Info' : 'Get Started'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </motion.div>
           </motion.div>
