@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash } from "react-icons/fa";
+  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
+import toast from 'react-hot-toast';
 
 // Define TypeScript interfaces for our data models
 interface InventoryItem {
@@ -30,6 +31,7 @@ interface Transaction {
   amount: number;
   relatedInventoryId?: string;
   customerId?: string; // Associate transaction with customer
+  relatedInvoiceId?: string; // Add this to link to invoices
 }
 
 // Modify Receipt interface to include a linked transaction id
@@ -116,6 +118,8 @@ interface Invoice {
   totalAmount: number;
   notes: string;
   paymentTerms: string; // Add payment terms field
+  isPaid: boolean;  // Add this
+  paidDate?: Date;  // Add this
 }
 
 // Add Invoice form data interface
@@ -136,6 +140,8 @@ interface InvoiceFormData {
     address: string;
     notes: string;
   };
+  isPaid: boolean; // Add this for paid status
+  paidDate: string; // Add this for payment date
 }
 
 // Currency interface
@@ -462,7 +468,9 @@ export default function BookKeepingSystem() {
       phone: "",
       address: "",
       notes: ""
-    }
+    },
+    isPaid: false,
+    paidDate: ""
   });
 
   const addInvoiceItem = () => {
@@ -706,7 +714,9 @@ useEffect(() => {
         phone: '',
         address: '',
         notes: ''
-      }
+      },
+      isPaid: editingInvoice.isPaid || false,
+      paidDate: editingInvoice.paidDate ? formatDateForInput(editingInvoice.paidDate) : ''
     });
   }
 }, [editingInvoice]);
@@ -1776,7 +1786,9 @@ useEffect(() => {
           phone: "",
           address: "",
           notes: ""
-        }
+        },
+        isPaid: editingInvoice.isPaid || false,
+        paidDate: editingInvoice.paidDate ? formatDateForInput(editingInvoice.paidDate) : ''
       });
       setShowInvoiceModal(true);
     }
@@ -2082,6 +2094,8 @@ useEffect(() => {
       date: new Date(invoiceFormData.date),
       dueDate: new Date(invoiceFormData.dueDate), // Convert string to Date
       totalAmount: Number(invoiceFormData.totalAmount),
+      isPaid: invoiceFormData.isPaid,
+      paidDate: invoiceFormData.isPaid && invoiceFormData.paidDate ? new Date(invoiceFormData.paidDate) : undefined,
       items: invoiceFormData.items.map(item => ({
         ...item,
         quantity: Number(item.quantity),
@@ -2090,8 +2104,27 @@ useEffect(() => {
     };
     
     setInvoices([...invoices, newInvoice]);
+
+    // Create a transaction if the invoice is marked as paid
+  if (invoiceFormData.isPaid) {
+    const newTransaction: Transaction = {
+      id: uuidv4(),
+      date: new Date(invoiceFormData.paidDate),
+      description: `Payment received for Invoice #${invoiceFormData.invoiceNumber}`,
+      type: "income",
+      category: "sales", // Default category - you might want to map this to a proper category ID
+      amount: invoiceFormData.totalAmount,
+      customerId: newInvoice.customerId,
+      relatedInvoiceId: newInvoice.id // Link to the invoice
+    };
+    
+    setTransactions([...transactions, newTransaction]);
+  }
     setShowInvoiceModal(false);
     resetInvoiceForm();
+
+    // Show success message
+    toast.success(`Invoice ${invoiceFormData.invoiceNumber} created successfully`);
   };
 
   const updateInvoice = () => {
@@ -2118,6 +2151,11 @@ useEffect(() => {
       invoiceFormData.customerId = newCustomerId;
     }
 
+    // Check if paid status changed from unpaid to paid
+  const wasPaid = editingInvoice.isPaid;
+  const isPaidNow = invoiceFormData.isPaid;
+  const paidStatusChanged = !wasPaid && isPaidNow;
+
     const updatedInvoice: Invoice = {
       ...editingInvoice,
       date: new Date(invoiceFormData.date),
@@ -2132,16 +2170,36 @@ useEffect(() => {
       })),
       totalAmount: Number(invoiceFormData.totalAmount),
       notes: invoiceFormData.notes,
-      paymentTerms: invoiceFormData.paymentTerms // Include payment terms
+      paymentTerms: invoiceFormData.paymentTerms, // Include payment terms
+      isPaid: invoiceFormData.isPaid,
+      paidDate: invoiceFormData.isPaid ? new Date(invoiceFormData.paidDate) : undefined
     };
 
     setInvoices(invoices.map(invoice =>
       invoice.id === updatedInvoice.id ? updatedInvoice : invoice
     ));
 
+    if (paidStatusChanged) {
+      const newTransaction: Transaction = {
+        id: uuidv4(),
+        date: new Date(invoiceFormData.paidDate),
+        description: `Payment received for Invoice #${updatedInvoice.invoiceNumber}`,
+        type: "income",
+        category: "sales", // Default category
+        amount: updatedInvoice.totalAmount,
+        customerId: updatedInvoice.customerId,
+        relatedInvoiceId: updatedInvoice.id
+      };
+      
+      setTransactions([...transactions, newTransaction]);
+    }
+
     setShowInvoiceModal(false);
     setEditingInvoice(null);
     resetInvoiceForm();
+
+    // Show success notification
+    toast.success(`Invoice ${updatedInvoice.invoiceNumber} updated successfully`);
   };
 
   const deleteInvoice = (id: string) => {
@@ -2167,8 +2225,11 @@ useEffect(() => {
         phone: "",
         address: "",
         notes: ""
-      }
+      },
+      isPaid: false, // Default to unpaid
+    paidDate: ''    // Empty payment date
     });
+    setTempInvoiceItem({ name: '', quantity: 1, price: 0 });
   };
 
   const handleInvoiceFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -3810,6 +3871,8 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                               </div>
                             </div>
                           </div>
+
+                          
                           
                           {/* Invoice Items - responsive table */}
                           <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -3856,6 +3919,42 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                               </tfoot>
                             </table>
                           </div>
+
+                          {invoice.isPaid ? (
+                              <span className={`px-2 py-1 rounded-full text-xs bg-green-100 text-green-800`}>
+                                Paid {invoice.paidDate && `• ${formatDate(invoice.paidDate)}`}
+                              </span>
+                              ) : (() => {
+                              // Calculate invoice status based on due date
+                              const today = new Date();
+                              const dueDate = new Date(invoice.dueDate);
+                              
+                              if (!invoice.dueDate) {
+                                return (
+                                  <span className={`px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800`}>
+                                    No due date
+                                  </span>
+                                );
+                              } else if (today > dueDate) {
+                                return (
+                                  <span className={`px-2 py-1 rounded-full text-xs bg-red-100 text-red-800`}>
+                                    Overdue
+                                  </span>
+                                );
+                              } else if ((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24) < 7) {
+                                return (
+                                  <span className={`px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800`}>
+                                    Due soon
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <span className={`px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800`}>
+                                    Unpaid
+                                  </span>
+                                );
+                              }
+                            })()}
                           
                           {/* Notes section */}
                           {invoice.notes && (
@@ -5012,6 +5111,73 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                     </div>
                   </div>
                   
+                  {/* Payment Status */}
+                    <div className="mb-4">
+                      <label className={`flex justify-between items-center text-sm font-medium text-${currentTheme.text} mb-1`}>
+                        <span>Payment Status</span>
+                        <span className="text-xs text-gray-400">
+                          {invoiceFormData.isPaid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </label>
+                      <div 
+                        className={`relative h-8 w-full rounded-full ${invoiceFormData.isPaid ? `bg-${currentTheme.success}/20` : `bg-${currentTheme.background}`} border border-${currentTheme.border} cursor-pointer transition-colors duration-200`}
+                        onClick={() => setInvoiceFormData({
+                          ...invoiceFormData, 
+                          isPaid: !invoiceFormData.isPaid,
+                          paidDate: !invoiceFormData.isPaid ? formatDateForInput(new Date()) : ''
+                        })}
+                      >
+                        <div 
+                          className={`absolute top-1 ${
+                            invoiceFormData.isPaid ? 'right-1' : 'left-1'
+                          } h-6 w-12 rounded-full transition-all duration-300 ${
+                            invoiceFormData.isPaid ? `bg-${currentTheme.success}` : `bg-${currentTheme.border}`
+                          } flex items-center justify-center text-xs font-medium`}
+                        >
+                          {invoiceFormData.isPaid ? (
+                            <span className="text-white flex items-center">
+                              <FaCheck size={10} className="mr-1" /> Paid
+                            </span>
+                          ) : (
+                            <span className={`text-${currentTheme.text}`}>Unpaid</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Payment date field (shows only when paid is selected) */}
+                      {invoiceFormData.isPaid && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-2"
+                        >
+                          <label className={`block text-xs text-gray-400 mb-1`}>Payment Date</label>
+                          <input
+                            type="date"
+                            name="paidDate"
+                            title="Payment date"
+                            value={invoiceFormData.paidDate}
+                            onChange={handleInvoiceFormChange}
+                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                            required={invoiceFormData.isPaid}
+                          />
+                        </motion.div>
+                      )}
+                      
+                      {/* Optional note that appears when paid is selected */}
+                      {invoiceFormData.isPaid && (
+                        <motion.p 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="text-xs text-gray-400 mt-2 flex items-center"
+                        >
+                          <FaInfoCircle className="mr-1 text-blue-400" size={12} />
+                          A transaction will be automatically created when saved
+                        </motion.p>
+                      )}
+                    </div>
+
                   {/* Payment Terms */}
                   <div className="mb-4">
                     <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Payment Terms</label>
