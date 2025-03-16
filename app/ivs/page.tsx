@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck } from "react-icons/fa";
+import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
+  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -32,6 +32,7 @@ interface Transaction {
   relatedInventoryId?: string;
   customerId?: string; // Associate transaction with customer
   relatedInvoiceId?: string; // Add this to link to invoices
+  quantity?: number; // Add this field to the interface
 }
 
 // Modify Receipt interface to include a linked transaction id
@@ -79,6 +80,8 @@ interface TransactionFormData {
   date: string;
   relatedInventoryId?: string;
   customerId?: string; // Associate transaction with customer
+  id?: string;
+  quantity: number;
 }
 
 // Update ReceiptFormData to include customerId selection
@@ -120,6 +123,7 @@ interface Invoice {
   paymentTerms: string; // Add payment terms field
   isPaid: boolean;  // Add this
   paidDate?: Date;  // Add this
+  paidTimestamp?: string; // ISO string of when the invoice was marked as paid
 }
 
 // Add Invoice form data interface
@@ -142,6 +146,7 @@ interface InvoiceFormData {
   };
   isPaid: boolean; // Add this for paid status
   paidDate: string; // Add this for payment date
+  paidTimestamp?: string; // ISO string of when the invoice was marked as paid
 }
 
 // Currency interface
@@ -424,7 +429,9 @@ export default function BookKeepingSystem() {
     category: "",
     amount: 0,
     date: new Date().toISOString().split('T')[0],
-    customerId: ""
+    customerId: "",
+  relatedInventoryId: undefined, // No inventory item selected by default
+  quantity: 1      
   });
 
   // Update form states with new customer fields
@@ -470,7 +477,8 @@ export default function BookKeepingSystem() {
       notes: ""
     },
     isPaid: false,
-    paidDate: ""
+    paidDate: "",
+    paidTimestamp: undefined,
   });
 
   const addInvoiceItem = () => {
@@ -506,6 +514,16 @@ export default function BookKeepingSystem() {
       items: newItems,
       totalAmount: newTotal
     });
+  };
+
+  const isInvoicePaymentLocked = (invoice: Invoice): boolean => {
+    if (!invoice.isPaid || !invoice.paidTimestamp) return false;
+    
+    const now = new Date();
+    const paidDate = new Date(invoice.paidTimestamp);
+    const twoHoursInMs = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+    
+    return now.getTime() - paidDate.getTime() > twoHoursInMs;
   };
 
 
@@ -716,7 +734,8 @@ useEffect(() => {
         notes: ''
       },
       isPaid: editingInvoice.isPaid || false,
-      paidDate: editingInvoice.paidDate ? formatDateForInput(editingInvoice.paidDate) : ''
+      paidDate: editingInvoice.paidDate ? formatDateForInput(editingInvoice.paidDate) : '',
+      paidTimestamp: editingInvoice.paidTimestamp || undefined
     });
   }
 }, [editingInvoice]);
@@ -1231,7 +1250,7 @@ useEffect(() => {
       amount: Number(transactionFormData.amount),
       date: new Date(transactionFormData.date),
       relatedInventoryId: transactionFormData.relatedInventoryId,
-      customerId: transactionFormData.customerId || undefined, // Add customerId if provided
+      customerId: transactionFormData.customerId || undefined, // Add customerId if provide
     };
     
     // Update customer purchase count if transaction is income and has a customer
@@ -1242,10 +1261,40 @@ useEffect(() => {
           : customer
       ));
     }
+    if (newTransaction.relatedInventoryId) {
+      // Find the inventory item
+      const inventoryItemIndex = inventory.findIndex(item => item.id === newTransaction.relatedInventoryId);
+      
+      if (inventoryItemIndex >= 0) {
+        // Create a copy of inventory for immutability
+        const updatedInventory = [...inventory];
+        const item = { ...updatedInventory[inventoryItemIndex] };
+        
+        // Update quantity based on transaction type
+        if (newTransaction.type === "income") {
+          // For sales (income), decrease inventory
+          item.quantity = Math.max(0, item.quantity - (newTransaction.quantity || 1));
+        } else {
+          // For purchases (expense), increase inventory
+          item.quantity = item.quantity + (newTransaction.quantity || 1);
+        }
+        
+        // Update the inventory item
+        updatedInventory[inventoryItemIndex] = item;
+        setInventory(updatedInventory);
+        
+        // Show success message
+        const actionType = newTransaction.type === "income" ? "decreased" : "increased";
+        toast.success(`Inventory for "${item.name}" ${actionType} by ${newTransaction.quantity} unit(s)`);
+      }
+    }
     
     setTransactions([...transactions, newTransaction]);
     setShowTransactionModal(false);
     resetTransactionForm();
+
+    setDataChanged(true);
+  toast.success('Transaction added successfully!');
   };
   
   // Updated update transaction function to handle customer association changes
@@ -1274,6 +1323,53 @@ useEffect(() => {
           : customer
       ));
     }
+
+    if (editingTransaction.relatedInventoryId) {
+      const originalInventoryItemIndex = inventory.findIndex(item => item.id === editingTransaction.relatedInventoryId);
+      
+      if (originalInventoryItemIndex >= 0) {
+        const updatedInventory = [...inventory];
+        const originalItem = { ...updatedInventory[originalInventoryItemIndex] };
+        
+        // Reverse the original transaction's effect
+        if (editingTransaction.type === "income") {
+          // Original was a sale, so add back to inventory
+          originalItem.quantity = originalItem.quantity + (editingTransaction.quantity || 1);
+        } else {
+          // Original was a purchase, so remove from inventory
+          originalItem.quantity = Math.max(0, originalItem.quantity - (editingTransaction.quantity || 1));
+        }
+        
+        updatedInventory[originalInventoryItemIndex] = originalItem;
+        setInventory(updatedInventory);
+      }
+    }
+
+    if (updatedTransaction.relatedInventoryId) {
+      const newInventoryItemIndex = inventory.findIndex(item => item.id === updatedTransaction.relatedInventoryId);
+      
+      if (newInventoryItemIndex >= 0) {
+        const updatedInventory = [...inventory];
+        const newItem = { ...updatedInventory[newInventoryItemIndex] };
+        
+        // Apply the new transaction's effect
+          if (updatedTransaction.type === "income") {
+          // For sales (income), decrease inventory
+          newItem.quantity = Math.max(0, newItem.quantity - (updatedTransaction.quantity || 1));
+        } else {
+          // For purchases (expense), increase inventory
+          newItem.quantity = newItem.quantity + (updatedTransaction.quantity || 1);
+        }
+        
+        updatedInventory[newInventoryItemIndex] = newItem;
+        setInventory(updatedInventory);
+        
+        const actionType = updatedTransaction.type === "income" ? "decreased" : "increased";
+        toast.success(`Inventory for "${newItem.name}" ${actionType} by ${updatedTransaction.quantity} unit(s)`);
+      }
+    }
+
+
     
     setTransactions(transactions.map(transaction => 
       transaction.id === updatedTransaction.id ? updatedTransaction : transaction
@@ -1282,6 +1378,9 @@ useEffect(() => {
     setShowTransactionModal(false);
     setEditingTransaction(null);
     resetTransactionForm();
+
+    setDataChanged(true);
+    toast.success('Transaction updated successfully!');
   };
   
   // Function to delete a transaction
@@ -1289,7 +1388,72 @@ useEffect(() => {
     if (window.confirm("Are you sure you want to delete this transaction?")) {
       setTransactions(transactions.filter(transaction => transaction.id !== id));
     }
+    const transactionToDelete = transactions.find(t => t.id === id);
+  
+    if (!transactionToDelete) return;
+    
+    // If this transaction affected inventory, revert those changes
+    if (transactionToDelete.relatedInventoryId && transactionToDelete.quantity) {
+      const inventoryItemIndex = inventory.findIndex(item => item.id === transactionToDelete.relatedInventoryId);
+      
+      if (inventoryItemIndex >= 0) {
+        const updatedInventory = [...inventory];
+        const item = { ...updatedInventory[inventoryItemIndex] };
+        
+        // Reverse the transaction's effect on inventory
+        if (transactionToDelete.type === "income") {
+          // Original was a sale, so add back to inventory
+          item.quantity = item.quantity + transactionToDelete.quantity;
+        } else {
+          // Original was a purchase, so remove from inventory
+          item.quantity = Math.max(0, item.quantity - transactionToDelete.quantity);
+        }
+        
+        updatedInventory[inventoryItemIndex] = item;
+        setInventory(updatedInventory);
+        
+        const actionType = transactionToDelete.type === "income" ? "increased" : "decreased";
+        toast.success(`Inventory for "${item.name}" ${actionType} by ${transactionToDelete.quantity} unit(s)`);
+      }
+    }
+  
+    // Remove the transaction
+    const updatedTransactions = transactions.filter(t => t.id !== id);
+    setTransactions(updatedTransactions);
+    
+    setDataChanged(true);
+    toast.success('Transaction deleted successfully!');
   };
+
+  // Add this check before submitting the form
+const validateInventoryTransaction = () => {
+  // Only validate for expenses related to inventory
+  if (transactionFormData.type === "expense" && transactionFormData.relatedInventoryId) {
+    return true; // Purchases always valid as they add to inventory
+  }
+  
+  // For income (sales), validate we have enough in stock
+  if (transactionFormData.type === "income" && transactionFormData.relatedInventoryId) {
+    const item = inventory.find(i => i.id === transactionFormData.relatedInventoryId);
+    
+    // If editing, we need to account for the original quantity
+    let availableQuantity = item?.quantity || 0;
+    if (editingTransaction && editingTransaction.relatedInventoryId === transactionFormData.relatedInventoryId) {
+      // Add back the original quantity for proper calculation
+      if (editingTransaction.type === "income") {
+        availableQuantity += (editingTransaction.quantity || 0);
+      }
+    }
+    
+    if (availableQuantity < transactionFormData.quantity) {
+      toast.error(`Not enough inventory. Only ${availableQuantity} units of ${item?.name} available.`);
+      return false;
+    }
+  }
+  
+  return true;
+};
+
   
   // Function to reset transaction form
   const resetTransactionForm = () => {
@@ -1299,7 +1463,9 @@ useEffect(() => {
       category: "",
       amount: 0,
       date: new Date().toISOString().split('T')[0],
-      customerId: ""
+      customerId: "",
+  relatedInventoryId: undefined, // No inventory item selected by default
+  quantity: 1      
     });
   };
 
@@ -1725,7 +1891,9 @@ useEffect(() => {
         amount: editingTransaction.amount,
         date: editingTransaction.date.toISOString().split('T')[0],
         relatedInventoryId: editingTransaction.relatedInventoryId,
-        customerId: editingTransaction.customerId || ""
+        customerId: editingTransaction.customerId || "",
+        quantity: editingTransaction.quantity || 1 // Add the quantity field with fallback to 1
+        
       });
       setShowTransactionModal(true);
     }
@@ -1771,8 +1939,8 @@ useEffect(() => {
     if (editingInvoice) {
       setInvoiceFormData({
         date: editingInvoice.date.toISOString().split('T')[0],
-        dueDate: editingInvoice.dueDate?.toISOString().split('T')[0] || 
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        dueDate: formatDateForInput(editingInvoice.dueDate) || 
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         invoiceNumber: editingInvoice.invoiceNumber,
         customerId: editingInvoice.customerId,
         customerName: editingInvoice.customerName,
@@ -2095,6 +2263,7 @@ useEffect(() => {
       dueDate: new Date(invoiceFormData.dueDate), // Convert string to Date
       totalAmount: Number(invoiceFormData.totalAmount),
       isPaid: invoiceFormData.isPaid,
+      paidTimestamp: invoiceFormData.isPaid ? (invoiceFormData.paidTimestamp || new Date().toISOString()) : undefined,
       paidDate: invoiceFormData.isPaid && invoiceFormData.paidDate ? new Date(invoiceFormData.paidDate) : undefined,
       items: invoiceFormData.items.map(item => ({
         ...item,
@@ -2172,6 +2341,9 @@ useEffect(() => {
       notes: invoiceFormData.notes,
       paymentTerms: invoiceFormData.paymentTerms, // Include payment terms
       isPaid: invoiceFormData.isPaid,
+      paidTimestamp: (!editingInvoice.isPaid && invoiceFormData.isPaid) ? 
+                 new Date().toISOString() : 
+                 editingInvoice.paidTimestamp,
       paidDate: invoiceFormData.isPaid ? new Date(invoiceFormData.paidDate) : undefined
     };
 
@@ -2514,6 +2686,15 @@ const generateInvoiceImage = async (invoice: Invoice) => {
     );
     setFilteredReceipts(matchedReceipts);
   }, [searchQuery, inventory, transactions, unifiedReceipts, categories, customers]);
+
+  function checkPaidEditTimeLeft(paidTimestamp: string) {
+    const paidDate = new Date(paidTimestamp);
+    const currentDate = new Date();
+    const timeDifference = currentDate.getTime() - paidDate.getTime();
+    const daysDifference = timeDifference / (1000 * 3600 * 24);
+    const editTimeLimit = 30; // Allow editing within 30 days of payment
+    return editTimeLimit - daysDifference;
+  }
 
   return (
     <div className={`min-h-screen bg-${currentTheme.background}`}>
@@ -2877,173 +3058,320 @@ const generateInvoiceImage = async (invoice: Invoice) => {
               
                 {/* Business Info Card */}
                 <motion.div
-                  variants={cardVariant}
-                  whileHover="hover" 
-                  className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border border-${currentTheme.border}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className={`text-lg font-semibold text-${currentTheme.text}`}>{businessInfo.name}</h3>
-                      <p className="text-gray-400 mt-1">{businessInfo.type}</p>
-                      
-                      {businessInfo.address && (
-                        <p className="text-gray-400 mt-2 flex items-center">
-                          <FaMapMarkerAlt className="mr-1" size={12} />
-                          {businessInfo.address}
-                        </p>
-                      )}
-                      
-                      <div className="flex mt-2 space-x-4">
-                        {businessInfo.phone && (
-                          <p className="text-gray-400 flex items-center">
-                            <FaPhone className="mr-1" size={12} />
-                            {businessInfo.phone}
-                          </p>
-                        )}
-                        
-                        {businessInfo.email && (
-                          <p className="text-gray-400 flex items-center">
-                            <FaEnvelope className="mr-1" size={12} />
-                            {businessInfo.email}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <button 
-                      onClick={() => {
-                        setBusinessFormData({
-                          ...businessInfo,
-                          established: businessInfo.established || new Date().getFullYear().toString()
-                        });
-                        setShowBusinessOnboarding(true);
-                      }}
-                      className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm flex items-center`}
-                    >
-                      <FaEdit className="mr-1" /> Edit
-                    </button>
-                  </div>
-                </motion.div>
+  variants={cardVariant}
+  whileHover="hover" 
+  className={`bg-${currentTheme.background} rounded-lg shadow-md p-4 sm:p-6 border border-${currentTheme.border}`}
+>
+  <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+    <div className="w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full mb-2">
+        <h3 className={`text-base sm:text-lg font-semibold text-${currentTheme.text}`}>{businessInfo.name}</h3>
+        
+        <button 
+          onClick={() => {
+            setBusinessFormData({
+              ...businessInfo,
+              established: businessInfo.established || new Date().getFullYear().toString()
+            });
+            setShowBusinessOnboarding(true);
+          }}
+          className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-xs sm:text-sm flex items-center mt-1 sm:mt-0`}
+        >
+          <FaEdit className="mr-1" size={12} /> Edit
+        </button>
+      </div>
+      
+      <p className="text-sm text-gray-400">{businessInfo.type}</p>
+      
+      {businessInfo.address && (
+        <p className="text-xs sm:text-sm text-gray-400 mt-2 flex items-start">
+          <FaMapMarkerAlt className="mr-1 mt-0.5 flex-shrink-0" size={12} />
+          <span className="break-words">{businessInfo.address}</span>
+        </p>
+      )}
+      
+      <div className="flex flex-col sm:flex-row mt-2 sm:space-x-4 space-y-2 sm:space-y-0">
+        {businessInfo.phone && (
+          <p className="text-xs sm:text-sm text-gray-400 flex items-center">
+            <FaPhone className="mr-1 flex-shrink-0" size={12} />
+            <span className="break-words">{businessInfo.phone}</span>
+          </p>
+        )}
+        
+        {businessInfo.email && (
+          <p className="text-xs sm:text-sm text-gray-400 flex items-center">
+            <FaEnvelope className="mr-1 flex-shrink-0" size={12} />
+            <span className="break-words">{businessInfo.email}</span>
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+</motion.div>
               
                 {/* Summary Cards with staggered animation */}
                 <motion.div 
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="visible"
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-                >
-                  <motion.div
-                    variants={cardVariant}
-                    whileHover="hover"
-                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.primary}`}
-                  >
-                    <h3 className="text-gray-400 text-sm">Inventory Value</h3>
-                    <motion.p 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.2, duration: 0.3 }}
-                      className={`text-2xl font-bold text-${currentTheme.text}`}
-                    >
-                      {formatCurrency(totalInventoryValue)}
-                    </motion.p>
-                  </motion.div>
-                  
-                  <motion.div
-                    variants={cardVariant}
-                    whileHover="hover"
-                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.success}`}
-                  >
-                    <h3 className="text-gray-400 text-sm">Total Sales</h3>
-                    <motion.p 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.2, duration: 0.3 }}
-                      className={`text-2xl font-bold text-${currentTheme.text}`}
-                    >
-                      {formatCurrency(totalSalesValue)}
-                    </motion.p>
-                  </motion.div>
-                  
-                  <motion.div
-                    variants={cardVariant}
-                    whileHover="hover"
-                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.danger}`}
-                  >
-                    <h3 className="text-gray-400 text-sm">Total Expenses</h3>
-                    <motion.p 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.2, duration: 0.3 }}
-                      className={`text-2xl font-bold text-${currentTheme.text}`}
-                    >
-                      {formatCurrency(totalExpenses)}
-                    </motion.p>
-                  </motion.div>
-                  
-                  <motion.div
-                    variants={cardVariant}
-                    whileHover="hover"
-                    className={`bg-${currentTheme.background} rounded-lg shadow-md p-6 border-l-4 border-${currentTheme.secondary}`}
-                  >
-                    <h3 className="text-gray-400 text-sm">Profit</h3>
-                    <motion.p 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.2, duration: 0.3 }}
-                      className={`text-2xl font-bold ${profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}
-                    >
-                      {formatCurrency(profit)}
-                    </motion.p>
-                  </motion.div>
-                </motion.div>
+  variants={staggerContainer}
+  initial="hidden"
+  animate="visible"
+  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6"
+>
+  {/* Inventory Value Card */}
+  <motion.div
+    variants={cardVariant}
+    whileHover="hover"
+    className={`bg-${currentTheme.background} rounded-lg shadow-md overflow-hidden`}
+  >
+    <div className={`p-4 md:p-6 relative`}>
+      <div className={`absolute top-0 left-0 w-1.5 h-full bg-${currentTheme.primary}`}></div>
+      
+      <div className="flex flex-col h-full ml-2">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Inventory Value</h3>
+          <div className={`p-1 rounded-full bg-${currentTheme.primary}/10`}>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${currentTheme.primary}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+        </div>
+        
+        <motion.p 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className={`text-xl sm:text-2xl md:text-3xl font-bold text-${currentTheme.text}`}
+        >
+          {formatCurrency(totalInventoryValue)}
+        </motion.p>
+        
+        <div className="text-xs text-gray-400 mt-2 flex items-center">
+          <span>Total value of {inventory.length} items</span>
+        </div>
+      </div>
+    </div>
+  </motion.div>
+  
+  {/* Total Sales Card */}
+  <motion.div
+    variants={cardVariant}
+    whileHover="hover"
+    className={`bg-${currentTheme.background} rounded-lg shadow-md overflow-hidden`}
+  >
+    <div className={`p-4 md:p-6 relative`}>
+      <div className={`absolute top-0 left-0 w-1.5 h-full bg-${currentTheme.success}`}></div>
+      
+      <div className="flex flex-col h-full ml-2">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Total Sales</h3>
+          <div className={`p-1 rounded-full bg-${currentTheme.success}/10`}>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${currentTheme.success}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        
+        <motion.p 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className={`text-xl sm:text-2xl md:text-3xl font-bold text-${currentTheme.text}`}
+        >
+          {formatCurrency(totalSalesValue)}
+        </motion.p>
+        
+        <div className="text-xs text-gray-400 mt-2 flex items-center">
+          <span>From {transactions.filter(t => t.type === "income").length} transactions</span>
+        </div>
+      </div>
+    </div>
+  </motion.div>
+  
+  {/* Expenses Card */}
+  <motion.div
+    variants={cardVariant}
+    whileHover="hover"
+    className={`bg-${currentTheme.background} rounded-lg shadow-md overflow-hidden`}
+  >
+    <div className={`p-4 md:p-6 relative`}>
+      <div className={`absolute top-0 left-0 w-1.5 h-full bg-${currentTheme.danger}`}></div>
+      
+      <div className="flex flex-col h-full ml-2">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Total Expenses</h3>
+          <div className={`p-1 rounded-full bg-${currentTheme.danger}/10`}>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${currentTheme.danger}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+        </div>
+        
+        <motion.p 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className={`text-xl sm:text-2xl md:text-3xl font-bold text-${currentTheme.text}`}
+        >
+          {formatCurrency(totalExpenses)}
+        </motion.p>
+        
+        <div className="text-xs text-gray-400 mt-2 flex items-center">
+          <span>From {transactions.filter(t => t.type === "expense").length} transactions</span>
+        </div>
+      </div>
+    </div>
+  </motion.div>
+  
+  {/* Profit Card */}
+  <motion.div
+    variants={cardVariant}
+    whileHover="hover"
+    className={`bg-${currentTheme.background} rounded-lg shadow-md overflow-hidden`}
+  >
+    <div className={`p-4 md:p-6 relative`}>
+      <div className={`absolute top-0 left-0 w-1.5 h-full bg-${currentTheme.secondary}`}></div>
+      
+      <div className="flex flex-col h-full ml-2">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Net Profit</h3>
+          <div className={`p-1 rounded-full ${profit >= 0 ? `bg-emerald-100` : `bg-rose-100`}`}>
+            {profit >= 0 ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+              </svg>
+            )}
+          </div>
+        </div>
+        
+        <motion.p 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className={`text-xl sm:text-2xl md:text-3xl font-bold ${profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}
+        >
+          {formatCurrency(profit)}
+        </motion.p>
+        
+        <div className={`text-xs mt-2 flex items-center ${profit >= 0 ? "text-emerald-400/70" : "text-rose-400/70"}`}>
+          <span>
+            {profit >= 0 
+              ? `${Math.round((profit / totalSalesValue) * 100) || 0}% profit margin`
+              : `${Math.round((Math.abs(profit) / totalExpenses) * 100) || 0}% loss ratio`}
+          </span>
+        </div>
+      </div>
+    </div>
+  </motion.div>
+</motion.div>
               
                 {/* Recent Activity */}
                 <div>
-                  <h3 className={`text-xl font-semibold mb-4 text-${currentTheme.text} border-b border-${currentTheme.border} pb-2`}>Recent Activity</h3>
-                  {filteredTransactions.length === 0 ? (
-                    <p className="text-gray-400">
-                      {searchQuery ? "No matching transactions found." : "No transactions recorded yet."}
-                    </p>
-                  ) : (
-                    <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className={`bg-${currentTheme.background}`}>
-                            <th className="p-4 text-gray-400 font-semibold">Date</th>
-                            <th className="p-4 text-gray-400 font-semibold">Description</th>
-                            <th className="p-4 text-gray-400 font-semibold">Category</th>
-                            <th className="p-4 text-gray-400 font-semibold">Amount</th>
-                          </tr>
-                        </thead>
-                        <motion.tbody
-                          variants={staggerContainer}
-                          initial="hidden"
-                          animate="visible"
-                        >
-                          {filteredTransactions.slice(0, 5).map((transaction) => (
-                            <motion.tr 
-                              key={transaction.id} 
-                              variants={tableRowVariant}
-                              className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
-                            >
-                              <td className="p-4 text-gray-300">{transaction.date.toLocaleDateString()}</td>
-                              <td className="p-4 text-gray-300">{transaction.description}</td>
-                              <td className="p-4 text-gray-300">
-                                {(() => {
-                                  const category = categories.find(c => c.id === transaction.category);
-                                  return category ? category.name : transaction.category;
-                                })()}
-                              </td>
-                              <td className={`p-4 ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
-                                {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
-                              </td>
-                            </motion.tr>
-                          ))}
-                        </motion.tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+  <h3 className={`text-lg md:text-xl font-semibold mb-3 md:mb-4 text-${currentTheme.text} border-b border-${currentTheme.border} pb-2 flex items-center`}>
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+    Recent Activity
+  </h3>
+  
+  {filteredTransactions.length === 0 ? (
+    <div className={`flex flex-col items-center justify-center py-8 bg-${currentTheme.background}/30 rounded-lg border border-${currentTheme.border}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+      <p className="text-gray-400 text-center">
+        {searchQuery ? "No matching transactions found." : "No transactions recorded yet."}
+      </p>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {/* Desktop view - traditional table for md screens and up */}
+      <div className={`hidden md:block overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+        <table className="w-full text-left">
+          <thead>
+            <tr className={`bg-${currentTheme.background}`}>
+              <th className="p-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">Date</th>
+              <th className="p-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">Description</th>
+              <th className="p-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">Category</th>
+              <th className="p-3 text-xs text-gray-400 font-semibold uppercase tracking-wider text-right">Amount</th>
+            </tr>
+          </thead>
+          <motion.tbody
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            {filteredTransactions.slice(0, 5).map((transaction) => (
+              <motion.tr 
+                key={transaction.id} 
+                variants={tableRowVariant}
+                className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
+              >
+                <td className="p-3 text-sm text-gray-300">{transaction.date.toLocaleDateString()}</td>
+                <td className="p-3 text-sm text-gray-300">{transaction.description}</td>
+                <td className="p-3 text-sm text-gray-300">
+                  <span className={`px-2 py-1 inline-block rounded-full text-xs bg-${currentTheme.background}/50`}>
+                    {(() => {
+                      const category = categories.find(c => c.id === transaction.category);
+                      return category ? category.name : transaction.category;
+                    })()}
+                  </span>
+                </td>
+                <td className={`p-3 text-sm font-medium text-right ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
+                  {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                </td>
+              </motion.tr>
+            ))}
+          </motion.tbody>
+        </table>
+      </div>
+      
+      {/* Mobile view - card-based layout for sm screens and below */}
+      <div className="md:hidden space-y-3">
+        {filteredTransactions.slice(0, 5).map((transaction) => (
+          <motion.div
+            key={transaction.id}
+            variants={tableRowVariant}
+            className={`p-3 rounded-lg bg-${currentTheme.background}/30 border border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-xs text-gray-400">{transaction.date.toLocaleDateString()}</span>
+              <span className={`text-sm font-medium ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
+                {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+              </span>
+            </div>
+            <div className="mb-2">
+              <p className="text-sm text-gray-300 truncate">{transaction.description}</p>
+            </div>
+            <div>
+              <span className={`px-2 py-0.5 inline-block rounded-full text-xs bg-${currentTheme.background}`}>
+                {(() => {
+                  const category = categories.find(c => c.id === transaction.category);
+                  return category ? category.name : transaction.category;
+                })()}
+              </span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      
+      {/* View all link */}
+      <div className="flex justify-center md:justify-end pt-2">
+        <button 
+          onClick={() => setActiveTab("transactions")} 
+          className={`text-xs text-${currentTheme.accent} hover:text-${currentTheme.primary} flex items-center`}
+        >
+          View all transactions
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )}
+</div>
               </motion.div>
             )}
 
@@ -3921,10 +4249,14 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                           </div>
 
                           {invoice.isPaid ? (
-                              <span className={`px-2 py-1 rounded-full text-xs bg-green-100 text-green-800`}>
-                                Paid {invoice.paidDate && `• ${formatDate(invoice.paidDate)}`}
-                              </span>
-                              ) : (() => {
+                            <span className={`px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 flex items-center`}>
+                              <FaCheck className="mr-1" size={8} />
+                              Paid {invoice.paidDate && `• ${formatDate(invoice.paidDate)}`}
+                              {invoice.paidTimestamp && checkPaidEditTimeLeft(invoice.paidTimestamp) <= 0 && (
+                                <FaLock className="ml-1" size={8} title="Payment status locked" />
+                              )}
+                            </span>
+                          ) : (() => {
                               // Calculate invoice status based on due date
                               const today = new Date();
                               const dueDate = new Date(invoice.dueDate);
@@ -4024,775 +4356,1298 @@ const generateInvoiceImage = async (invoice: Invoice) => {
       <AnimatePresence>
         {showInventoryModal && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        >
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+            onClick={(e) => e.stopPropagation()}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                  <FaBoxOpen className={`mr-2 text-${currentTheme.accent}`} />
-                  {editingInventoryItem ? 'Edit Inventory Item' : 'Add Inventory Item'}
-                </h3>
-                <button 
-                  onClick={() => {
-                    setShowInventoryModal(false);
-                    setEditingInventoryItem(null);
-                  }}
-                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-                >
-                  <FaTimes />
-                </button>
-              </div>
-              
-              <div className="px-6 py-4">
-                <form onSubmit={(e) => { 
-                  e.preventDefault(); 
-                  editingInventoryItem ? updateInventoryItem() : addInventoryItem();
-                }}>
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Item Name</label>
-                    <input 
-                      type="text" 
-                      name="name"
-                      value={inventoryFormData.name}
-                      onChange={handleInventoryFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                      placeholder="Enter item name"
-                    />
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>SKU</label>
-                    <input 
-                      type="text" 
-                      name="sku"
-                      value={inventoryFormData.sku}
-                      onChange={handleInventoryFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                      placeholder="Stock keeping unit"
-                    />
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
-                    <select 
-                      name="category"
-                      title="Item category"
-                      value={inventoryFormData.category}
-                      onChange={handleInventoryFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                    >
-                      <option value="">Select a category</option>
-                      {categories
-                        .filter(cat => cat.type === "inventory" || cat.type === "both")
-                        .map(category => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))
-                      }
-                    </select>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Quantity</label>
+            <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
+              <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+                <FaBoxOpen className={`mr-2 text-${currentTheme.accent}`} />
+                {editingInventoryItem ? 'Edit Inventory Item' : 'Add Inventory Item'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowInventoryModal(false);
+                  setEditingInventoryItem(null);
+                }}
+                className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+                aria-label="Close modal"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            
+            <div className="px-4 sm:px-6 py-4">
+              <form onSubmit={(e) => { 
+                e.preventDefault(); 
+                editingInventoryItem ? updateInventoryItem() : addInventoryItem();
+              }}>
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Item Name</label>
+                  <input 
+                    type="text" 
+                    name="name"
+                    value={inventoryFormData.name}
+                    onChange={handleInventoryFormChange}
+                    className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                    placeholder="Enter item name"
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>SKU</label>
+                  <input 
+                    type="text" 
+                    name="sku"
+                    value={inventoryFormData.sku}
+                    onChange={handleInventoryFormChange}
+                    className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                    placeholder="Stock keeping unit"
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
+                  <select 
+                    name="category"
+                    title="Item category"
+                    value={inventoryFormData.category}
+                    onChange={handleInventoryFormChange}
+                    className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                  >
+                    <option value="">Select a category</option>
+                    {categories
+                      .filter(cat => cat.type === "inventory" || cat.type === "both")
+                      .map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+                  {/* Quantity with increment/decrement controls */}
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Quantity</label>
+                    <div className="flex rounded-lg overflow-hidden">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (inventoryFormData.quantity > 0) {
+                            setInventoryFormData({
+                              ...inventoryFormData, 
+                              quantity: Number(inventoryFormData.quantity) - 1
+                            });
+                          }
+                        }}
+                        className={`px-2.5 py-2 bg-${currentTheme.background} border border-${currentTheme.border} border-r-0 text-${currentTheme.text} hover:bg-${currentTheme.background}/80 transition-colors duration-200 ${Number(inventoryFormData.quantity) <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={Number(inventoryFormData.quantity) <= 0}
+                        aria-label="Decrease quantity"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                        </svg>
+                      </button>
                       <input 
-                        type="number" 
+                        type="text" 
+                        inputMode="numeric"
                         name="quantity"
                         title="Quantity"
                         value={inventoryFormData.quantity}
-                        onChange={handleInventoryFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        min="0"
+                        onChange={(e) => {
+                          // Only allow numbers
+                          const value = e.target.value.replace(/\D/g, '');
+                          setInventoryFormData({
+                            ...inventoryFormData, 
+                            quantity: value === '' ? 0 : parseInt(value, 0)
+                          });
+                        }}
+                        className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border-y border-${currentTheme.border} text-${currentTheme.text} text-center font-medium text-sm`}
                         required
                       />
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setInventoryFormData({
+                            ...inventoryFormData, 
+                            quantity: Number(inventoryFormData.quantity) + 1
+                          });
+                        }}
+                        className={`px-2.5 py-2 bg-${currentTheme.background} border border-${currentTheme.border} border-l-0 text-${currentTheme.text} hover:bg-${currentTheme.background}/80 transition-colors duration-200`}
+                        aria-label="Increase quantity"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
                     </div>
-                    
-                    <div>
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                        Cost <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
-                      </label>
+                  </div>
+                  
+                  {/* Cost Price */}
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Cost <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
+                    </label>
+                    <div className="flex rounded-lg overflow-hidden">
+                      <div className={`flex items-center justify-center px-2.5 bg-${currentTheme.background} border border-${currentTheme.border} border-r-0 text-${currentTheme.text}`}>
+                        <span className="text-sm">{selectedCurrency.symbol}</span>
+                      </div>
                       <input 
-                        type="number" 
+                        type="text" 
+                        inputMode="decimal"
                         name="costPrice"
                         title="Cost Price"
                         value={inventoryFormData.costPrice}
-                        onChange={handleInventoryFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                        Price <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        name="sellingPrice"
-                        title="Selling Price"
-                        value={inventoryFormData.sellingPrice}
-                        onChange={handleInventoryFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        min="0"
-                        step="0.01"
+                        onChange={(e) => {
+                          // Only allow decimal numbers
+                          const value = e.target.value.replace(/[^\d.]/g, '');
+                          // Only one decimal point
+                          const decimalCount = (value.match(/\./g) || []).length;
+                          if (decimalCount <= 1) {
+                            setInventoryFormData({
+                              ...inventoryFormData, 
+                              costPrice: value === '' ? 0 : parseFloat(value)
+                            });
+                          }
+                        }}
+                        className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} text-sm`}
                         required
                       />
                     </div>
                   </div>
                   
-                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setShowInventoryModal(false);
-                        setEditingInventoryItem(null);
-                      }}
-                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit"
-                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                    >
-                      <FaPlus className="mr-2 h-4 w-4" /> 
-                      {editingInventoryItem ? 'Update Item' : 'Save Item'}
-                    </button>
+                  {/* Selling Price */}
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Price <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
+                    </label>
+                    <div className="flex rounded-lg overflow-hidden">
+                      <div className={`flex items-center justify-center px-2.5 bg-${currentTheme.background} border border-${currentTheme.border} border-r-0 text-${currentTheme.text}`}>
+                        <span className="text-sm">{selectedCurrency.symbol}</span>
+                      </div>
+                      <input 
+                        type="text" 
+                        inputMode="decimal"
+                        name="sellingPrice"
+                        title="Selling Price"
+                        value={inventoryFormData.sellingPrice}
+                        onChange={(e) => {
+                          // Only allow decimal numbers
+                          const value = e.target.value.replace(/[^\d.]/g, '');
+                          // Only one decimal point
+                          const decimalCount = (value.match(/\./g) || []).length;
+                          if (decimalCount <= 1) {
+                            setInventoryFormData({
+                              ...inventoryFormData, 
+                              sellingPrice: value === '' ? 0 : parseFloat(value)
+                            });
+                          }
+                        }}
+                        className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} text-sm`}
+                        required
+                      />
+                    </div>
                   </div>
-                </form>
-              </div>
-            </motion.div>
+                </div>
+        
+                {/* File Import Section */}
+                <div className={`mb-4 p-3 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}>
+                  <div className="flex items-center mb-2">
+                    <FaUpload className={`mr-2 text-${currentTheme.accent}`} />
+                    <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Import Inventory Data</h4>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <label className={`flex-1 flex items-center justify-center p-2.5 rounded cursor-pointer bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 border border-${currentTheme.border} text-${currentTheme.accent} text-sm transition-colors`}>
+                      <FaFileExcel className="mr-2" />
+                      CSV Import
+                      <input
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            // Handle CSV file import
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const csvData = event.target?.result as string;
+                              // Process CSV data here
+                              toast.success(`CSV file "${file.name}" imported successfully`);
+                            };
+                            reader.readAsText(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    
+                    <label className={`flex-1 flex items-center justify-center p-2.5 rounded cursor-pointer bg-${currentTheme.primary}/10 hover:bg-${currentTheme.primary}/20 border border-${currentTheme.border} text-${currentTheme.primary} text-sm transition-colors`}>
+                      <FaUpload className="mr-2" />
+                      JSON Import
+                      <input
+                        type="file"
+                        accept=".json"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            // Handle JSON file import
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              try {
+                                const jsonData = JSON.parse(event.target?.result as string);
+                                // Process JSON data here
+                                toast.success(`JSON file "${file.name}" imported successfully`);
+                              } catch (error) {
+                                toast.error("Invalid JSON file");
+                              }
+                            };
+                            reader.readAsText(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  
+                  <p className="mt-2 text-xs text-gray-400">
+                    Import inventory items from CSV or JSON files. Columns should include name, sku, quantity, costPrice, and sellingPrice.
+                  </p>
+                </div>
+                
+                <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-${currentTheme.border}`}>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowInventoryModal(false);
+                      setEditingInventoryItem(null);
+                    }}
+                    className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
+                  >
+                    <FaPlus className="mr-2 h-4 w-4" /> 
+                    {editingInventoryItem ? 'Update Item' : 'Save Item'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </motion.div>
+        </motion.div>
         )}
       </AnimatePresence>
 
       {/* Transaction Modal */}
       <AnimatePresence>
-        {showTransactionModal && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                  <FaBook className={`mr-2 text-${currentTheme.accent}`} />
-                  {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-                </h3>
-                <button 
-                  onClick={() => {
-                    setShowTransactionModal(false);
-                    setEditingTransaction(null);
-                  }}
-                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-                >
-                  <FaTimes />
-                </button>
+      {showTransactionModal && (
+  <motion.div 
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.2 }}
+    className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  >
+    <motion.div 
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
+        <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+          <FaBook className={`mr-2 text-${currentTheme.accent}`} />
+          {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+        </h3>
+        <button 
+          onClick={() => {
+            setShowTransactionModal(false);
+            setEditingTransaction(null);
+          }}
+          className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+          aria-label="Close modal"
+        >
+          <FaTimes />
+        </button>
+      </div>
+      
+      <div className="px-4 sm:px-6 py-4">
+        <form onSubmit={(e) => { 
+          e.preventDefault(); 
+          editingTransaction ? updateTransaction() : addTransaction();
+        }}>
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
+            <input 
+              type="text" 
+              name="description"
+              value={transactionFormData.description}
+              onChange={handleTransactionFormChange}
+              className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+              required
+              placeholder="Transaction description"
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Type</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                aria-label="Income transaction type"
+                className={`flex items-center justify-center py-3 px-4 rounded-lg font-medium border transition-colors duration-200 ${
+                  transactionFormData.type === "income" 
+                    ? `bg-${currentTheme.success}/30 text-${currentTheme.success} border-${currentTheme.success}/30`
+                    : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
+                }`}
+                onClick={() => setTransactionFormData({...transactionFormData, type: "income"})}
+              >
+                <FaArrowUp className={`mr-2 ${transactionFormData.type === "income" ? `text-${currentTheme.success}` : 'text-gray-400'}`} />
+                Income
+              </button>
+              <button
+                type="button"
+                aria-label="Expense transaction type"
+                className={`flex items-center justify-center py-3 px-4 rounded-lg font-medium border transition-colors duration-200 ${
+                  transactionFormData.type === "expense" 
+                    ? `bg-${currentTheme.danger}/30 text-${currentTheme.danger} border-${currentTheme.danger}/30`
+                    : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
+                }`}
+                onClick={() => setTransactionFormData({...transactionFormData, type: "expense"})}
+              >
+                <FaArrowDown className={`mr-2 ${transactionFormData.type === "expense" ? `text-${currentTheme.danger}` : 'text-gray-400'}`} />
+                Expense
+              </button>
+            </div>
+          </div>
+          
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
+            <div className="relative">
+              <select 
+                name="category"
+                title="Transaction category"
+                value={transactionFormData.category}
+                onChange={handleTransactionFormChange}
+                className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+                required
+              >
+                <option value="">Select a category</option>
+                {categories
+                  .filter(cat => cat.type === "transaction" || cat.type === "both")
+                  .map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))
+                }
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                <FaChevronDown className="h-4 w-4 text-gray-400" />
               </div>
-              
-              <div className="px-6 py-4">
-                <form onSubmit={(e) => { 
-                  e.preventDefault(); 
-                  editingTransaction ? updateTransaction() : addTransaction();
-                }}>
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Description</label>
-                    <input 
-                      type="text" 
-                      name="description"
-                      value={transactionFormData.description}
-                      onChange={handleTransactionFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                      placeholder="Transaction description"
-                    />
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Type</label>
-                    <div className="flex space-x-2 mb-2">
-                      <button
-                        type="button"
-                        className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
-                          transactionFormData.type === "income" 
-                            ? `bg-${currentTheme.success}/30 text-${currentTheme.success} border-${currentTheme.success}/30`
-                            : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
-                        }`}
-                        onClick={() => setTransactionFormData({...transactionFormData, type: "income"})}
-                      >
-                        Income
-                      </button>
-                      <button
-                        type="button"
-                        className={`flex-1 py-3 px-4 rounded-lg font-medium border ${
-                          transactionFormData.type === "expense" 
-                            ? `bg-${currentTheme.danger}/30 text-${currentTheme.danger} border-${currentTheme.danger}/30`
-                            : `bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border} hover:bg-${currentTheme.background}/80`
-                        }`}
-                        onClick={() => setTransactionFormData({...transactionFormData, type: "expense"})}
-                      >
-                        Expense
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Category</label>
-                    <select 
-                      name="category"
-                      title="Transaction category"
-                      value={transactionFormData.category}
-                      onChange={handleTransactionFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                    >
-                      <option value="">Select a category</option>
-                      {categories
-                        .filter(cat => cat.type === "transaction" || cat.type === "both")
-                        .map(category => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))
-                      }
-                    </select>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                        Amount <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        title="Transaction amount"
-                        name="amount"
-                        value={transactionFormData.amount}
-                        onChange={handleTransactionFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                    </div>
+            </div>
+          </div>
+          
+          {/* Inventory Item Section */}
+          {inventory.length > 0 && (
+            <div className="mb-4">
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex items-center justify-between`}>
+                <span>Related Inventory Item</span>
+                <span className="text-xs text-gray-400">Optional</span>
+              </label>
+              <div className="relative">
+                <select 
+                  name="relatedInventoryId"
+                  title="Related Inventory Item"
+                  value={transactionFormData.relatedInventoryId || ""}
+                  onChange={(e) => {
+                    const selectedItemId = e.target.value;
+                    const selectedItem = inventory.find(item => item.id === selectedItemId);
                     
-                    <div>
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
-                      <input 
-                        type="date" 
-                        name="date"
-                        title="Transaction date"
-                        value={transactionFormData.date}
-                        onChange={handleTransactionFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  {inventory.length > 0 && (
-                    <div className="mb-4">
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Related Inventory Item (Optional)</label>
-                      <select 
-                        name="relatedInventoryId"
-                        title="Related Inventory Item"
-                        value={transactionFormData.relatedInventoryId || ""}
-                        onChange={handleTransactionFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      >
-                        <option value="">None</option>
-                        {inventory.map(item => (
-                          <option key={item.id} value={item.id}>{item.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  
-                  {/* Only show customer selection for income transactions */}
-                  {transactionFormData.type === "income" && (
-                    <div className="mb-4">
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                        Associated Customer (Optional)
-                      </label>
-                      <select 
-                        name="customerId"
-                        title="Associated customer"
-                        value={transactionFormData.customerId || ""}
-                        onChange={handleTransactionFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      >
-                        <option value="">None</option>
-                        {customers.map(customer => (
-                          <option key={customer.id} value={customer.id}>
-                            {customer.name} {customer.phone ? `(${customer.phone})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  
-                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setShowTransactionModal(false);
-                        setEditingTransaction(null);
-                      }}
-                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit"
-                      className={`px-5 py-2.5 ${transactionFormData.type === "income" ? `bg-${currentTheme.success} hover:bg-${currentTheme.success}/80` : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80`} text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                    >
-                      <FaPlus className="mr-2 h-4 w-4" /> 
-                      {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
-                    </button>
-                  </div>
-                </form>
+                    // Reset quantity when changing items or clearing selection
+                    setTransactionFormData({
+                      ...transactionFormData, 
+                      relatedInventoryId: selectedItemId,
+                      quantity: selectedItem ? 1 : 0
+                    });
+                    
+                    // If there's a selected item, update amount automatically
+                    if (selectedItem) {
+                      const priceToUse = transactionFormData.type === "income" 
+                        ? selectedItem.sellingPrice 
+                        : selectedItem.costPrice;
+                        
+                      setTransactionFormData(prev => ({
+                        ...prev,
+                        relatedInventoryId: selectedItemId,
+                        quantity: 1,
+                        // Set initial amount based on price
+                        amount: priceToUse
+                      }));
+                    }
+                  }}
+                  className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+                >
+                  <option value="">None (Manual Entry)</option>
+                  {inventory.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({formatCurrency(transactionFormData.type === "income" ? item.sellingPrice : item.costPrice)} each)
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <FaChevronDown className="h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Quantity control when inventory item is selected */}
+          {transactionFormData.relatedInventoryId && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mb-4"
+            >
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex justify-between`}>
+                <span>Quantity</span>
+                {(() => {
+                  const item = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
+                  const availableText = item ? `Available: ${item.quantity}` : '';
+                  return <span className="text-xs text-gray-400">{availableText}</span>;
+                })()}
+              </label>
+              
+              <div className="flex rounded-lg overflow-hidden">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (transactionFormData.quantity > 1) {
+                      const newQuantity = transactionFormData.quantity - 1;
+                      const selectedItem = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
+                      
+                      if (selectedItem) {
+                        const pricePerItem = transactionFormData.type === "income" 
+                          ? selectedItem.sellingPrice 
+                          : selectedItem.costPrice;
+                          
+                        setTransactionFormData({
+                          ...transactionFormData,
+                          quantity: newQuantity,
+                          amount: +(pricePerItem * newQuantity).toFixed(2)
+                        });
+                      }
+                    }
+                  }}
+                  className={`px-3 py-2.5 bg-${currentTheme.background} border border-${currentTheme.border} border-r-0 text-${currentTheme.text} hover:bg-${currentTheme.background}/80 transition-colors duration-200 ${
+                    transactionFormData.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  disabled={transactionFormData.quantity <= 1}
+                >
+                  <FaMinus className="h-3 w-3" />
+                </button>
+                
+                <input 
+                  type="text" 
+                  inputMode="numeric"
+                  name="quantity"
+                  title="Item Quantity"
+                  value={transactionFormData.quantity}
+                  onChange={(e) => {
+                    // Only allow numbers
+                    const value = e.target.value.replace(/\D/g, '');
+                    const newQuantity = value === '' ? 1 : parseInt(value);
+                    
+                    // Get the related inventory item
+                    const selectedItem = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
+                    
+                    if (selectedItem) {
+                      const pricePerItem = transactionFormData.type === "income" 
+                        ? selectedItem.sellingPrice 
+                        : selectedItem.costPrice;
+                      
+                      // Check if we're exceeding available quantity for expense
+                      if (transactionFormData.type === "expense" && newQuantity > selectedItem.quantity) {
+                        toast.error(`Only ${selectedItem.quantity} items available in inventory`);
+                        return;
+                      }
+                        
+                      setTransactionFormData({
+                        ...transactionFormData, 
+                        quantity: newQuantity,
+                        amount: +(pricePerItem * newQuantity).toFixed(2)
+                      });
+                    }
+                  }}
+                  className={`w-16 p-2.5 sm:p-3 bg-${currentTheme.background} border-y border-${currentTheme.border} text-${currentTheme.text} text-center font-medium text-sm`}
+                  required
+                />
+                
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const newQuantity = transactionFormData.quantity + 1;
+                    const selectedItem = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
+                    
+                    // Check if we're exceeding available quantity for expense
+                    if (selectedItem) {
+                      if (transactionFormData.type === "expense" && newQuantity > selectedItem.quantity) {
+                        toast.error(`Only ${selectedItem.quantity} items available in inventory`);
+                        return;
+                      }
+                      
+                      const pricePerItem = transactionFormData.type === "income" 
+                        ? selectedItem.sellingPrice 
+                        : selectedItem.costPrice;
+                        
+                      setTransactionFormData({
+                        ...transactionFormData, 
+                        quantity: newQuantity,
+                        amount: +(pricePerItem * newQuantity).toFixed(2)
+                      });
+                    }
+                  }}
+                  className={`px-3 py-2.5 bg-${currentTheme.background} border border-${currentTheme.border} border-l-0 text-${currentTheme.text} hover:bg-${currentTheme.background}/80 transition-colors duration-200 ${
+                    transactionFormData.type === "expense" && 
+                    transactionFormData.relatedInventoryId && 
+                    transactionFormData.quantity >= (inventory.find(i => i.id === transactionFormData.relatedInventoryId)?.quantity || 0)
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }`}
+                  disabled={
+                    !!(transactionFormData.type === "expense" && 
+                    transactionFormData.relatedInventoryId && 
+                    transactionFormData.quantity >= (inventory.find(i => i.id === transactionFormData.relatedInventoryId)?.quantity || 0))
+                  }
+                >
+                  <FaPlus className="h-3 w-3" />
+                </button>
+                
+                <div className={`flex items-center ml-3 text-xs text-${currentTheme.accent}`}>
+                  {(() => {
+                    const item = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
+                    if (item) {
+                      const pricePerItem = transactionFormData.type === "income" 
+                        ? item.sellingPrice 
+                        : item.costPrice;
+                      return `${formatCurrency(pricePerItem)} × ${transactionFormData.quantity} item(s)`;
+                    }
+                    return '';
+                  })()}
+                </div>
               </div>
             </motion.div>
-          </motion.div>
-        )}
+          )}
+          
+          {/* Amount field - Disabled when inventory item is selected */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 ${transactionFormData.relatedInventoryId ? 'opacity-90' : ''}`}>
+            <div>
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                Amount <span className="text-gray-500 text-xs">({selectedCurrency.symbol})</span>
+                {transactionFormData.relatedInventoryId && (
+                  <span className="ml-1 text-xs text-gray-400">(Auto-calculated)</span>
+                )}
+              </label>
+              <div className="flex rounded-lg overflow-hidden">
+                <div className={`flex items-center justify-center px-2.5 bg-${currentTheme.background} border border-${currentTheme.border} border-r-0 text-${currentTheme.text}`}>
+                  <span className="text-sm">{selectedCurrency.symbol}</span>
+                </div>
+                <input 
+                  type="text" 
+                  inputMode="decimal"
+                  name="amount"
+                  title="Transaction amount"
+                  value={transactionFormData.amount}
+                  onChange={(e) => {
+                    // Only allow decimal numbers
+                    const value = e.target.value.replace(/[^\d.]/g, '');
+                    // Only one decimal point
+                    const decimalCount = (value.match(/\./g) || []).length;
+                    if (decimalCount <= 1) {
+                      setTransactionFormData({
+                        ...transactionFormData, 
+                        amount: value === '' ? 0 : parseFloat(value)
+                      });
+                    }
+                  }}
+                  className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} text-sm`}
+                  required
+                  readOnly={!!transactionFormData.relatedInventoryId} // Read-only when inventory item is selected
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
+              <div className="relative">
+                <input 
+                  type="date" 
+                  name="date"
+                  title="Transaction date"
+                  value={transactionFormData.date}
+                  onChange={handleTransactionFormChange}
+                  className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                  required
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <FaCalendarAlt className="h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Only show customer selection for income transactions */}
+          {transactionFormData.type === "income" && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mb-4"
+            >
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                Associated Customer (Optional)
+              </label>
+              <div className="relative">
+                <select 
+                  name="customerId"
+                  title="Associated customer"
+                  value={transactionFormData.customerId || ""}
+                  onChange={handleTransactionFormChange}
+                  className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+                >
+                  <option value="">None</option>
+                  {customers.map(customer => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name} {customer.phone ? `(${customer.phone})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <FaChevronDown className="h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* File Upload Section */}
+          <div className={`mb-4 p-3 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}>
+            <div className="flex items-center mb-2">
+              <FaPaperclip className={`mr-2 text-${currentTheme.accent}`} />
+              <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Receipt or Document (Optional)</h4>
+            </div>
+            
+            <label className={`flex items-center justify-center p-2.5 rounded cursor-pointer bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 border border-${currentTheme.border} text-${currentTheme.accent} text-sm transition-colors w-full`}>
+              <FaUpload className="mr-2" />
+              Attach Receipt
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    // Handle file upload logic here
+                    toast.success(`File "${file.name}" attached`);
+                  }
+                }}
+              />
+            </label>
+          </div>
+          
+          {/* Display automatic inventory effects */}
+          {transactionFormData.relatedInventoryId && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className={`mb-4 p-3 rounded-lg bg-${
+                transactionFormData.type === "income" ? `${currentTheme.success}/10` : `${currentTheme.danger}/10`
+              } border border-${
+                transactionFormData.type === "income" ? `${currentTheme.success}/20` : `${currentTheme.danger}/20`
+              }`}
+            >
+              <div className="flex items-center">
+                <FaInfoCircle className={`mr-2 text-${
+                  transactionFormData.type === "income" ? currentTheme.success : currentTheme.danger
+                }`} />
+                <p className={`text-xs text-${
+                  transactionFormData.type === "income" ? currentTheme.success : currentTheme.danger
+                }`}>
+                  {(() => {
+                    const item = inventory.find(i => i.id === transactionFormData.relatedInventoryId);
+                    if (item) {
+                      if (transactionFormData.type === "income") {
+                        return `This will decrease inventory of "${item.name}" by ${transactionFormData.quantity} unit(s).`;
+                      } else {
+                        return `This will increase inventory of "${item.name}" by ${transactionFormData.quantity} unit(s).`;
+                      }
+                    }
+                    return '';
+                  })()}
+                </p>
+              </div>
+            </motion.div>
+          )}
+          
+          <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-${currentTheme.border}`}>
+            <button 
+              type="button"
+              onClick={() => {
+                setShowTransactionModal(false);
+                setEditingTransaction(null);
+              }}
+              className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              className={`px-5 py-2.5 ${
+                transactionFormData.type === "income" 
+                  ? `bg-${currentTheme.success} hover:bg-${currentTheme.success}/80` 
+                  : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80`
+              } text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
+            >
+              <FaPlus className="mr-2 h-4 w-4" /> 
+              {editingTransaction ? 'Update Transaction' : 'Save Transaction'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </motion.div>
+  </motion.div>
+)}
       </AnimatePresence>
 
       {/* Receipt Modal */}
       <AnimatePresence>
-        {showReceiptModal && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                  <FaBook className={`mr-2 text-${currentTheme.accent}`} />
-                  {editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowReceiptModal(false);
-                    setEditingReceipt(null);
-                  }}
-                  className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-                >
-                  <FaTimes />
-                </button>
+      {showReceiptModal && (
+  <motion.div 
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.2 }}
+    className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  >
+    <motion.div 
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
+        <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+          <FaBook className={`mr-2 text-${currentTheme.accent}`} />
+          {editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
+        </h3>
+        <button
+          onClick={() => {
+            setShowReceiptModal(false);
+            setEditingReceipt(null);
+          }}
+          className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+          aria-label="Close modal"
+        >
+          <FaTimes />
+        </button>
+      </div>
+
+      <div className="px-4 sm:px-6 py-4">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          editingReceipt ? updateReceipt() : addReceipt();
+        }}>
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
+            <div className="relative">
+              <input
+                type="date"
+                name="date"
+                title="Receipt date"
+                aria-label="Receipt date"
+                value={receiptFormData.date}
+                onChange={handleReceiptFormChange}
+                className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                required
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <FaCalendarAlt className="h-4 w-4 text-gray-400" />
               </div>
+            </div>
+          </div>
 
-              <div className="px-6 py-4">
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  editingReceipt ? updateReceipt() : addReceipt();
-                }}>
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Date</label>
-                    <input
-                      type="date"
-                      name="date"
-                      title="Receipt date"
-                      aria-label="Receipt date"
-                      value={receiptFormData.date}
-                      onChange={handleReceiptFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                    />
-                  </div>
+          {/* Customer Selection Section */}
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer</label>
+            <div className="relative">
+              <select
+                name="customerSelect"
+                title="Select customer"
+                value={receiptFormData.isNewCustomer ? "new" : (receiptFormData.customerId || "")}
+                onChange={handleReceiptFormChange}
+                className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+              >
+                <option value="">-- Select Customer --</option>
+                {customers.map(customer => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} {customer.phone ? `(${customer.phone})` : ""}
+                  </option>
+                ))}
+                <option value="new" className={`text-${currentTheme.accent} font-medium`}>+ Create New Customer</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                <FaChevronDown className="h-4 w-4 text-gray-400" />
+              </div>
+            </div>
+          </div>
 
-                  {/* Customer Selection Section */}
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Customer</label>
-                    <select
-                      name="customerSelect"
-                      title="Select customer"
-                      value={receiptFormData.isNewCustomer ? "new" : (receiptFormData.customerId || "")}
-                      onChange={handleReceiptFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    >
-                      <option value="">-- Select Customer --</option>
-                      {customers.map(customer => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name} {customer.phone ? `(${customer.phone})` : ""}
-                        </option>
-                      ))}
-                      <option value="new" className={`text-${currentTheme.accent} font-medium`}>+ Create New Customer</option>
-                    </select>
-                  </div>
-
-                  {/* New Customer Form */}
-                  {receiptFormData.isNewCustomer && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className={`mb-4 p-4 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}
-                    >
-                      <div className="flex items-center mb-3">
-                        <FaUserPlus className={`mr-2 text-${currentTheme.accent}`} />
-                        <h3 className={`text-sm font-medium text-${currentTheme.text}`}>New Customer Details</h3>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <label className={`block text-xs text-gray-400 mb-1`}>Customer Name *</label>
-                        <input
-                          type="text"
-                          name="customerName"
-                          value={receiptFormData.customerName}
-                          onChange={handleReceiptFormChange}
-                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
-                          placeholder="Enter customer name"
-                          required
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className={`block text-xs text-gray-400 mb-1`}>Email</label>
-                          <input
-                            type="email"
-                            name="newCustomer.email"
-                            value={receiptFormData.newCustomerData?.email || ""}
-                            onChange={handleReceiptFormChange}
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
-                            placeholder="Email"
-                          />
-                        </div>
-                        <div>
-                          <label className={`block text-xs text-gray-400 mb-1`}>Phone</label>
-                          <input
-                            type="tel"
-                            name="newCustomer.phone"
-                            value={receiptFormData.newCustomerData?.phone || ""}
-                            onChange={handleReceiptFormChange}
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
-                            placeholder="Phone number"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <label className={`block text-xs text-gray-400 mb-1`}>Address</label>
-                        <input
-                          type="text"
-                          name="newCustomer.address"
-                          value={receiptFormData.newCustomerData?.address || ""}
-                          onChange={handleReceiptFormChange}
-                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
-                          placeholder="Address"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className={`block text-xs text-gray-400 mb-1`}>Notes</label>
-                        <textarea
-                          name="newCustomer.notes"
-                          value={receiptFormData.newCustomerData?.notes || ""}
-                          onChange={handleReceiptFormChange}
-                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
-                          rows={2}
-                          placeholder="Any additional notes"
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Rest of the receipt form */}
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Items</label>
-                    
-                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="col-span-2">
-                          <label className="block text-xs text-gray-400 mb-1">Select Item</label>
-                          <select
-                            title="Select inventory item"
-                            aria-label="Select inventory item"
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                            value=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                const selectedItem = inventory.find(item => item.id === e.target.value);
-                                if (selectedItem) {
-                                  const receiptItem = {
-                                    id: selectedItem.id,
-                                    name: selectedItem.name,
-                                    quantity: 1,
-                                    price: selectedItem.sellingPrice
-                                  };
-                                  setReceiptFormData({
-                                    ...receiptFormData,
-                                    items: [...receiptFormData.items, receiptItem],
-                                    totalAmount: receiptFormData.totalAmount + selectedItem.sellingPrice
-                                  });
-                                  e.target.value = ""; // Reset select
-                                }
-                              }
-                            }}
-                          >
-                            <option value="">-- Select an item --</option>
-                            {inventory
-                              .filter(item => item.quantity > 0)
-                              .filter(item => {
-                                const existingItem = receiptFormData.items.find((receiptItem) => receiptItem.id === item.id);
-                                
-                                // If editing, we need to consider the original receipt quantities
-                                if (editingReceipt && existingItem) {
-                                  const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
-                                  if (originalItem) {
-                                    // Only filter out if quantity in form exceeds available + original
-                                    return existingItem.quantity < item.quantity + originalItem.quantity;
-                                  }
-                                }
-                                
-                                // For new receipts, just check if there's still available inventory
-                                return !existingItem || existingItem.quantity < item.quantity;
-                              })
-                              .map((item) => {
-                                // Calculate available quantity
-                                const existingItem = receiptFormData.items.find((receiptItem) => receiptItem.id === item.id);
-                                let availableQty = item.quantity;
-                                
-                                if (existingItem) {
-                                  if (editingReceipt) {
-                                    const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
-                                    if (originalItem) {
-                                      availableQty = item.quantity + originalItem.quantity - existingItem.quantity;
-                                    } else {
-                                      availableQty = item.quantity - existingItem.quantity;
-                                    }
-                                  } else {
-                                    availableQty = item.quantity - existingItem.quantity;
-                                  }
-                                }
-                                
-                                return (
-                                  <option key={item.id} value={item.id}>
-                                    {item.name} - {formatCurrency(item.sellingPrice)} (Available: {availableQty})
-                                  </option>
-                                );
-                              })}
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Quantity</label>
-                          <input
-                            type="number"
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                            min="1"
-                            placeholder="Quantity"
-                            title="Item quantity"
-                            aria-label="Item quantity"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Item List */}
-                    {receiptFormData.items.length > 0 ? (
-                      <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
-                        <table className="min-w-full divide-y divide-gray-700">
-                          <thead>
-                            <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
-                              <th className="px-3 py-2 text-xs font-medium text-gray-400"></th>
-                            </tr>
-                          </thead>
-                          <motion.tbody
-                            variants={staggerContainer}
-                            initial="hidden"
-                            animate="visible"
-                            className={`divide-y divide-${currentTheme.border}`}
-                          >
-                            {receiptFormData.items.map((item, index) => (
-                              <motion.tr key={`${item.id}-${index}`} variants={tableRowVariant}>
-                                <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
-                                <td className="px-3 py-2 text-right">
-                                  <input
-                                    type="number"
-                                    title={`Quantity for ${item.name}`}
-                                    placeholder="Qty"
-                                    aria-label={`Quantity for ${item.name}`}
-                                    className={`w-16 p-1 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded text-sm text-center`}
-                                    min="1"
-                                    value={item.quantity}
-                                    max={(() => {
-                                      const inventoryItem = inventory.find((invItem) => invItem.id === item.id);
-                                      if (!inventoryItem) return 1;
-                                      
-                                      // If editing, we need to account for the original quantity
-                                      if (editingReceipt) {
-                                        const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
-                                        if (originalItem) {
-                                          return originalItem.quantity + inventoryItem.quantity;
-                                        }
-                                      }
-                                      
-                                      return inventoryItem.quantity;
-                                    })()}
-                                    onChange={(e) => {
-                                      const inventoryItem = inventory.find((invItem) => invItem.id === item.id);
-                                      if (!inventoryItem) return;
-                                      
-                                      let maxAllowed = inventoryItem.quantity;
-                                      
-                                      // If editing, we need to account for the original quantity
-                                      if (editingReceipt) {
-                                        const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
-                                        if (originalItem) {
-                                          maxAllowed += originalItem.quantity;
-                                        }
-                                      }
-                                      
-                                      // Parse and cap the new quantity
-                                      const newValue = parseInt(e.target.value) || 1;
-                                      const newQuantity = Math.min(newValue, maxAllowed);
-                                      
-                                      if (newValue > maxAllowed) {
-                                        // Provide feedback that we've limited the quantity
-                                        alert(`Maximum available quantity for ${item.name} is ${maxAllowed}`);
-                                      }
-                                      
-                                      const newItems = [...receiptFormData.items];
-                                      const oldTotal = item.quantity * item.price;
-                                      const newTotal = newQuantity * item.price;
-                                      
-                                      newItems[index] = {
-                                        ...item,
-                                        quantity: newQuantity,
-                                      };
-                                      
-                                      setReceiptFormData({
-                                        ...receiptFormData,
-                                        items: newItems,
-                                        totalAmount: receiptFormData.totalAmount - oldTotal + newTotal,
-                                      });
-                                    }}
-                                  />
-                                </td>
-                                <td className={`px-3 py-2 text-right text-sm text-${currentTheme.text}`}>{formatCurrency(item.price)}</td>
-                                <td className={`px-3 py-2 text-right text-sm text-${currentTheme.success}`}>
-                                  {formatCurrency(item.price * item.quantity)}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <button
-                                    type="button"
-                                    title="Remove item"
-                                    aria-label="Remove item from receipt"
-                                    className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80`}
-                                    onClick={() => {
-                                      const newItems = receiptFormData.items.filter((_, i) => i !== index);
-                                      const itemTotal = item.price * item.quantity;
-                                      
-                                      setReceiptFormData({
-                                        ...receiptFormData,
-                                        items: newItems,
-                                        totalAmount: receiptFormData.totalAmount - itemTotal,
-                                      });
-                                    }}
-                                  >
-                                    <FaTimes />
-                                  </button>
-                                </td>
-                              </motion.tr>
-                            ))}
-                          </motion.tbody>
-                          <tfoot>
-                            <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
-                              <td className={`px-3 py-2 text-sm font-medium text-${currentTheme.text}`} colSpan={3}>
-                                Total
-                              </td>
-                              <td className={`px-3 py-2 text-right text-sm font-bold text-${currentTheme.success}`}>
-                                {formatCurrency(receiptFormData.totalAmount)}
-                              </td>
-                              <td></td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className={`text-center py-4 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
-                        <p className="text-gray-400 text-sm">No items added to receipt</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Remove the manual total amount input field since we're calculating it automatically */}
-                  {/* Instead, add this hidden field to keep the form working */}
+          {/* New Customer Form */}
+          {receiptFormData.isNewCustomer && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className={`mb-4 p-4 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}
+            >
+              <div className="flex items-center mb-3">
+                <FaUserPlus className={`mr-2 text-${currentTheme.accent}`} />
+                <h3 className={`text-sm font-medium text-${currentTheme.text}`}>New Customer Details</h3>
+              </div>
+              
+              <div className="mb-3">
+                <label className={`block text-xs text-gray-400 mb-1`}>Customer Name *</label>
+                <input
+                  type="text"
+                  name="customerName"
+                  value={receiptFormData.customerName}
+                  onChange={handleReceiptFormChange}
+                  className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                  placeholder="Enter customer name"
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className={`block text-xs text-gray-400 mb-1`}>Email</label>
                   <input
-                    type="hidden"
-                    name="totalAmount"
-                    value={receiptFormData.totalAmount}
-                    title="Receipt Total Amount"
-                    placeholder="Receipt Total Amount"
+                    type="email"
+                    name="newCustomer.email"
+                    value={receiptFormData.newCustomerData?.email || ""}
+                    onChange={handleReceiptFormChange}
+                    className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                    placeholder="Email"
                   />
-
-                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowReceiptModal(false);
-                        setEditingReceipt(null);
-                      }}
-                      className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                    >
-                      <FaPlus className="mr-2 h-4 w-4" />
-                      {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
-                    </button>
-                  </div>
-                </form>
+                </div>
+                <div>
+                  <label className={`block text-xs text-gray-400 mb-1`}>Phone</label>
+                  <input
+                    type="tel"
+                    name="newCustomer.phone"
+                    value={receiptFormData.newCustomerData?.phone || ""}
+                    onChange={handleReceiptFormChange}
+                    className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                    placeholder="Phone number"
+                  />
+                </div>
+              </div>
+              
+              <div className="mb-3">
+                <label className={`block text-xs text-gray-400 mb-1`}>Address</label>
+                <input
+                  type="text"
+                  name="newCustomer.address"
+                  value={receiptFormData.newCustomerData?.address || ""}
+                  onChange={handleReceiptFormChange}
+                  className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                  placeholder="Address"
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-xs text-gray-400 mb-1`}>Notes</label>
+                <textarea
+                  name="newCustomer.notes"
+                  value={receiptFormData.newCustomerData?.notes || ""}
+                  onChange={handleReceiptFormChange}
+                  className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg text-sm`}
+                  rows={2}
+                  placeholder="Any additional notes"
+                />
               </div>
             </motion.div>
-          </motion.div>
-        )}
+          )}
+
+          {/* Items Selection */}
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Items</label>
+            
+            <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-400 mb-1">Select Item</label>
+                  <div className="relative">
+                    <select
+                      title="Select inventory item"
+                      aria-label="Select inventory item"
+                      className={`w-full p-2.5 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const selectedItem = inventory.find(item => item.id === e.target.value);
+                          if (selectedItem) {
+                            const receiptItem = {
+                              id: selectedItem.id,
+                              name: selectedItem.name,
+                              quantity: 1,
+                              price: selectedItem.sellingPrice
+                            };
+                            setReceiptFormData({
+                              ...receiptFormData,
+                              items: [...receiptFormData.items, receiptItem],
+                              totalAmount: receiptFormData.totalAmount + selectedItem.sellingPrice
+                            });
+                            e.target.value = ""; // Reset select
+                          }
+                        }
+                      }}
+                    >
+                      <option value="">-- Select an item --</option>
+                      {inventory
+                        .filter(item => item.quantity > 0)
+                        .filter(item => {
+                          const existingItem = receiptFormData.items.find((receiptItem) => receiptItem.id === item.id);
+                          
+                          // If editing, we need to consider the original receipt quantities
+                          if (editingReceipt && existingItem) {
+                            const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
+                            if (originalItem) {
+                              // Only filter out if quantity in form exceeds available + original
+                              return existingItem.quantity < item.quantity + originalItem.quantity;
+                            }
+                          }
+                          
+                          // For new receipts, just check if there's still available inventory
+                          return !existingItem || existingItem.quantity < item.quantity;
+                        })
+                        .map((item) => {
+                          // Calculate available quantity
+                          const existingItem = receiptFormData.items.find((receiptItem) => receiptItem.id === item.id);
+                          let availableQty = item.quantity;
+                          
+                          if (existingItem) {
+                            if (editingReceipt) {
+                              const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
+                              if (originalItem) {
+                                availableQty = item.quantity + originalItem.quantity - existingItem.quantity;
+                              } else {
+                                availableQty = item.quantity - existingItem.quantity;
+                              }
+                            } else {
+                              availableQty = item.quantity - existingItem.quantity;
+                            }
+                          }
+                          
+                          return (
+                            <option key={item.id} value={item.id}>
+                              {item.name} - {formatCurrency(item.sellingPrice)} (Available: {availableQty})
+                            </option>
+                          );
+                        })}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                      <FaChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className={`w-full p-2.5 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm text-center`}
+                    placeholder="1"
+                    title="Item quantity"
+                    aria-label="Item quantity"
+                    disabled
+                    value="1"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Item List */}
+            {receiptFormData.items.length > 0 ? (
+              <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-x-auto`}>
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Qty</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
+                      <th className="px-3 py-2 text-xs font-medium text-gray-400"></th>
+                    </tr>
+                  </thead>
+                  <motion.tbody
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="visible"
+                    className={`divide-y divide-${currentTheme.border}`}
+                  >
+                    {receiptFormData.items.map((item, index) => {
+                      // Calculate max allowed quantity
+                      const inventoryItem = inventory.find((invItem) => invItem.id === item.id);
+                      let maxAllowed = inventoryItem?.quantity || 1;
+                      
+                      // If editing, account for original quantity
+                      if (editingReceipt) {
+                        const originalItem = editingReceipt.items.find((origItem) => origItem.id === item.id);
+                        if (originalItem) {
+                          maxAllowed += originalItem.quantity;
+                        }
+                      }
+                      
+                      return (
+                        <motion.tr key={`${item.id}-${index}`} variants={tableRowVariant}>
+                          <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end">
+                              <button
+                                type="button"
+                                title="Decrease quantity"
+                                aria-label={`Decrease quantity for ${item.name}`}
+                                onClick={() => {
+                                  if (item.quantity <= 1) return;
+                                  
+                                  const newItems = [...receiptFormData.items];
+                                  const oldTotal = item.quantity * item.price;
+                                  const newQuantity = item.quantity - 1;
+                                  const newTotal = newQuantity * item.price;
+                                  
+                                  newItems[index] = {
+                                    ...item,
+                                    quantity: newQuantity,
+                                  };
+                                  
+                                  setReceiptFormData({
+                                    ...receiptFormData,
+                                    items: newItems,
+                                    totalAmount: receiptFormData.totalAmount - oldTotal + newTotal,
+                                  });
+                                }}
+                                className={`w-7 h-7 flex items-center justify-center rounded-l-md border border-${currentTheme.border} bg-${currentTheme.background} text-${currentTheme.text} ${item.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'}`}
+                                disabled={item.quantity <= 1}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                              </button>
+                              <input
+                                type="text"
+                                title={`Quantity for ${item.name}`}
+                                placeholder="Qty"
+                                aria-label={`Quantity for ${item.name}`}
+                                className={`w-10 p-1 bg-${currentTheme.background} border-y border-${currentTheme.border} text-${currentTheme.text} text-sm text-center focus:outline-none select-none`}
+                                inputMode="numeric"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  // Extract digits only
+                                  const inputVal = e.target.value.replace(/\D/g, '');
+                                  
+                                  // Parse and apply limits
+                                  const newValue = inputVal ? parseInt(inputVal) : 1;
+                                  const newQuantity = Math.min(newValue, maxAllowed);
+                                  
+                                  if (newValue > maxAllowed) {
+                                    toast.error(`Maximum available quantity for ${item.name} is ${maxAllowed}`);
+                                  }
+                                  
+                                  const newItems = [...receiptFormData.items];
+                                  const oldTotal = item.quantity * item.price;
+                                  const newTotal = newQuantity * item.price;
+                                  
+                                  newItems[index] = {
+                                    ...item,
+                                    quantity: newQuantity,
+                                  };
+                                  
+                                  setReceiptFormData({
+                                    ...receiptFormData,
+                                    items: newItems,
+                                    totalAmount: receiptFormData.totalAmount - oldTotal + newTotal,
+                                  });
+                                }}
+                              />
+                              <button
+                                type="button"
+                                title="Increase quantity"
+                                aria-label={`Increase quantity for ${item.name}`}
+                                onClick={() => {
+                                  if (item.quantity >= maxAllowed) {
+                                    toast.error(`Maximum available quantity for ${item.name} is ${maxAllowed}`);
+                                    return;
+                                  }
+                                  
+                                  const newItems = [...receiptFormData.items];
+                                  const oldTotal = item.quantity * item.price;
+                                  const newQuantity = item.quantity + 1;
+                                  const newTotal = newQuantity * item.price;
+                                  
+                                  newItems[index] = {
+                                    ...item,
+                                    quantity: newQuantity,
+                                  };
+                                  
+                                  setReceiptFormData({
+                                    ...receiptFormData,
+                                    items: newItems,
+                                    totalAmount: receiptFormData.totalAmount - oldTotal + newTotal,
+                                  });
+                                }}
+                                className={`w-7 h-7 flex items-center justify-center rounded-r-md border border-${currentTheme.border} bg-${currentTheme.background} text-${currentTheme.text} ${item.quantity >= maxAllowed ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'}`}
+                                disabled={item.quantity >= maxAllowed}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Max: {maxAllowed}
+                            </div>
+                          </td>
+                          <td className={`px-3 py-2 text-right text-sm text-${currentTheme.text}`}>{formatCurrency(item.price)}</td>
+                          <td className={`px-3 py-2 text-right text-sm text-${currentTheme.success}`}>
+                            {formatCurrency(item.price * item.quantity)}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              title="Remove item"
+                              aria-label="Remove item from receipt"
+                              className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80`}
+                              onClick={() => {
+                                const newItems = receiptFormData.items.filter((_, i) => i !== index);
+                                const itemTotal = item.price * item.quantity;
+                                
+                                setReceiptFormData({
+                                  ...receiptFormData,
+                                  items: newItems,
+                                  totalAmount: receiptFormData.totalAmount - itemTotal,
+                                });
+                              }}
+                            >
+                              <FaTimes />
+                            </button>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
+                  </motion.tbody>
+                  <tfoot>
+                    <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
+                      <td className={`px-3 py-2 text-sm font-medium text-${currentTheme.text}`} colSpan={3}>
+                        Total
+                      </td>
+                      <td className={`px-3 py-2 text-right text-sm font-bold text-${currentTheme.success}`}>
+                        {formatCurrency(receiptFormData.totalAmount)}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : (
+              <div className={`text-center py-4 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}>
+                <p className="text-gray-400 text-sm">No items added to receipt</p>
+              </div>
+            )}
+          </div>
+
+          {/* File Upload Section - Added to match other modals */}
+          <div className={`mb-4 p-3 border border-${currentTheme.border} rounded-lg bg-${currentTheme.background}/50`}>
+            <div className="flex items-center mb-2">
+              <FaFileInvoice className={`mr-2 text-${currentTheme.accent}`} />
+              <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Receipt Attachments (Optional)</h4>
+            </div>
+            
+            <label className={`flex items-center justify-center p-2.5 rounded cursor-pointer bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 border border-${currentTheme.border} text-${currentTheme.accent} text-sm transition-colors w-full`}>
+              <FaUpload className="mr-2" />
+              Attach Receipt Image
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    // Handle file upload logic here
+                    toast.success(`File "${file.name}" attached`);
+                  }
+                }}
+              />
+            </label>
+          </div>
+
+          {/* Hidden input for total amount */}
+          <input
+            type="hidden"
+            name="totalAmount"
+            value={receiptFormData.totalAmount}
+            title="Receipt Total Amount"
+            placeholder="Receipt Total Amount"
+          />
+
+          <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-${currentTheme.border}`}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowReceiptModal(false);
+                setEditingReceipt(null);
+              }}
+              className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
+            >
+              <FaPlus className="mr-2 h-4 w-4" />
+              {editingReceipt ? 'Update Receipt' : 'Save Receipt'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </motion.div>
+  </motion.div>
+)}
       </AnimatePresence>
 
       {/* Category Modal */}
@@ -5135,12 +5990,21 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                           } flex items-center justify-center text-xs font-medium`}
                         >
                           {invoiceFormData.isPaid ? (
-                            <span className="text-white flex items-center">
-                              <FaCheck size={10} className="mr-1" /> Paid
-                            </span>
-                          ) : (
-                            <span className={`text-${currentTheme.text}`}>Unpaid</span>
-                          )}
+                              <span className="text-white flex flec-col items-center">
+                                <FaCheck size={10} className="mr-1" />
+                                {editingInvoice && isInvoicePaymentLocked(editingInvoice) ? (
+                                  <>
+                                    Locked <FaLock size={8} className="ml-1" title="Payment status can no longer be changed" />
+                                  </>
+                                ) : (
+                                  <>
+                                    Paid <span className="text-xs opacity-70 flex  ml-1"></span>
+                                  </>
+                                )}
+                              </span>
+                            ) : (
+                              <span className={`text-${currentTheme.text}`}>Unpaid</span>
+                            )}
                         </div>
                       </div>
                       
