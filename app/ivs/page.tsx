@@ -3251,6 +3251,53 @@ const generateInvoiceImage = async (invoice: Invoice) => {
   }
 };
 
+// Add this ref to your state declarations
+const budgetCardRef = useRef<HTMLDivElement>(null);
+
+// Generate and download budget report as image
+const generateBudgetReport = async (budget: Budget) => {
+  // Get the card DOM element containing the budget details
+  const contentElement = budgetCardRef.current;
+  if (!contentElement) return;
+  
+  setIsLoading(true);
+  
+  try {
+    // First attempt with PNG
+    let dataUrl;
+    try {
+      dataUrl = await toPng(contentElement, {
+        quality: 10,
+        pixelRatio: 10,
+        skipFonts: true,
+        fontEmbedCSS: ""
+      });
+    } catch (pngError) {
+      console.warn('PNG generation failed, falling back to JPEG:', pngError);
+      // Fall back to JPEG if PNG fails
+      dataUrl = await toJpeg(contentElement, {
+        quality: 10,
+        pixelRatio: 10,
+        skipFonts: true
+      });
+    }
+    
+    // Create download link
+    const link = document.createElement('a');
+    const fileName = `Budget-${budget.name.replace(/\s+/g, '-')}-${formatDate(budget.startDate)}-${Date.now()}.${dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'}`;
+    link.download = fileName;
+    link.href = dataUrl;
+    link.click();
+    
+    toast.success('Budget report downloaded successfully');
+  } catch (error) {
+    console.error('Error generating budget image:', error);
+    toast.error('Failed to generate budget report. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   // Update the state for receipts to include transaction-based receipts
   const [unifiedReceipts, setUnifiedReceipts] = useState<Receipt[]>([]);
 
@@ -5588,138 +5635,165 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                 return (
                   <React.Fragment key={budget.id}>
                     <motion.tr
-                      variants={tableRowVariant}
-                      className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 cursor-pointer`}
-                      onClick={() => {
-                        setExpandedBudget(expandedBudget === budget.id ? null : budget.id)
-                      }}
-                    >
-                      <td className={`p-4 text-${currentTheme.text} font-medium`}>
-                        <div className="flex items-center">
-                          <span
-                            className={`mr-2 ${expandedBudget === budget.id ? "transform rotate-90" : ""} transition-transform duration-200`}
-                          >
-                            <FaChevronRight size={10} />
-                          </span>
-                          <div>
-                            <div>{budget.name}</div>
-                            <div className="text-xs text-gray-400 md:hidden">
-                              {budget.period} • {formatDate(budget.startDate)}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className={`p-4 text-${currentTheme.text} hidden md:table-cell`}>{budget.period}</td>
-                      <td className={`p-4 text-${currentTheme.text} hidden md:table-cell whitespace-nowrap`}>
-                        {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
-                      </td>
-                      <td className={`p-4 text-${currentTheme.text} font-semibold`}>
-                        <div>
-                          {formatCurrency(budget.targetAmount)}
-                          <div className="text-xs font-normal text-gray-400 md:hidden">
-                            {`${spentPercentage.toFixed(0)}% used`}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 hidden md:table-cell">
-                        {(() => {
-                          if (spentPercentage >= 100) {
-                            return (
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs bg-red-200 text-red-700 border border-red-300`}
-                              >
-                                Over Budget ({spentPercentage.toFixed(0)}%)
-                              </span>
-                            )
-                          } else if (spentPercentage >= 80) {
-                            return (
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs bg-yellow-200 text-yellow-700 border border-yellow-300`}
-                              >
-                                Near Limit ({spentPercentage.toFixed(0)}%)
-                              </span>
-                            )
-                          } else {
-                            return (
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs bg-green-200 text-green-700 border border-green-300`}
-                              >
-                                On Track ({spentPercentage.toFixed(0)}%)
-                              </span>
-                            )
-                          }
-                        })()}
-                      </td>
-                      <td className="p-4 hidden lg:table-cell">
-                        {(() => {
-                          const now = new Date()
-                          const start = new Date(budget.startDate)
-                          const end = new Date(budget.endDate)
+  variants={tableRowVariant}
+  className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/70 transition-colors duration-200 cursor-pointer group`}
+  onClick={() => {
+    setExpandedBudget(expandedBudget === budget.id ? null : budget.id)
+  }}
+>
+  {/* Budget Name Cell - Enhanced for mobile */}
+  <td className={`p-3 sm:p-4 text-${currentTheme.text}`}>
+    <div className="flex items-center space-x-2.5">
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center bg-${currentTheme.background} transition-colors group-hover:bg-${currentTheme.primary}/10`}>
+        <span className={`transition-transform duration-300 ${expandedBudget === budget.id ? "transform rotate-90" : ""}`}>
+          <FaChevronRight size={10} className={`text-${currentTheme.accent}`} />
+        </span>
+      </div>
+      <div>
+        <div className="font-medium text-sm sm:text-base">{budget.name}</div>
+        <div className="text-xs text-gray-400 md:hidden flex items-center space-x-1 mt-0.5">
+          <span className="px-1.5 py-0.5 bg-gray-700/30 rounded-md">{budget.period}</span>
+          <span>•</span>
+          <span>{formatDate(budget.startDate)}</span>
+        </div>
+      </div>
+    </div>
+  </td>
 
-                          // Calculate time remaining
-                          if (now > end) {
-                            return (
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400 border border-gray-600`}
-                              >
-                                Completed
-                              </span>
-                            )
-                          } else if (now < start) {
-                            const daysToStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                            return (
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs bg-blue-200 text-blue-700 border border-blue-300`}
-                              >
-                                Starts in {daysToStart} {daysToStart === 1 ? "day" : "days"}
-                              </span>
-                            )
-                          } else {
-                            const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-                            const daysElapsed = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-                            const daysRemaining = Math.max(
-                              0,
-                              Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
-                            )
-                            const timePercentage = (daysElapsed / totalDays) * 100
+  {/* Period Cell - Refined styling */}
+  <td className={`p-4 text-${currentTheme.text} hidden md:table-cell whitespace-nowrap`}>
+    <span className="px-2 py-1 bg-gray-700/30 rounded-md text-sm">{budget.period}</span>
+  </td>
 
-                            return (
-                              <div className="flex items-center">
-                                <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden mr-2">
-                                  <div
-                                    className={`h-full bg-blue-500`}
-                                    style={{ width: `${Math.min(timePercentage, 100)}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-xs text-gray-400">
-                                  {daysRemaining} {daysRemaining === 1 ? "day" : "days"} left
-                                </span>
-                              </div>
-                            )
-                          }
-                        })()}
-                      </td>
-                      <td className="p-4 space-x-2 text-right">
-                        {/* <button
-                          className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingBudget(budget)
-                          }}
-                        >
-                          Edit
-                        </button> */}
-                        <button
-                          className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteBudget(budget.id)
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </motion.tr>
+  {/* Date Range Cell - Improved visibility */}
+  <td className={`p-4 text-${currentTheme.text} hidden md:table-cell whitespace-nowrap`}>
+    <div className="flex items-center">
+      <span className="text-gray-400 text-sm"><FaCalendarAlt size={12} className="inline mr-1.5 text-gray-500" />{formatDate(budget.startDate)} - {formatDate(budget.endDate)}</span>
+    </div>
+  </td>
+
+  {/* Target Amount Cell - Enhanced for all screen sizes */}
+  <td className={`p-3 sm:p-4 text-${currentTheme.text}`}>
+    <div>
+      <div className="font-semibold text-sm sm:text-base">{formatCurrency(budget.targetAmount)}</div>
+      <div className="flex items-center mt-1 md:hidden">
+        <div className="w-12 h-1.5 bg-gray-700/30 rounded-full overflow-hidden mr-1.5">
+          <div 
+            className={`h-full ${
+              spentPercentage >= 100 ? "bg-red-500" :
+              spentPercentage >= 80 ? "bg-yellow-500" : "bg-green-500"
+            }`}
+            style={{ width: `${Math.min(spentPercentage, 100)}%` }}
+          ></div>
+        </div>
+        <span className="text-xs text-gray-400">{`${spentPercentage.toFixed(0)}%`}</span>
+      </div>
+    </div>
+  </td>
+
+  {/* Status Cell - Enhanced with icon and better styling */}
+  <td className="p-4 hidden md:table-cell">
+    {(() => {
+      if (spentPercentage >= 100) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs bg-red-200/20 text-red-400 border border-red-300/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
+            Over Budget ({spentPercentage.toFixed(0)}%)
+          </span>
+        )
+      } else if (spentPercentage >= 80) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs bg-yellow-200/20 text-yellow-400 border border-yellow-300/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1.5"></span>
+            Near Limit ({spentPercentage.toFixed(0)}%)
+          </span>
+        )
+      } else {
+        return (
+          <span className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs bg-green-200/20 text-green-400 border border-green-300/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
+            On Track ({spentPercentage.toFixed(0)}%)
+          </span>
+        )
+      }
+    })()}
+  </td>
+
+  {/* Time Remaining Cell - Enhanced progress bar and styling */}
+  <td className="p-4 hidden lg:table-cell">
+    {(() => {
+      const now = new Date()
+      const start = new Date(budget.startDate)
+      const end = new Date(budget.endDate)
+
+      if (now > end) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs bg-gray-700/30 text-gray-400 border border-gray-600/40">
+            <FaCheck size={10} className="mr-1.5" />
+            Completed
+          </span>
+        )
+      } else if (now < start) {
+        const daysToStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        return (
+          <span className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs bg-blue-200/20 text-blue-400 border border-blue-300/30">
+            <FaCalendarAlt size={10} className="mr-1.5" />
+            Starts in {daysToStart} {daysToStart === 1 ? "day" : "days"}
+          </span>
+        )
+      } else {
+        const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+        const daysElapsed = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+        const daysRemaining = Math.max(
+          0,
+          Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        )
+        const timePercentage = (daysElapsed / totalDays) * 100
+
+        return (
+          <div className="flex items-center">
+            <div className="relative w-16 h-2.5 bg-gray-700/40 rounded-full overflow-hidden mr-2">
+              <div
+                className="h-full bg-blue-500"
+                style={{ width: `${Math.min(timePercentage, 100)}%` }}
+              ></div>
+              <div className="absolute inset-0 border border-gray-600/20 rounded-full"></div>
+            </div>
+            <span className="text-xs text-gray-400 whitespace-nowrap">
+              {daysRemaining} {daysRemaining === 1 ? "day" : "days"} left
+            </span>
+          </div>
+        )
+      }
+    })()}
+  </td>
+
+  {/* Actions Cell - Touch-friendly buttons */}
+  <td className="p-3 pr-4 sm:p-4 text-right">
+    <div className="flex items-center justify-end space-x-1">
+      <button
+        className={`p-2 rounded-full bg-${currentTheme.background} hover:bg-${currentTheme.primary}/10 text-${currentTheme.accent} hover:text-${currentTheme.primary} transition-colors`}
+        onClick={(e) => {
+          e.stopPropagation()
+          setEditingBudget(budget)
+        }}
+        aria-label="Edit budget"
+      >
+        <FaEdit size={14} />
+      </button>
+      <button
+        className={`p-2 rounded-full bg-${currentTheme.background} hover:bg-${currentTheme.danger}/10 text-${currentTheme.danger}/80 hover:text-${currentTheme.danger} transition-colors`}
+        onClick={(e) => {
+          e.stopPropagation()
+          deleteBudget(budget.id)
+        }}
+        aria-label="Delete budget"
+      >
+        <FaTrash size={14} />
+      </button>
+    </div>
+  </td>
+</motion.tr>
 
                     {/* Expanded budget details */}
                     {expandedBudget === budget.id && (
@@ -5737,283 +5811,296 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                             transition={{ duration: 0.2 }}
                             className="overflow-hidden"
                           >
-                            <div className="p-6 space-y-6">
-                              {/* Budget header */}
-                              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <div>
-                                  <h3 className={`text-lg font-bold text-${currentTheme.text}`}>{budget.name}</h3>
-                                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                                    <span
-                                      className={`px-2 py-0.5 rounded-full text-xs bg-${currentTheme.accent}/10 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}
-                                    >
-                                      {budget.period}
-                                    </span>
-                                    <span className="text-sm text-gray-400 flex items-center">
-                                      <FaCalendarAlt className="mr-1" size={12} />
-                                      {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
-                                    </span>
-                                    {new Date() > new Date(budget.endDate) && (
-                                      <span
-                                        className={`px-2 py-0.5 rounded-full text-xs bg-${currentTheme.warning}/10 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}
-                                      >
-                                        Expired
-                                      </span>
-                                    )}
-                                    {new Date() < new Date(budget.startDate) && (
-                                      <span
-                                        className={`px-2 py-0.5 rounded-full text-xs bg-${currentTheme.accent}/10 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}
-                                      >
-                                        Upcoming
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div
-                                  className={`px-4 py-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border}`}
-                                >
-                                  <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm font-medium text-gray-300">Budget Progress</span>
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className={`text-sm font-medium ${
-                                          spentPercentage > 100
-                                            ? `text-red-500`
-                                            : spentPercentage > 80
-                                              ? `text-yellow-500`
-                                              : `text-green-500`
-                                        }`}
-                                      >
-                                        {Math.round(spentPercentage)}%
-                                      </span>
-                                      <div
-                                        className={`w-3 h-3 rounded-full ${
-                                          spentPercentage > 100
-                                            ? `bg-red-500`
-                                            : spentPercentage > 80
-                                              ? `bg-yellow-500`
-                                              : `bg-green-500`
-                                        }`}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                  <div className="h-2.5 w-full bg-gray-700 rounded-full overflow-hidden mb-2">
-                                    <div
-                                      className={`h-full ${
-                                        spentPercentage > 100
-                                          ? `bg-red-500`
-                                          : spentPercentage > 80
-                                            ? `bg-yellow-500`
-                                            : `bg-green-500`
-                                      }`}
-                                      style={{ width: `${Math.min(spentPercentage, 100)}%` }}
-                                    ></div>
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-2 text-center">
-                                    <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
-                                      <div className="text-xs text-gray-400">Target</div>
-                                      <div className={`text-sm font-medium text-${currentTheme.text}`}>
-                                        {formatCurrency(budget.targetAmount)}
-                                      </div>
-                                    </div>
-                                    <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
-                                      <div className="text-xs text-gray-400">Spent</div>
-                                      <div
-                                        className={`text-sm font-medium ${spentPercentage > 100 ? `text-red-500` : `text-${currentTheme.text}`}`}
-                                      >
-                                        {formatCurrency(spentAmount)}
-                                      </div>
-                                    </div>
-                                    <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
-                                      <div className="text-xs text-gray-400">Remaining</div>
-                                      <div
-                                        className={`text-sm font-medium ${budget.targetAmount - spentAmount < 0 ? `text-red-500` : `text-${currentTheme.success}`}`}
-                                      >
-                                        {formatCurrency(Math.max(0, budget.targetAmount - spentAmount))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Budget categories */}
-                              <div>
-                                <h4 className={`text-sm font-medium text-${currentTheme.text} mb-2`}>
-                                  Budget Categories
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {updatedCategories.map((category, idx) => {
-                                    const categoryPercentage = (category.spent / category.allocated) * 100
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className={`p-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border} ${
-                                          category.spent > category.allocated
-                                            ? `border-red-300`
-                                            : category.spent > category.allocated * 0.8
-                                              ? `border-yellow-300`
-                                              : ""
-                                        }`}
-                                      >
-                                        <div className="flex justify-between items-start mb-2">
-                                          <div className="flex items-center">
-                                            {/* Find the category icon based on name or use a default */}
-                                            <div
-                                              className={`w-6 h-6 rounded-full bg-${currentTheme.accent}/10 flex items-center justify-center mr-2`}
-                                            >
-                                              {category.name.toLowerCase().includes("food") ? (
-                                                <FaUtensils size={12} className={`text-${currentTheme.accent}`} />
-                                              ) : category.name.toLowerCase().includes("transport") ? (
-                                                <FaCar size={12} className={`text-${currentTheme.accent}`} />
-                                              ) : category.name.toLowerCase().includes("home") ||
-                                                category.name.toLowerCase().includes("rent") ? (
-                                                <FaHome size={12} className={`text-${currentTheme.accent}`} />
-                                              ) : category.name.toLowerCase().includes("entertainment") ? (
-                                                <FaFilm size={12} className={`text-${currentTheme.accent}`} />
-                                              ) : category.name.toLowerCase().includes("health") ? (
-                                                <FaMedkit size={12} className={`text-${currentTheme.accent}`} />
-                                              ) : category.name.toLowerCase().includes("shopping") ? (
-                                                <FaShoppingBag size={12} className={`text-${currentTheme.accent}`} />
-                                              ) : category.name.toLowerCase().includes("bill") ||
-                                                category.name.toLowerCase().includes("utility") ? (
-                                                <FaFileInvoiceDollar
-                                                  size={12}
-                                                  className={`text-${currentTheme.accent}`}
-                                                />
-                                              ) : (
-                                                <FaTags size={12} className={`text-${currentTheme.accent}`} />
-                                              )}
-                                            </div>
-                                            <span className="text-sm font-medium text-gray-300">{category.name}</span>
-                                          </div>
-                                          <span
-                                            className={`text-xs px-2 py-0.5 rounded-full ${
-                                              category.spent > category.allocated
-                                                ? `bg-red-200 text-red-700 border border-red-300`
-                                                : category.spent > category.allocated * 0.8
-                                                  ? `bg-yellow-200 text-yellow-700 border border-yellow-300`
-                                                  : `bg-green-200 text-green-700 border border-green-300`
-                                            }`}
-                                          >
-                                            {Math.round(categoryPercentage)}%
-                                          </span>
-                                        </div>
-                                        <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden mb-2">
-                                          <div
-                                            className={`h-full ${
-                                              category.spent > category.allocated
-                                                ? `bg-red-500`
-                                                : category.spent > category.allocated * 0.8
-                                                  ? `bg-yellow-500`
-                                                  : `bg-green-500`
-                                            }`}
-                                            style={{ width: `${Math.min(categoryPercentage, 100)}%` }}
-                                          ></div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                          <div className={`p-1.5 rounded bg-${currentTheme.background}/50 text-center`}>
-                                            <div className="text-gray-400 mb-0.5">Allocated</div>
-                                            <div className="font-medium text-gray-300">
-                                              {formatCurrency(category.allocated)}
-                                            </div>
-                                          </div>
-                                          <div className={`p-1.5 rounded bg-${currentTheme.background}/50 text-center`}>
-                                            <div className="text-gray-400 mb-0.5">Spent</div>
-                                            <div
-                                              className={`font-medium ${
-                                                category.spent > category.allocated
-                                                  ? `text-red-500`
-                                                  : "text-gray-300"
-                                              }`}
-                                            >
-                                              {formatCurrency(category.spent)}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-
-                              {/* Related transactions */}
-                              <div>
-                                <h4
-                                  className={`text-sm font-medium text-${currentTheme.text} mb-2 flex justify-between items-center`}
-                                >
-                                  <span>Recent Transactions</span>
-                                  <button
-                                    onClick={() => {
-                                      // Create a category filter instead of budget name
-                                      const categoryNames = budget.categories?.map((cat) => cat.name) || []
-
-                                      // Construct a search query that will match any of these categories
-                                      const categorySearchQuery = categoryNames.join(" OR ")
-
-                                      setSearchQuery(categorySearchQuery)
-                                      setActiveTab("transactions")
-                                    }}
-                                    className={`text-xs text-${currentTheme.accent} hover:text-${currentTheme.primary}`}
-                                  >
-                                    View All
-                                  </button>
-                                </h4>
-                                {relevantTransactions.length > 0 ? (
-                                  <div className={`rounded-lg border border-${currentTheme.border} overflow-hidden`}>
-                                    <table className="w-full text-left text-sm">
-                                      <thead className={`bg-${currentTheme.background}`}>
-                                        <tr>
-                                          <th className="p-2 text-xs text-gray-400">Date</th>
-                                          <th className="p-2 text-xs text-gray-400">Description</th>
-                                          <th className="p-2 text-xs text-gray-400">Category</th>
-                                          <th className="p-2 text-xs text-gray-400 text-right">Amount</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className={`divide-y divide-${currentTheme.border}`}>
-                                        {relevantTransactions.slice(0, 5).map((transaction, idx) => (
-                                          <tr key={idx} className={`hover:bg-${currentTheme.background}/50`}>
-                                            <td className="p-2 text-gray-400">{formatDate(transaction.date)}</td>
-                                            <td className="p-2 text-gray-300">{transaction.description}</td>
-                                            <td className="p-2">
-                                              <span
-                                                className={`px-1.5 py-0.5 rounded-full text-xs ${`bg-${currentTheme.accent}/10 text-${currentTheme.accent}`}`}
-                                              >
-                                                {(() => {
-                                                  const category = categories.find((c) => c.id === transaction.category)
-                                                  return category ? category.name : transaction.category
-                                                })()}
-                                              </span>
-                                            </td>
-                                            <td className={`p-2 text-right text-red-500 font-medium`}>
-                                              -{formatCurrency(transaction.amount)}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <div
-                                    className={`py-4 text-center text-sm text-gray-400 bg-${currentTheme.background}/30 rounded-lg border border-${currentTheme.border}`}
-                                  >
-                                    No recent transactions for this budget period
-                                  </div>
+                        <div className="p-4 sm:p-6 space-y-5 bg-white dark:bg-gray-800 rounded-xl shadow-lg" ref={budgetCardRef}>
+                          {/* Header section with better mobile layout */}
+                          <div className="flex flex-col space-y-4">
+                            {/* Budget title and tags */}
+                            <div className="flex flex-col space-y-2">
+                              <h3 className="text-xl font-bold text-gray-800 dark:text-white">{budget.name}</h3>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700 border border-indigo-300 dark:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-700">
+                                  {budget.period}
+                                </span>
+                                <span className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                                  <FaCalendarAlt className="mr-1" size={12} />
+                                  {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
+                                </span>
+                                {new Date() > new Date(budget.endDate) && (
+                                  <span className="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900 dark:text-amber-300 dark:border-amber-700">
+                                    Expired
+                                  </span>
+                                )}
+                                {new Date() < new Date(budget.startDate) && (
+                                  <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700">
+                                    Upcoming
+                                  </span>
                                 )}
                               </div>
+                            </div>
 
-                              {/* Notes section */}
-                              {budget.notes && (
-                                <div
-                                  className={`p-3 bg-${currentTheme.background}/50 rounded-lg border border-${currentTheme.border}`}
-                                >
-                                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                                    Notes
-                                  </h4>
-                                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{budget.notes}</p>
+                            {/* Budget progress card with enhanced mobile design */}
+                            <div className="w-full p-4 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shadow-sm">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Budget Progress</span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-medium ${
+                                    spentPercentage > 100
+                                      ? "text-red-600 dark:text-red-400"
+                                      : spentPercentage > 80
+                                        ? "text-yellow-600 dark:text-yellow-400"
+                                        : "text-green-600 dark:text-green-400"
+                                  }`}>
+                                    {Math.round(spentPercentage)}%
+                                  </span>
+                                  <div className={`w-3 h-3 rounded-full ${
+                                    spentPercentage > 100
+                                      ? "bg-red-500"
+                                      : spentPercentage > 80
+                                        ? "bg-yellow-500"
+                                        : "bg-green-500"
+                                  }`}></div>
                                 </div>
-                              )}
+                              </div>
+                              
+                              {/* Progress bar */}
+                              <div className="h-2.5 w-full bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden mb-3">
+                                <div
+                                  className={`h-full ${
+                                    spentPercentage > 100
+                                      ? "bg-red-500"
+                                      : spentPercentage > 80
+                                        ? "bg-yellow-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(spentPercentage, 100)}%` }}
+                                ></div>
+                              </div>
+                              
+                              {/* Key budget stats - better for mobile */}
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <div className="flex-1 p-2.5 rounded bg-white dark:bg-gray-800 text-center">
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Target</div>
+                                  <div className="text-sm font-medium text-gray-800 dark:text-white">
+                                    {formatCurrency(budget.targetAmount)}
+                                  </div>
+                                </div>
+                                <div className="flex-1 p-2.5 rounded bg-white dark:bg-gray-800 text-center">
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Spent</div>
+                                  <div className={`text-sm font-medium ${spentPercentage > 100 ? "text-red-600 dark:text-red-400" : "text-gray-800 dark:text-white"}`}>
+                                    {formatCurrency(spentAmount)}
+                                  </div>
+                                </div>
+                                <div className="flex-1 p-2.5 rounded bg-white dark:bg-gray-800 text-center">
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Remaining</div>
+                                  <div className={`text-sm font-medium ${budget.targetAmount - spentAmount < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+                                    {formatCurrency(Math.max(0, budget.targetAmount - spentAmount))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
 
-                              {/* Action buttons */}
-                              <div className="flex flex-wrap justify-end gap-2">
+                          {/* Budget categories - improved mobile layout */}
+                          <div className="pt-2">
+                            <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-3 uppercase tracking-wide">
+                              Budget Categories
+                            </h4>
+                            <div className="grid grid-cols-1 gap-3">
+                              {updatedCategories.map((category, idx) => {
+                                const categoryPercentage = (category.spent / category.allocated) * 100;
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`p-3 rounded-lg bg-white dark:bg-gray-700 border shadow-sm ${
+                                      category.spent > category.allocated
+                                        ? "border-red-300 dark:border-red-700"
+                                        : category.spent > category.allocated * 0.8
+                                          ? "border-yellow-300 dark:border-yellow-700"
+                                          : "border-gray-200 dark:border-gray-600"
+                                    }`}
+                                  >
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="flex items-center">
+                                        {/* Category icon */}
+                                        <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mr-2">
+                                          {category.name.toLowerCase().includes("food") ? (
+                                            <FaUtensils size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : category.name.toLowerCase().includes("transport") ? (
+                                            <FaCar size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : category.name.toLowerCase().includes("home") ||
+                                            category.name.toLowerCase().includes("rent") ? (
+                                            <FaHome size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : category.name.toLowerCase().includes("entertainment") ? (
+                                            <FaFilm size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : category.name.toLowerCase().includes("health") ? (
+                                            <FaMedkit size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : category.name.toLowerCase().includes("shopping") ? (
+                                            <FaShoppingBag size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : category.name.toLowerCase().includes("bill") ||
+                                            category.name.toLowerCase().includes("utility") ? (
+                                            <FaFileInvoiceDollar size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          ) : (
+                                            <FaTags size={12} className="text-indigo-600 dark:text-indigo-300" />
+                                          )}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-800 dark:text-white">{category.name}</span>
+                                      </div>
+                                      <span
+                                        className={`text-xs px-2 py-0.5 rounded-full ${
+                                          category.spent > category.allocated
+                                            ? "bg-red-100 text-red-700 border border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700"
+                                            : category.spent > category.allocated * 0.8
+                                              ? "bg-yellow-100 text-yellow-700 border border-yellow-300 dark:bg-yellow-900 dark:text-yellow-300 dark:border-yellow-700"
+                                              : "bg-green-100 text-green-700 border border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700"
+                                        }`}
+                                      >
+                                        {Math.round(categoryPercentage)}%
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Progress bar for category */}
+                                    <div className="h-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mb-2">
+                                      <div
+                                        className={`h-full ${
+                                          category.spent > category.allocated
+                                            ? "bg-red-500"
+                                            : category.spent > category.allocated * 0.8
+                                              ? "bg-yellow-500"
+                                              : "bg-green-500"
+                                        }`}
+                                        style={{ width: `${Math.min(categoryPercentage, 100)}%` }}
+                                      ></div>
+                                    </div>
+                                    
+                                    {/* Category stats */}
+                                    <div className="flex gap-2 text-xs mt-1">
+                                      <div className="flex-1 p-2 rounded bg-gray-50 dark:bg-gray-800 text-center">
+                                        <div className="text-gray-500 dark:text-gray-400 mb-0.5">Allocated</div>
+                                        <div className="font-medium text-gray-800 dark:text-white">
+                                          {formatCurrency(category.allocated)}
+                                        </div>
+                                      </div>
+                                      <div className="flex-1 p-2 rounded bg-gray-50 dark:bg-gray-800 text-center">
+                                        <div className="text-gray-500 dark:text-gray-400 mb-0.5">Spent</div>
+                                        <div className={`font-medium ${
+                                          category.spent > category.allocated
+                                            ? "text-red-600 dark:text-red-400"
+                                            : "text-gray-800 dark:text-white"
+                                        }`}>
+                                          {formatCurrency(category.spent)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Recent Transactions section - mobile optimized */}
+                          <div className="pt-2">
+                            <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-3 uppercase tracking-wide flex justify-between items-center">
+                              <span>Recent Transactions</span>
+                              <button
+                                onClick={() => {
+                                  const categoryNames = budget.categories?.map((cat) => cat.name) || [];
+                                  const categorySearchQuery = categoryNames.join(" OR ");
+                                  setSearchQuery(categorySearchQuery);
+                                  setActiveTab("transactions");
+                                }}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              >
+                                View All
+                              </button>
+                            </h4>
+                            
+                            {relevantTransactions.length > 0 ? (
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                {/* Desktop view */}
+                                <div className="hidden sm:block">
+                                  <table className="w-full text-left text-sm">
+                                    <thead className="bg-gray-100 dark:bg-gray-700">
+                                      <tr>
+                                        <th className="p-2 text-xs font-medium text-gray-600 dark:text-gray-300">Date</th>
+                                        <th className="p-2 text-xs font-medium text-gray-600 dark:text-gray-300">Description</th>
+                                        <th className="p-2 text-xs font-medium text-gray-600 dark:text-gray-300">Category</th>
+                                        <th className="p-2 text-xs font-medium text-gray-600 dark:text-gray-300 text-right">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                                      {relevantTransactions.slice(0, 5).map((transaction, idx) => (
+                                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                          <td className="p-2 text-gray-600 dark:text-gray-400">{formatDate(transaction.date)}</td>
+                                          <td className="p-2 text-gray-800 dark:text-gray-200">{transaction.description}</td>
+                                          <td className="p-2">
+                                            <span className="px-1.5 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                                              {(() => {
+                                                const category = categories.find((c) => c.id === transaction.category);
+                                                return category ? category.name : transaction.category;
+                                              })()}
+                                            </span>
+                                          </td>
+                                          <td className="p-2 text-right text-red-600 dark:text-red-400 font-medium">
+                                            -{formatCurrency(transaction.amount)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                
+                                {/* Mobile cards view */}
+                                <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                                  {relevantTransactions.slice(0, 5).map((transaction, idx) => (
+                                    <div key={idx} className="p-3 bg-white dark:bg-gray-800">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{transaction.description}</div>
+                                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(transaction.date)}</div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-sm font-medium text-red-600 dark:text-red-400">-{formatCurrency(transaction.amount)}</div>
+                                          <div className="mt-1">
+                                            <span className="px-1.5 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                                              {(() => {
+                                                const category = categories.find((c) => c.id === transaction.category);
+                                                return category ? category.name : transaction.category;
+                                              })()}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                No recent transactions for this budget period
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Notes section - enhanced for mobile */}
+                          {budget.notes && (
+                            <div className="pt-2">
+                              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider mb-2">
+                                  Notes
+                                </h4>
+                                <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{budget.notes}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                              <div className=" p-2 flex flex-col justify-end gap-2">
+
+                              <button
+                                  className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded border border-${currentTheme.accent}/30 flex items-center`}
+                                  onClick={() => generateBudgetReport(budget)}
+                                >
+                                  <FaDownload className="mr-1.5" size={12} /> Generate Report
+                                </button>
 
                                 <button
                                   className={`px-3 py-1.5 text-xs bg-${currentTheme.primary}/10 hover:bg-${currentTheme.primary}/20 text-${currentTheme.primary} rounded border border-${currentTheme.primary}/30 flex items-center`}
@@ -6024,7 +6111,6 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                   <FaEdit className="mr-1.5" size={12} /> Edit Budget
                                 </button>
                               </div>
-                            </div>
                           </motion.div>
                         </td>
                       </motion.tr>
