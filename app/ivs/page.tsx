@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag } from "react-icons/fa";
+  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, 
+  FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, 
+  FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
+  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -178,6 +181,7 @@ interface AppData {
     established?: string;
   }; // Add business info to AppData
   invoices: Invoice[]; // Add invoices to AppData
+  budgets: Budget[]; // Add budgets to AppData
 }
 
 // First, let's add a Theme interface and available themes
@@ -1294,11 +1298,11 @@ useEffect(() => {
 
   // Save data to localStorage whenever inventory or transactions change
   useEffect(() => {
-    if (inventory.length > 0 || transactions.length > 0 || receipts.length > 0) {
+    if (inventory.length > 0 || transactions.length > 0 || receipts.length > 0 || budgets.length > 0) {
       saveToLocalStorage();
       setDataChanged(true);
     }
-  }, [inventory, transactions, receipts, selectedCurrency]);
+  }, [inventory, transactions, receipts, selectedCurrency, budgets]);
 
   // Load theme from localStorage
   useEffect(() => {
@@ -1386,6 +1390,20 @@ useEffect(() => {
           }));
           setInvoices(loadedInvoices);
         }
+        
+        // Load budgets if they exist
+        if (parsedData.budgets) {
+          const loadedBudgets = parsedData.budgets.map(budget => ({
+            ...budget,
+            startDate: new Date(budget.startDate),
+            endDate: new Date(budget.endDate),
+            recentTransactions: budget.recentTransactions ? budget.recentTransactions.map(t => ({
+              ...t,
+              date: new Date(t.date)
+            })) : []
+          }));
+          setBudgets(loadedBudgets);
+        }
 
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
@@ -1415,7 +1433,8 @@ useEffect(() => {
         selectedTheme: currentTheme.id, // Save selected theme
         categories,
         businessInfo, // Save business info
-        invoices // Save invoices
+        invoices, // Save invoices
+        budgets   // Save budgets
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -1479,6 +1498,7 @@ useEffect(() => {
           categories,
           businessInfo, // Include business info in export
           invoices, // Include invoices in export
+          budgets,   // Include budgets in export
         };
         
         const json = JSON.stringify(dataToExport, null, 2);
@@ -1714,11 +1734,35 @@ useEffect(() => {
             setBusinessInfo(importedData.businessInfo);
           }
           
-          alert('Data imported successfully!');
+          // Load invoices if they exist
+          if (importedData.invoices) {
+            const loadedInvoices = importedData.invoices.map(invoice => ({
+              ...invoice,
+              date: new Date(invoice.date),
+              dueDate: new Date(invoice.dueDate)
+            }));
+            setInvoices(loadedInvoices);
+          }
+          
+          // Load budgets if they exist
+          if (importedData.budgets) {
+            const loadedBudgets = importedData.budgets.map(budget => ({
+              ...budget,
+              startDate: new Date(budget.startDate),
+              endDate: new Date(budget.endDate),
+              recentTransactions: budget.recentTransactions ? budget.recentTransactions.map(t => ({
+                ...t,
+                date: new Date(t.date)
+              })) : []
+            }));
+            setBudgets(loadedBudgets);
+          }
+          
+          toast.success('Data imported successfully!');
           
         } catch (error) {
           console.error('Failed to parse imported data:', error);
-          alert('The selected file contains invalid data. Please try again with a valid export file.');
+          toast.error('The selected file contains invalid data. Please try again with a valid export file.');
         }
       };
       
@@ -1726,7 +1770,7 @@ useEffect(() => {
       
     } catch (error) {
       console.error('Failed to import data:', error);
-      alert('Failed to import data. Please try again.');
+      toast.error('Failed to import data. Please try again.');
     }
     
     // Reset input
@@ -5435,432 +5479,610 @@ const generateInvoiceImage = async (invoice: Invoice) => {
 )}
 
             {/* Budgets Tab */}
-            {activeTab === "budgets" && (
-  <motion.div variants={fadeIn}>
-    <div className={`flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-3`}>
-      <div>
-        <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Budget Management</h2>
-        {searchQuery && (
-          <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-            Showing {filteredBudgets?.length || 0} {filteredBudgets?.length === 1 ? 'budget' : 'budgets'}
-          </p>
-        )}
+            {
+  activeTab === "budgets" && (
+    <motion.div variants={fadeIn}>
+      <div
+        className={`flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-3`}
+      >
+        <div>
+          <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Budget Management</h2>
+          {searchQuery && (
+            <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+              Showing {filteredBudgets?.length || 0} {filteredBudgets?.length === 1 ? "budget" : "budgets"}
+            </p>
+          )}
+        </div>
+        <button
+          className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+          onClick={() => {
+            setEditingBudget(null)
+            resetBudgetForm()
+            setShowBudgetModal(true)
+          }}
+        >
+          <FaPlus className="mr-2" /> Add Budget
+        </button>
       </div>
-      <button
-        className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-        onClick={() => {
-          setEditingBudget(null);
-          resetBudgetForm();
-          setShowBudgetModal(true);
-        }}
-      >
-        <FaPlus className="mr-2" /> Add Budget
-      </button>
-    </div>
 
-    {!filteredBudgets || filteredBudgets.length === 0 ? (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
-      >
-        {searchQuery ? (
-          <>
-            <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-            <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching budgets</h3>
-            <p className="text-gray-400 mt-2">Try different search terms</p>
-          </>
-        ) : (
-          <>
-            <FaChartPie className="mx-auto text-4xl text-gray-500 mb-4" />
-            <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No budgets created</h3>
-            <p className="text-gray-400 mt-2">Create your first budget to track income and expenses</p>
-            <button 
-              className={`mt-4 flex items-center mx-auto bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200`}
-              onClick={() => {
-                setEditingBudget(null);
-                resetBudgetForm();
-                setShowBudgetModal(true);
-              }}
-            >
-              <FaPlus className="mr-2" /> Create First Budget
-            </button>
-          </>
-        )}
-      </motion.div>
-    ) : (
-      <div className={`rounded-lg border border-${currentTheme.border} overflow-auto`}>
-        <table className="w-full text-left">
-          <thead className="sticky top-0">
-            <tr className={`bg-${currentTheme.background}`}>
-              <th className="p-4 text-gray-400 font-semibold whitespace-nowrap">Budget Name</th>
-              <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Period</th>
-              <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Date Range</th>
-              <th className="p-4 text-gray-400 font-semibold">Target Amount</th>
-              <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Status</th>
-              <th className="p-4 text-gray-400 font-semibold text-right">Actions</th>
-            </tr>
-          </thead>
-          <motion.tbody
-            variants={staggerContainer}
-            initial="hidden"
-            animate="visible"
-          >
-            {filteredBudgets.map((budget) => {
-              // Calculate spent amount based on transactions that match budget categories and date range
-              const budgetStart = new Date(budget.startDate);
-              const budgetEnd = new Date(budget.endDate);
-              
-              // Get all transactions that fall within this budget's date range and match its categories
-              const relevantTransactions = transactions.filter(transaction => {
-                // Check if transaction is within date range
-                const transactionDate = new Date(transaction.date);
-                const inDateRange = transactionDate >= budgetStart && transactionDate <= budgetEnd;
-                
-                // Check if transaction category matches any budget category
-                const matchesCategory = (budget.categories || []).some(
-                  budgetCat => budgetCat.name === 
-                    categories.find(c => c.id === transaction.category)?.name
-                );
-                
-                // Only count expenses towards budget spending
-                return inDateRange && matchesCategory && transaction.type === 'expense';
-              });
-              
-              // Calculate total spent amount from relevant transactions
-              const calculatedSpent = relevantTransactions.reduce(
-                (total, transaction) => total + transaction.amount, 0
-              );
-              
-              // Update each category's spent amount
-              const updatedCategories = budget.categories?.map(category => {
-                const categoryTransactions = relevantTransactions.filter(
-                  transaction => 
-                    categories.find(c => c.id === transaction.category)?.name === category.name
-                );
-                
-                const categorySpent = categoryTransactions.reduce(
-                  (total, transaction) => total + transaction.amount, 0
-                );
-                
-                return {
-                  ...category,
-                  spent: categorySpent
-                };
-              }) || [];
-              
-              // Use the calculated values or fallback to the stored values
-              const spentAmount = calculatedSpent || budget.spentAmount;
-              const spentPercentage = (spentAmount / budget.targetAmount) * 100;
-              
-              return (
-                <React.Fragment key={budget.id}>
-                  <motion.tr
-                    variants={tableRowVariant}
-                    className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 cursor-pointer`}
-                    onClick={() => {
-                      setExpandedBudget(expandedBudget === budget.id ? null : budget.id);
-                    }}
-                  >
-                    <td className={`p-4 text-${currentTheme.text} font-medium`}>
-                      <div className="flex items-center">
-                        <span className={`mr-2 ${expandedBudget === budget.id ? 'transform rotate-90' : ''} transition-transform duration-200`}>
-                          <FaChevronRight size={10} />
-                        </span>
-                        <div>
-                          <div>{budget.name}</div>
-                          <div className="text-xs text-gray-400 md:hidden">
-                            {budget.period} • {formatDate(budget.startDate)}
+      {!filteredBudgets || filteredBudgets.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+        >
+          {searchQuery ? (
+            <>
+              <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+              <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching budgets</h3>
+              <p className="text-gray-400 mt-2">Try different search terms</p>
+            </>
+          ) : (
+            <>
+              <FaChartPie className="mx-auto text-4xl text-gray-500 mb-4" />
+              <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No budgets created</h3>
+              <p className="text-gray-400 mt-2">Create your first budget to track income and expenses</p>
+              <button
+                className={`mt-4 flex items-center mx-auto bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200`}
+                onClick={() => {
+                  setEditingBudget(null)
+                  resetBudgetForm()
+                  setShowBudgetModal(true)
+                }}
+              >
+                <FaPlus className="mr-2" /> Create First Budget
+              </button>
+            </>
+          )}
+        </motion.div>
+      ) : (
+        <div className={`rounded-lg border border-${currentTheme.border} overflow-auto`}>
+          <table className="w-full text-left">
+            <thead className="sticky top-0">
+              <tr className={`bg-${currentTheme.background}`}>
+                <th className="p-4 text-gray-400 font-semibold whitespace-nowrap">Budget Name</th>
+                <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Period</th>
+                <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Date Range</th>
+                <th className="p-4 text-gray-400 font-semibold">Target Amount</th>
+                <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Status</th>
+                <th className="p-4 text-gray-400 font-semibold hidden lg:table-cell">Time Remaining</th>
+                <th className="p-4 text-gray-400 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <motion.tbody variants={staggerContainer} initial="hidden" animate="visible">
+              {filteredBudgets.map((budget) => {
+                // Calculate spent amount based on transactions that match budget categories and date range
+                const budgetStart = new Date(budget.startDate)
+                const budgetEnd = new Date(budget.endDate)
+
+                // Get all transactions that fall within this budget's date range and match its categories
+                const relevantTransactions = transactions.filter((transaction) => {
+                  // Check if transaction is within date range
+                  const transactionDate = new Date(transaction.date)
+                  const inDateRange = transactionDate >= budgetStart && transactionDate <= budgetEnd
+
+                  // Check if transaction category matches any budget category
+                  const matchesCategory = (budget.categories || []).some(
+                    (budgetCat) => budgetCat.name === categories.find((c) => c.id === transaction.category)?.name,
+                  )
+
+                  // Only count expenses towards budget spending
+                  return inDateRange && matchesCategory && transaction.type === "expense"
+                })
+
+                // Calculate total spent amount from relevant transactions
+                const calculatedSpent = relevantTransactions.reduce(
+                  (total, transaction) => total + transaction.amount,
+                  0,
+                )
+
+                // Update each category's spent amount
+                const updatedCategories =
+                  budget.categories?.map((category) => {
+                    const categoryTransactions = relevantTransactions.filter(
+                      (transaction) => categories.find((c) => c.id === transaction.category)?.name === category.name,
+                    )
+
+                    const categorySpent = categoryTransactions.reduce(
+                      (total, transaction) => total + transaction.amount,
+                      0,
+                    )
+
+                    return {
+                      ...category,
+                      spent: categorySpent,
+                    }
+                  }) || []
+
+                // Use the calculated values or fallback to the stored values
+                const spentAmount = calculatedSpent || budget.spentAmount
+                const spentPercentage = (spentAmount / budget.targetAmount) * 100
+
+                return (
+                  <React.Fragment key={budget.id}>
+                    <motion.tr
+                      variants={tableRowVariant}
+                      className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 cursor-pointer`}
+                      onClick={() => {
+                        setExpandedBudget(expandedBudget === budget.id ? null : budget.id)
+                      }}
+                    >
+                      <td className={`p-4 text-${currentTheme.text} font-medium`}>
+                        <div className="flex items-center">
+                          <span
+                            className={`mr-2 ${expandedBudget === budget.id ? "transform rotate-90" : ""} transition-transform duration-200`}
+                          >
+                            <FaChevronRight size={10} />
+                          </span>
+                          <div>
+                            <div>{budget.name}</div>
+                            <div className="text-xs text-gray-400 md:hidden">
+                              {budget.period} • {formatDate(budget.startDate)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className={`p-4 text-${currentTheme.text} hidden md:table-cell`}>{budget.period}</td>
-                    <td className={`p-4 text-${currentTheme.text} hidden md:table-cell whitespace-nowrap`}>
-                      {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
-                    </td>
-                    <td className={`p-4 text-${currentTheme.text} font-semibold`}>
-                      <div>
-                        {formatCurrency(budget.targetAmount)}
-                        <div className="text-xs font-normal text-gray-400 md:hidden">
-                          {`${spentPercentage.toFixed(0)}% used`}
+                      </td>
+                      <td className={`p-4 text-${currentTheme.text} hidden md:table-cell`}>{budget.period}</td>
+                      <td className={`p-4 text-${currentTheme.text} hidden md:table-cell whitespace-nowrap`}>
+                        {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
+                      </td>
+                      <td className={`p-4 text-${currentTheme.text} font-semibold`}>
+                        <div>
+                          {formatCurrency(budget.targetAmount)}
+                          <div className="text-xs font-normal text-gray-400 md:hidden">
+                            {`${spentPercentage.toFixed(0)}% used`}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-4 hidden md:table-cell">
-                      {(() => {
-                        if (spentPercentage >= 100) {
-                          return (
-                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`}>
-                              Over Budget ({spentPercentage.toFixed(0)}%)
-                            </span>
-                          );
-                        } else if (spentPercentage >= 80) {
-                          return (
-                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}>
-                              Near Limit ({spentPercentage.toFixed(0)}%)
-                            </span>
-                          );
-                        } else {
-                          return (
-                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`}>
-                              On Track ({spentPercentage.toFixed(0)}%)
-                            </span>
-                          );
-                        }
-                      })()}
-                    </td>
-                    <td className="p-4 space-x-2 text-right">
-                      <button
-                        className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingBudget(budget);
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteBudget(budget.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </motion.tr>
-                  
-                  {/* Expanded budget details */}
-                  {expandedBudget === budget.id && (
-                    <motion.tr 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className={`bg-${currentTheme.background}/30 border-b border-${currentTheme.border}`}
-                    >
-                      <td colSpan={6} className="p-0">
-                        <motion.div 
-                          initial={{ height: 0 }}
-                          animate={{ height: 'auto' }}
-                          exit={{ height: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="p-6 space-y-6">
-                            {/* Budget header */}
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                              <div>
-                                <h3 className={`text-lg font-bold text-${currentTheme.text}`}>
-                                  {budget.name}
-                                </h3>
-                                <p className="text-sm text-gray-400">
-                                  {budget.period} ({formatDate(budget.startDate)} - {formatDate(budget.endDate)})
-                                </p>
-                              </div>
-                              <div className={`px-3 py-2 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border}`}>
-                                <div className="flex items-center mb-1">
-                                  <span className="text-xs text-gray-400 mr-2">Budget Progress:</span>
-                                  <span className={`text-sm font-medium ${
-                                    spentPercentage > 100
-                                      ? `text-${currentTheme.danger}`
-                                      : `text-${currentTheme.accent}`
-                                  }`}>
-                                    {formatCurrency(spentAmount)} / {formatCurrency(budget.targetAmount)}
-                                  </span>
-                                </div>
-                                <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
-                                  <div 
-                                    className={`h-full ${
-                                      spentPercentage > 100
-                                        ? `bg-${currentTheme.danger}`
-                                        : spentPercentage > 80
-                                          ? `bg-${currentTheme.warning}`
-                                          : `bg-${currentTheme.success}`
-                                    }`}
-                                    style={{ width: `${Math.min(spentPercentage, 100)}%` }}
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        {(() => {
+                          if (spentPercentage >= 100) {
+                            return (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`}
+                              >
+                                Over Budget ({spentPercentage.toFixed(0)}%)
+                              </span>
+                            )
+                          } else if (spentPercentage >= 80) {
+                            return (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}
+                              >
+                                Near Limit ({spentPercentage.toFixed(0)}%)
+                              </span>
+                            )
+                          } else {
+                            return (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`}
+                              >
+                                On Track ({spentPercentage.toFixed(0)}%)
+                              </span>
+                            )
+                          }
+                        })()}
+                      </td>
+                      <td className="p-4 hidden lg:table-cell">
+                        {(() => {
+                          const now = new Date()
+                          const start = new Date(budget.startDate)
+                          const end = new Date(budget.endDate)
+
+                          // Calculate time remaining
+                          if (now > end) {
+                            return (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400 border border-gray-600`}
+                              >
+                                Completed
+                              </span>
+                            )
+                          } else if (now < start) {
+                            const daysToStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                            return (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}
+                              >
+                                Starts in {daysToStart} {daysToStart === 1 ? "day" : "days"}
+                              </span>
+                            )
+                          } else {
+                            const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+                            const daysElapsed = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+                            const daysRemaining = Math.max(
+                              0,
+                              Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+                            )
+                            const timePercentage = (daysElapsed / totalDays) * 100
+
+                            return (
+                              <div className="flex items-center">
+                                <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden mr-2">
+                                  <div
+                                    className={`h-full bg-${currentTheme.primary}`}
+                                    style={{ width: `${Math.min(timePercentage, 100)}%` }}
                                   ></div>
                                 </div>
-                                <div className="mt-1 text-right">
-                                  <span className="text-xs text-gray-400">
-                                    {Math.round(spentPercentage)}% used
-                                  </span>
-                                </div>
+                                <span className="text-xs text-gray-400">
+                                  {daysRemaining} {daysRemaining === 1 ? "day" : "days"} left
+                                </span>
                               </div>
-                            </div>
-                            
-                            {/* Budget categories */}
-                            <div>
-                              <h4 className={`text-sm font-medium text-${currentTheme.text} mb-2`}>Budget Categories</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {updatedCategories.map((category, idx) => {
-                                  const categoryPercentage = (category.spent / category.allocated) * 100;
-                                  return (
-                                    <div 
-                                      key={idx} 
-                                      className={`p-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border}`}
-                                    >
-                                      <div className="flex justify-between items-start mb-1">
-                                        <span className="text-sm font-medium text-gray-300">{category.name}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                          category.spent > category.allocated 
-                                            ? `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
-                                            : category.spent > category.allocated * 0.8
-                                              ? `bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`
-                                              : `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
-                                        }`}>
-                                          {Math.round(categoryPercentage)}%
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                        <span>Allocated: {formatCurrency(category.allocated)}</span>
-                                        <span>Spent: {formatCurrency(category.spent)}</span>
-                                      </div>
-                                      <div className="h-1.5 w-full bg-gray-700 rounded-full overflow-hidden">
-                                        <div 
-                                          className={`h-full ${
-                                            category.spent > category.allocated
-                                              ? `bg-${currentTheme.danger}`
-                                              : category.spent > category.allocated * 0.8
-                                                ? `bg-${currentTheme.warning}`
-                                                : `bg-${currentTheme.success}`
-                                          }`}
-                                          style={{ width: `${Math.min(categoryPercentage, 100)}%` }}
-                                        ></div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            
-                            {/* Related transactions */}
-                            <div>
-                              <h4 className={`text-sm font-medium text-${currentTheme.text} mb-2 flex justify-between items-center`}>
-                                <span>Recent Transactions</span>
-                                <button 
-                                  onClick={() => {
-                                    // Create a category filter instead of budget name
-                                    const categoryNames = budget.categories?.map(cat => cat.name) || [];
-                                    
-                                    // Construct a search query that will match any of these categories
-                                    const categorySearchQuery = categoryNames.join(" OR ");
-                                    
-                                    setSearchQuery(categorySearchQuery);
-                                    setActiveTab("transactions");
-                                  }}
-                                  className={`text-xs text-${currentTheme.accent} hover:text-${currentTheme.primary}`}
-                                >
-                                  View All
-                                </button>
-                              </h4>
-                              {relevantTransactions.length > 0 ? (
-                                <div className={`rounded-lg border border-${currentTheme.border} overflow-hidden`}>
-                                  <table className="w-full text-left text-sm">
-                                    <thead className={`bg-${currentTheme.background}`}>
-                                      <tr>
-                                        <th className="p-2 text-xs text-gray-400">Date</th>
-                                        <th className="p-2 text-xs text-gray-400">Description</th>
-                                        <th className="p-2 text-xs text-gray-400">Category</th>
-                                        <th className="p-2 text-xs text-gray-400 text-right">Amount</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className={`divide-y divide-${currentTheme.border}`}>
-                                      {relevantTransactions.slice(0, 5).map((transaction, idx) => (
-                                        <tr key={idx} className={`hover:bg-${currentTheme.background}/50`}>
-                                          <td className="p-2 text-gray-400">{formatDate(transaction.date)}</td>
-                                          <td className="p-2 text-gray-300">{transaction.description}</td>
-                                          <td className="p-2">
-                                            <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                                              `bg-${currentTheme.accent}/10 text-${currentTheme.accent}`
-                                            }`}>
-                                              {(() => {
-                                                const category = categories.find(c => c.id === transaction.category);
-                                                return category ? category.name : transaction.category;
-                                              })()}
-                                            </span>
-                                          </td>
-                                          <td className={`p-2 text-right text-${currentTheme.danger} font-medium`}>
-                                            -{formatCurrency(transaction.amount)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              ) : (
-                                <div className={`py-4 text-center text-sm text-gray-400 bg-${currentTheme.background}/30 rounded-lg border border-${currentTheme.border}`}>
-                                  No recent transactions for this budget period
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Notes section */}
-                            {budget.notes && (
-                              <div className={`p-3 bg-${currentTheme.background}/50 rounded-lg border border-${currentTheme.border}`}>
-                                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</h4>
-                                <p className="text-sm text-gray-300 whitespace-pre-wrap">{budget.notes}</p>
-                              </div>
-                            )}
-                            
-                            {/* Action buttons */}
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <button 
-                                className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded border border-${currentTheme.accent}/30 flex items-center`}
-                                onClick={() => {
-                                  // Generate budget report PDF using existing generateReceipt mechanism
-                                  const reportData = {
-                                    title: `Budget Report: ${budget.name}`,
-                                    date: new Date().toLocaleDateString(),
-                                    content: {
-                                      budget: budget.name,
-                                      period: budget.period,
-                                      dateRange: `${formatDate(budget.startDate)} - ${formatDate(budget.endDate)}`,
-                                      targetAmount: formatCurrency(budget.targetAmount),
-                                      spentAmount: formatCurrency(spentAmount),
-                                      remaining: formatCurrency(budget.targetAmount - spentAmount),
-                                      percentUsed: `${Math.round(spentPercentage)}%`,
-                                      categories: updatedCategories.map(cat => ({
-                                        name: cat.name,
-                                        allocated: formatCurrency(cat.allocated),
-                                        spent: formatCurrency(cat.spent),
-                                        remaining: formatCurrency(cat.allocated - cat.spent),
-                                        percentUsed: `${Math.round((cat.spent / cat.allocated) * 100)}%`
-                                      }))
-                                    }
-                                  };
-                                  
-                                  // generateReceiptImage(reportData, `Budget_${budget.name.replace(/\s+/g, '_')}`);
-                                }}
-                              >
-                                <FaDownload className="mr-1.5" size={12} /> Generate Report
-                              </button>
-                              
-                              <button 
-                                className={`px-3 py-1.5 text-xs bg-${currentTheme.primary}/10 hover:bg-${currentTheme.primary}/20 text-${currentTheme.primary} rounded border border-${currentTheme.primary}/30 flex items-center`}
-                                onClick={() => {
-                                  setEditingBudget(budget);
-                                }}
-                              >
-                                <FaEdit className="mr-1.5" size={12} /> Edit Budget
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
+                            )
+                          }
+                        })()}
+                      </td>
+                      <td className="p-4 space-x-2 text-right">
+                        <button
+                          className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingBudget(budget)
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteBudget(budget.id)
+                          }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     </motion.tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </motion.tbody>
-        </table>
-      </div>
-    )}
-  </motion.div>
-)}
+
+                    {/* Expanded budget details */}
+                    {expandedBudget === budget.id && (
+                      <motion.tr
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className={`bg-${currentTheme.background}/30 border-b border-${currentTheme.border}`}
+                      >
+                        <td colSpan={7} className="p-0">
+                          <motion.div
+                            initial={{ height: 0 }}
+                            animate={{ height: "auto" }}
+                            exit={{ height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-6 space-y-6">
+                              {/* Budget header */}
+                              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                  <h3 className={`text-lg font-bold text-${currentTheme.text}`}>{budget.name}</h3>
+                                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs bg-${currentTheme.accent}/10 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}
+                                    >
+                                      {budget.period}
+                                    </span>
+                                    <span className="text-sm text-gray-400 flex items-center">
+                                      <FaCalendarAlt className="mr-1" size={12} />
+                                      {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
+                                    </span>
+                                    {new Date() > new Date(budget.endDate) && (
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-xs bg-${currentTheme.warning}/10 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}
+                                      >
+                                        Expired
+                                      </span>
+                                    )}
+                                    {new Date() < new Date(budget.startDate) && (
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-xs bg-${currentTheme.accent}/10 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}
+                                      >
+                                        Upcoming
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div
+                                  className={`px-4 py-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border}`}
+                                >
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm font-medium text-gray-300">Budget Progress</span>
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className={`text-sm font-medium ${
+                                          spentPercentage > 100
+                                            ? `text-${currentTheme.danger}`
+                                            : spentPercentage > 80
+                                              ? `text-${currentTheme.warning}`
+                                              : `text-${currentTheme.success}`
+                                        }`}
+                                      >
+                                        {Math.round(spentPercentage)}%
+                                      </span>
+                                      <div
+                                        className={`w-3 h-3 rounded-full ${
+                                          spentPercentage > 100
+                                            ? `bg-${currentTheme.danger}`
+                                            : spentPercentage > 80
+                                              ? `bg-${currentTheme.warning}`
+                                              : `bg-${currentTheme.success}`
+                                        }`}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                  <div className="h-2.5 w-full bg-gray-700 rounded-full overflow-hidden mb-2">
+                                    <div
+                                      className={`h-full ${
+                                        spentPercentage > 100
+                                          ? `bg-${currentTheme.danger}`
+                                          : spentPercentage > 80
+                                            ? `bg-${currentTheme.warning}`
+                                            : `bg-${currentTheme.success}`
+                                      }`}
+                                      style={{ width: `${Math.min(spentPercentage, 100)}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
+                                      <div className="text-xs text-gray-400">Target</div>
+                                      <div className={`text-sm font-medium text-${currentTheme.text}`}>
+                                        {formatCurrency(budget.targetAmount)}
+                                      </div>
+                                    </div>
+                                    <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
+                                      <div className="text-xs text-gray-400">Spent</div>
+                                      <div
+                                        className={`text-sm font-medium ${spentPercentage > 100 ? `text-${currentTheme.danger}` : `text-${currentTheme.text}`}`}
+                                      >
+                                        {formatCurrency(spentAmount)}
+                                      </div>
+                                    </div>
+                                    <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
+                                      <div className="text-xs text-gray-400">Remaining</div>
+                                      <div
+                                        className={`text-sm font-medium ${budget.targetAmount - spentAmount < 0 ? `text-${currentTheme.danger}` : `text-${currentTheme.success}`}`}
+                                      >
+                                        {formatCurrency(Math.max(0, budget.targetAmount - spentAmount))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Budget categories */}
+                              <div>
+                                <h4 className={`text-sm font-medium text-${currentTheme.text} mb-2`}>
+                                  Budget Categories
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {updatedCategories.map((category, idx) => {
+                                    const categoryPercentage = (category.spent / category.allocated) * 100
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className={`p-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border} ${
+                                          category.spent > category.allocated
+                                            ? `border-${currentTheme.danger}/30`
+                                            : category.spent > category.allocated * 0.8
+                                              ? `border-${currentTheme.warning}/30`
+                                              : ""
+                                        }`}
+                                      >
+                                        <div className="flex justify-between items-start mb-2">
+                                          <div className="flex items-center">
+                                            {/* Find the category icon based on name or use a default */}
+                                            <div
+                                              className={`w-6 h-6 rounded-full bg-${currentTheme.accent}/10 flex items-center justify-center mr-2`}
+                                            >
+                                              {category.name.toLowerCase().includes("food") ? (
+                                                <FaUtensils size={12} className={`text-${currentTheme.accent}`} />
+                                              ) : category.name.toLowerCase().includes("transport") ? (
+                                                <FaCar size={12} className={`text-${currentTheme.accent}`} />
+                                              ) : category.name.toLowerCase().includes("home") ||
+                                                category.name.toLowerCase().includes("rent") ? (
+                                                <FaHome size={12} className={`text-${currentTheme.accent}`} />
+                                              ) : category.name.toLowerCase().includes("entertainment") ? (
+                                                <FaFilm size={12} className={`text-${currentTheme.accent}`} />
+                                              ) : category.name.toLowerCase().includes("health") ? (
+                                                <FaMedkit size={12} className={`text-${currentTheme.accent}`} />
+                                              ) : category.name.toLowerCase().includes("shopping") ? (
+                                                <FaShoppingBag size={12} className={`text-${currentTheme.accent}`} />
+                                              ) : category.name.toLowerCase().includes("bill") ||
+                                                category.name.toLowerCase().includes("utility") ? (
+                                                <FaFileInvoiceDollar
+                                                  size={12}
+                                                  className={`text-${currentTheme.accent}`}
+                                                />
+                                              ) : (
+                                                <FaTags size={12} className={`text-${currentTheme.accent}`} />
+                                              )}
+                                            </div>
+                                            <span className="text-sm font-medium text-gray-300">{category.name}</span>
+                                          </div>
+                                          <span
+                                            className={`text-xs px-2 py-0.5 rounded-full ${
+                                              category.spent > category.allocated
+                                                ? `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                                                : category.spent > category.allocated * 0.8
+                                                  ? `bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`
+                                                  : `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
+                                            }`}
+                                          >
+                                            {Math.round(categoryPercentage)}%
+                                          </span>
+                                        </div>
+                                        <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden mb-2">
+                                          <div
+                                            className={`h-full ${
+                                              category.spent > category.allocated
+                                                ? `bg-${currentTheme.danger}`
+                                                : category.spent > category.allocated * 0.8
+                                                  ? `bg-${currentTheme.warning}`
+                                                  : `bg-${currentTheme.success}`
+                                            }`}
+                                            style={{ width: `${Math.min(categoryPercentage, 100)}%` }}
+                                          ></div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          <div className={`p-1.5 rounded bg-${currentTheme.background}/50 text-center`}>
+                                            <div className="text-gray-400 mb-0.5">Allocated</div>
+                                            <div className="font-medium text-gray-300">
+                                              {formatCurrency(category.allocated)}
+                                            </div>
+                                          </div>
+                                          <div className={`p-1.5 rounded bg-${currentTheme.background}/50 text-center`}>
+                                            <div className="text-gray-400 mb-0.5">Spent</div>
+                                            <div
+                                              className={`font-medium ${
+                                                category.spent > category.allocated
+                                                  ? `text-${currentTheme.danger}`
+                                                  : "text-gray-300"
+                                              }`}
+                                            >
+                                              {formatCurrency(category.spent)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Related transactions */}
+                              <div>
+                                <h4
+                                  className={`text-sm font-medium text-${currentTheme.text} mb-2 flex justify-between items-center`}
+                                >
+                                  <span>Recent Transactions</span>
+                                  <button
+                                    onClick={() => {
+                                      // Create a category filter instead of budget name
+                                      const categoryNames = budget.categories?.map((cat) => cat.name) || []
+
+                                      // Construct a search query that will match any of these categories
+                                      const categorySearchQuery = categoryNames.join(" OR ")
+
+                                      setSearchQuery(categorySearchQuery)
+                                      setActiveTab("transactions")
+                                    }}
+                                    className={`text-xs text-${currentTheme.accent} hover:text-${currentTheme.primary}`}
+                                  >
+                                    View All
+                                  </button>
+                                </h4>
+                                {relevantTransactions.length > 0 ? (
+                                  <div className={`rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+                                    <table className="w-full text-left text-sm">
+                                      <thead className={`bg-${currentTheme.background}`}>
+                                        <tr>
+                                          <th className="p-2 text-xs text-gray-400">Date</th>
+                                          <th className="p-2 text-xs text-gray-400">Description</th>
+                                          <th className="p-2 text-xs text-gray-400">Category</th>
+                                          <th className="p-2 text-xs text-gray-400 text-right">Amount</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className={`divide-y divide-${currentTheme.border}`}>
+                                        {relevantTransactions.slice(0, 5).map((transaction, idx) => (
+                                          <tr key={idx} className={`hover:bg-${currentTheme.background}/50`}>
+                                            <td className="p-2 text-gray-400">{formatDate(transaction.date)}</td>
+                                            <td className="p-2 text-gray-300">{transaction.description}</td>
+                                            <td className="p-2">
+                                              <span
+                                                className={`px-1.5 py-0.5 rounded-full text-xs ${`bg-${currentTheme.accent}/10 text-${currentTheme.accent}`}`}
+                                              >
+                                                {(() => {
+                                                  const category = categories.find((c) => c.id === transaction.category)
+                                                  return category ? category.name : transaction.category
+                                                })()}
+                                              </span>
+                                            </td>
+                                            <td className={`p-2 text-right text-${currentTheme.danger} font-medium`}>
+                                              -{formatCurrency(transaction.amount)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`py-4 text-center text-sm text-gray-400 bg-${currentTheme.background}/30 rounded-lg border border-${currentTheme.border}`}
+                                  >
+                                    No recent transactions for this budget period
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Notes section */}
+                              {budget.notes && (
+                                <div
+                                  className={`p-3 bg-${currentTheme.background}/50 rounded-lg border border-${currentTheme.border}`}
+                                >
+                                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                                    Notes
+                                  </h4>
+                                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{budget.notes}</p>
+                                </div>
+                              )}
+
+                              {/* Action buttons */}
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <button
+                                  className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded border border-${currentTheme.accent}/30 flex items-center`}
+                                  onClick={() => {
+                                    // Generate budget report PDF using existing generateReceipt mechanism
+                                    const reportData = {
+                                      title: `Budget Report: ${budget.name}`,
+                                      date: new Date().toLocaleDateString(),
+                                      content: {
+                                        budget: budget.name,
+                                        period: budget.period,
+                                        dateRange: `${formatDate(budget.startDate)} - ${formatDate(budget.endDate)}`,
+                                        targetAmount: formatCurrency(budget.targetAmount),
+                                        spentAmount: formatCurrency(spentAmount),
+                                        remaining: formatCurrency(budget.targetAmount - spentAmount),
+                                        percentUsed: `${Math.round(spentPercentage)}%`,
+                                        categories: updatedCategories.map((cat) => ({
+                                          name: cat.name,
+                                          allocated: formatCurrency(cat.allocated),
+                                          spent: formatCurrency(cat.spent),
+                                          remaining: formatCurrency(cat.allocated - cat.spent),
+                                          percentUsed: `${Math.round((cat.spent / cat.allocated) * 100)}%`,
+                                        })),
+                                      },
+                                    }
+
+                                    // generateReceiptImage(reportData, `Budget_${budget.name.replace(/\s+/g, '_')}`);
+                                  }}
+                                >
+                                  <FaDownload className="mr-1.5" size={12} /> Generate Report
+                                </button>
+
+                                <button
+                                  className={`px-3 py-1.5 text-xs bg-${currentTheme.primary}/10 hover:bg-${currentTheme.primary}/20 text-${currentTheme.primary} rounded border border-${currentTheme.primary}/30 flex items-center`}
+                                  onClick={() => {
+                                    setEditingBudget(budget)
+                                  }}
+                                >
+                                  <FaEdit className="mr-1.5" size={12} /> Edit Budget
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </td>
+                      </motion.tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </motion.tbody>
+          </table>
+        </div>
+      )}
+    </motion.div>
+  )
+}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -6851,6 +7073,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
           </label>
           <select
             name="period"
+            title="Budget period"
             value={budgetFormData.period}
             onChange={(e) => {
               const newPeriod = e.target.value;
@@ -6999,6 +7222,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
               <div className="col-span-2">
                 <select
                   name="name"
+                  title="Budget category"
                   value={tempBudgetCategory.name === "new" ? "" : tempBudgetCategory.name}
                   onChange={(e) => {
                     const value = e.target.value;
