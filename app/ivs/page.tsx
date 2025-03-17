@@ -1171,21 +1171,7 @@ export default function BookKeepingSystem() {
       danger: "red-600",
       warning: "amber-500"
     },
-    {
-      id: "navy",
-      name: "Navy",
-      primary: "blue-600",
-      secondary: "sky-500",
-      accent: "blue-400",
-      background: "slate-900",
-      cardBackground: "slate-800",
-      text: "white",
-      border: "blue-900",
-      buttonText: "white", 
-      success: "emerald-500",
-      danger: "rose-500",
-      warning: "amber-500"
-    }
+
   ];
   
   // Theme state
@@ -3350,7 +3336,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
             <FaBook className={`mr-2 text-${currentTheme.accent}`} />
             {businessInfo.name || "BookKeep Pro"}
           </h1>
-          <div className="flex flex-col sm:flex-row items-center space-x-0 space-y-2 sm:space-y-0 sm:space-x-4">
+          <div className="flex flex-col md:flex-row items-center space-x-0 space-y-2 sm:space-y-0 sm:space-x-4">
             {/* Data Actions */}
             <div className="flex space-x-2">
               {/* Theme Selector Button */}
@@ -3367,7 +3353,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                 </button>
                 
                 {showThemeSelector && (
-                  <div className={`absolute right-0 mt-2 w-48 bg-${currentTheme.cardBackground} rounded-md shadow-lg z-10 py-1 border border-${currentTheme.border} overflow-hidden animate-fadeIn`}>
+                  <div className={`absolute left-0 md:right-0 mt-2 w-48 bg-${currentTheme.cardBackground} rounded-md shadow-lg z-10 py-1 border border-${currentTheme.border} overflow-hidden animate-fadeIn`}>
                     {themes.map((theme) => (
                       <button
                         key={theme.id}
@@ -5640,7 +5626,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                           if (spentPercentage >= 100) {
                             return (
                               <span
-                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`}
+                                className={`px-2 py-1 rounded-full text-xs bg-red-200 text-red-700 border border-red-300`}
                               >
                                 Over Budget ({spentPercentage.toFixed(0)}%)
                               </span>
@@ -5648,7 +5634,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                           } else if (spentPercentage >= 80) {
                             return (
                               <span
-                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}
+                                className={`px-2 py-1 rounded-full text-xs bg-yellow-200 text-yellow-700 border border-yellow-300`}
                               >
                                 Near Limit ({spentPercentage.toFixed(0)}%)
                               </span>
@@ -5656,7 +5642,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                           } else {
                             return (
                               <span
-                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`}
+                                className={`px-2 py-1 rounded-full text-xs bg-green-200 text-green-700 border border-green-300`}
                               >
                                 On Track ({spentPercentage.toFixed(0)}%)
                               </span>
@@ -5683,7 +5669,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                             const daysToStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
                             return (
                               <span
-                                className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}
+                                className={`px-2 py-1 rounded-full text-xs bg-blue-200 text-blue-700 border border-blue-300`}
                               >
                                 Starts in {daysToStart} {daysToStart === 1 ? "day" : "days"}
                               </span>
@@ -5701,7 +5687,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                               <div className="flex items-center">
                                 <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden mr-2">
                                   <div
-                                    className={`h-full bg-${currentTheme.primary}`}
+                                    className={`h-full bg-blue-500`}
                                     style={{ width: `${Math.min(timePercentage, 100)}%` }}
                                   ></div>
                                 </div>
@@ -5714,7 +5700,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                         })()}
                       </td>
                       <td className="p-4 space-x-2 text-right">
-                        <button
+                        {/* <button
                           className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
                           onClick={(e) => {
                             e.stopPropagation()
@@ -5722,7 +5708,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                           }}
                         >
                           Edit
-                        </button>
+                        </button> */}
                         <button
                           className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
                           onClick={(e) => {
@@ -5791,10 +5777,10 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                       <span
                                         className={`text-sm font-medium ${
                                           spentPercentage > 100
-                                            ? `text-${currentTheme.danger}`
+                                            ? `text-red-500`
                                             : spentPercentage > 80
-                                              ? `text-${currentTheme.warning}`
-                                              : `text-${currentTheme.success}`
+                                              ? `text-yellow-500`
+                                              : `text-green-500`
                                         }`}
                                       >
                                         {Math.round(spentPercentage)}%
@@ -5802,10 +5788,10 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                       <div
                                         className={`w-3 h-3 rounded-full ${
                                           spentPercentage > 100
-                                            ? `bg-${currentTheme.danger}`
+                                            ? `bg-red-500`
                                             : spentPercentage > 80
-                                              ? `bg-${currentTheme.warning}`
-                                              : `bg-${currentTheme.success}`
+                                              ? `bg-yellow-500`
+                                              : `bg-green-500`
                                         }`}
                                       ></div>
                                     </div>
@@ -5814,10 +5800,10 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                     <div
                                       className={`h-full ${
                                         spentPercentage > 100
-                                          ? `bg-${currentTheme.danger}`
+                                          ? `bg-red-500`
                                           : spentPercentage > 80
-                                            ? `bg-${currentTheme.warning}`
-                                            : `bg-${currentTheme.success}`
+                                            ? `bg-yellow-500`
+                                            : `bg-green-500`
                                       }`}
                                       style={{ width: `${Math.min(spentPercentage, 100)}%` }}
                                     ></div>
@@ -5832,7 +5818,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                     <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
                                       <div className="text-xs text-gray-400">Spent</div>
                                       <div
-                                        className={`text-sm font-medium ${spentPercentage > 100 ? `text-${currentTheme.danger}` : `text-${currentTheme.text}`}`}
+                                        className={`text-sm font-medium ${spentPercentage > 100 ? `text-red-500` : `text-${currentTheme.text}`}`}
                                       >
                                         {formatCurrency(spentAmount)}
                                       </div>
@@ -5840,7 +5826,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                     <div className={`p-2 rounded bg-${currentTheme.background}/50`}>
                                       <div className="text-xs text-gray-400">Remaining</div>
                                       <div
-                                        className={`text-sm font-medium ${budget.targetAmount - spentAmount < 0 ? `text-${currentTheme.danger}` : `text-${currentTheme.success}`}`}
+                                        className={`text-sm font-medium ${budget.targetAmount - spentAmount < 0 ? `text-red-500` : `text-${currentTheme.success}`}`}
                                       >
                                         {formatCurrency(Math.max(0, budget.targetAmount - spentAmount))}
                                       </div>
@@ -5862,9 +5848,9 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                         key={idx}
                                         className={`p-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border} ${
                                           category.spent > category.allocated
-                                            ? `border-${currentTheme.danger}/30`
+                                            ? `border-red-300`
                                             : category.spent > category.allocated * 0.8
-                                              ? `border-${currentTheme.warning}/30`
+                                              ? `border-yellow-300`
                                               : ""
                                         }`}
                                       >
@@ -5902,10 +5888,10 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                           <span
                                             className={`text-xs px-2 py-0.5 rounded-full ${
                                               category.spent > category.allocated
-                                                ? `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                                                ? `bg-red-200 text-red-700 border border-red-300`
                                                 : category.spent > category.allocated * 0.8
-                                                  ? `bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`
-                                                  : `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
+                                                  ? `bg-yellow-200 text-yellow-700 border border-yellow-300`
+                                                  : `bg-green-200 text-green-700 border border-green-300`
                                             }`}
                                           >
                                             {Math.round(categoryPercentage)}%
@@ -5915,10 +5901,10 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                           <div
                                             className={`h-full ${
                                               category.spent > category.allocated
-                                                ? `bg-${currentTheme.danger}`
+                                                ? `bg-red-500`
                                                 : category.spent > category.allocated * 0.8
-                                                  ? `bg-${currentTheme.warning}`
-                                                  : `bg-${currentTheme.success}`
+                                                  ? `bg-yellow-500`
+                                                  : `bg-green-500`
                                             }`}
                                             style={{ width: `${Math.min(categoryPercentage, 100)}%` }}
                                           ></div>
@@ -5935,7 +5921,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                             <div
                                               className={`font-medium ${
                                                 category.spent > category.allocated
-                                                  ? `text-${currentTheme.danger}`
+                                                  ? `text-red-500`
                                                   : "text-gray-300"
                                               }`}
                                             >
@@ -5997,7 +5983,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                                                 })()}
                                               </span>
                                             </td>
-                                            <td className={`p-2 text-right text-${currentTheme.danger} font-medium`}>
+                                            <td className={`p-2 text-right text-red-500 font-medium`}>
                                               -{formatCurrency(transaction.amount)}
                                             </td>
                                           </tr>
@@ -6028,36 +6014,6 @@ const generateInvoiceImage = async (invoice: Invoice) => {
 
                               {/* Action buttons */}
                               <div className="flex flex-wrap justify-end gap-2">
-                                <button
-                                  className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded border border-${currentTheme.accent}/30 flex items-center`}
-                                  onClick={() => {
-                                    // Generate budget report PDF using existing generateReceipt mechanism
-                                    const reportData = {
-                                      title: `Budget Report: ${budget.name}`,
-                                      date: new Date().toLocaleDateString(),
-                                      content: {
-                                        budget: budget.name,
-                                        period: budget.period,
-                                        dateRange: `${formatDate(budget.startDate)} - ${formatDate(budget.endDate)}`,
-                                        targetAmount: formatCurrency(budget.targetAmount),
-                                        spentAmount: formatCurrency(spentAmount),
-                                        remaining: formatCurrency(budget.targetAmount - spentAmount),
-                                        percentUsed: `${Math.round(spentPercentage)}%`,
-                                        categories: updatedCategories.map((cat) => ({
-                                          name: cat.name,
-                                          allocated: formatCurrency(cat.allocated),
-                                          spent: formatCurrency(cat.spent),
-                                          remaining: formatCurrency(cat.allocated - cat.spent),
-                                          percentUsed: `${Math.round((cat.spent / cat.allocated) * 100)}%`,
-                                        })),
-                                      },
-                                    }
-
-                                    // generateReceiptImage(reportData, `Budget_${budget.name.replace(/\s+/g, '_')}`);
-                                  }}
-                                >
-                                  <FaDownload className="mr-1.5" size={12} /> Generate Report
-                                </button>
 
                                 <button
                                   className={`px-3 py-1.5 text-xs bg-${currentTheme.primary}/10 hover:bg-${currentTheme.primary}/20 text-${currentTheme.primary} rounded border border-${currentTheme.primary}/30 flex items-center`}
@@ -6082,8 +6038,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
       )}
     </motion.div>
   )
-}
-          </motion.div>
+}        </motion.div>
         </motion.div>
       </AnimatePresence>
 
@@ -8622,7 +8577,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
 
       {/* Animate theme switch */}
       <AnimatePresence>
-        {showThemeSelector && (
+        {/* {showThemeSelector && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -8648,7 +8603,7 @@ const generateInvoiceImage = async (invoice: Invoice) => {
               </button>
             ))}
           </motion.div>
-        )}
+        )} */}
       </AnimatePresence>
 
       {/* Receipt Preview Modal */}
