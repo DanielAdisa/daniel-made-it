@@ -5,7 +5,7 @@ import { FaBook, FaBoxOpen, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, Fa
   FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, 
   FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, 
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
-  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags } from "react-icons/fa";
+  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -8693,211 +8693,358 @@ const generateBudgetReport = async (budget: Budget) => {
       </AnimatePresence>
 
       {/* Receipt Preview Modal */}
-      <AnimatePresence>
-        {showReceiptPreview && viewingReceipt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={`bg-${currentTheme.cardBackground} rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} overflow-hidden`}
-              onClick={(e) => e.stopPropagation()}
+<AnimatePresence>
+  {showReceiptPreview && viewingReceipt && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className={`bg-${currentTheme.cardBackground} rounded-xl shadow-2xl w-full max-w-lg border border-${currentTheme.border} overflow-hidden`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`flex justify-between items-center px-6 py-4 bg-${currentTheme.background} border-b border-${currentTheme.border}`}>
+          <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+            {viewingReceipt.type === "expense" ? (
+              <FaFileInvoice className={`mr-2 text-${currentTheme.danger}`} />
+            ) : (
+              <FaFileInvoiceDollar className={`mr-2 text-${currentTheme.success}`} />
+            )}
+            {viewingReceipt.type === "expense" ? "Expense Receipt" : "Sales Receipt"}
+          </h3>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={generateReceiptImage}
+              disabled={isLoading}
+              className={`p-2 rounded-full bg-${currentTheme.primary}/20 text-${currentTheme.primary} hover:bg-${currentTheme.primary}/30 transition-colors duration-200 group relative`}
+              title="Download receipt"
             >
-              <div className={`flex justify-between items-center px-6 py-4 bg-${currentTheme.background} border-b border-${currentTheme.border}`}>
-                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                  <FaBook className={`mr-2 text-${currentTheme.accent}`} />
-                  {viewingReceipt.type === "expense" ? "Expense Receipt" : "Receipt"}
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={generateReceiptImage}
-                    disabled={isLoading}
-                    className={`p-2 rounded-full bg-${currentTheme.primary}/20 text-${currentTheme.primary} hover:bg-${currentTheme.primary}/30 transition-colors duration-200`}
-                    title="Download receipt"
-                  >
-                    {isLoading ? <FaSync className="animate-spin" /> : <FaDownload />}
-                  </button>
-                  <button
-                    onClick={() => setShowReceiptPreview(false)}
-                    className={`p-2 rounded-full bg-${currentTheme.background}/50 text-gray-400 hover:bg-${currentTheme.background} transition-colors duration-200`}
-                    title="Close"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
+              {isLoading ? <FaSync className="animate-spin" /> : <FaDownload />}
+              <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Download</span>
+            </button>
+            {/* <button
+              onClick={() => {
+                // Optional: Add functionality to share receipt
+                alert("Share functionality would go here");
+              }}
+              className={`p-2 rounded-full bg-${currentTheme.accent}/20 text-${currentTheme.accent} hover:bg-${currentTheme.accent}/30 transition-colors duration-200 group relative`}
+              title="Share receipt"
+            >
+              <FaShare className="h-4 w-4" />
+              <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Share</span>
+            </button> */}
+            <button
+              onClick={() => setShowReceiptPreview(false)}
+              className={`p-2 rounded-full bg-${currentTheme.background}/50 text-gray-400 hover:bg-${currentTheme.background} transition-colors duration-200 group relative`}
+              title="Close"
+            >
+              <FaTimes />
+              <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Close</span>
+            </button>
+          </div>
+        </div>
 
-              <div className="px-6 py-5 overflow-y-auto max-h-[70vh]">
-                {/* Receipt card design - this will be captured to image */}
-                <div
-                  ref={cardRef}
-                  className={`bg-white text-gray-800 p-6 rounded-lg shadow-md ${viewingReceipt.type === "expense" ? "border-l-4 border-rose-500" : "border-l-4 border-emerald-500"}`}
-                  style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}
+        <div className="px-6 py-5 overflow-y-auto max-h-[70vh]">
+          {/* Receipt card design - this will be captured to image */}
+          <div
+            ref={cardRef}
+            className={`bg-white text-gray-800 p-6 rounded-lg shadow-xl ${
+              viewingReceipt.type === "expense" 
+                ? "border-t-8 border-t-rose-500" 
+                : "border-t-8 border-t-emerald-500"
+            }`}
+            style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}
+          >
+            {/* Business header section with logo option */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.name}</h2>
+                <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
+                  {viewingReceipt.type === "expense" ? "Expense Receipt" : "Official Receipt"}
+                </p>
+              </div>
+              {/* Optional: Business logo could be added here */}
+              <div className="h-16 w-16 bg-gray-100 rounded-md flex items-center justify-center">
+                <FaStore className="text-gray-400 text-2xl" />
+              </div>
+            </div>
+            
+            {/* Business contact info bar */}
+            <div className="bg-gray-50 rounded-md p-3 mb-6 text-xs text-gray-500 flex flex-wrap justify-between">
+              {businessInfo.address && (
+                <div className="flex items-center mr-4 mb-1">
+                  <FaMapMarkerAlt className="mr-1 text-gray-400" />
+                  <span style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.address}</span>
+                </div>
+              )}
+              {businessInfo.phone && (
+                <div className="flex items-center mr-4 mb-1">
+                  <FaPhone className="mr-1 text-gray-400" />
+                  <span style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.phone}</span>
+                </div>
+              )}
+              {businessInfo.email && (
+                <div className="flex items-center mb-1">
+                  <FaEnvelope className="mr-1 text-gray-400" />
+                  <span style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.email}</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Receipt header with badge and receipt number */}
+            <div className="flex flex-wrap items-center justify-between mb-6">
+              <div className="flex items-center">
+                <span 
+                  className={`inline-block rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                    viewingReceipt.type === "income" 
+                      ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200" 
+                      : "bg-rose-100 text-rose-700 ring-1 ring-rose-200"
+                  }`}
+                  style={{ fontFamily: "Arial, sans-serif" }}
                 >
-                  {/* Business section at the top */}
-                  <div className="text-center border-b border-gray-200 pb-4 mb-4">
-                    <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.name}</h2>
-                    <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
-                      {viewingReceipt.type === "expense" ? "Expense Receipt" : "Official Receipt"}
-                    </p>
-                    {businessInfo.address && (
-                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.address}</p>
-                    )}
-                    {businessInfo.phone && (
-                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{businessInfo.phone}</p>
-                    )}
-                  </div>
-                  
-                  {/* Receipt metadata */}
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>Receipt No.</p>
-                      <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>
-                        {viewingReceipt.id.slice(-8).toUpperCase()}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>Date</p>
-                      <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>
-                        {viewingReceipt.date.toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Transaction type badge */}
-                  <div className="mb-4">
-                    <span 
-                      className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${
-                        viewingReceipt.type === "income" 
-                          ? "bg-emerald-100 text-emerald-700" 
-                          : "bg-rose-100 text-rose-700"
-                      }`}
-                      style={{ fontFamily: "Arial, sans-serif" }}
-                    >
-                      {viewingReceipt.type === "income" ? "INCOME" : "EXPENSE"}
-                    </span>
-                  </div>
+                  {viewingReceipt.type === "income" ? "INCOME" : "EXPENSE"}
+                </span>
+                <span className="ml-2 text-gray-400 text-sm" style={{ fontFamily: "Arial, sans-serif" }}>
+                  Receipt #{viewingReceipt.id.slice(-8).toUpperCase()}
+                </span>
+              </div>
+              <div className="text-right mt-2 sm:mt-0">
+                <p className="text-xs text-gray-400" style={{ fontFamily: "Arial, sans-serif" }}>Date Issued</p>
+                <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>
+                  {new Intl.DateTimeFormat('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  }).format(new Date(viewingReceipt.date))}
+                </p>
+              </div>
+            </div>
 
-                  {/* Customer/Vendor details */}
-                  <div className="border border-gray-200 rounded-md p-3 mb-4 bg-gray-50">
-                    <h3 className="font-medium text-sm text-gray-800 mb-1" style={{ fontFamily: "Arial, sans-serif" }}>
-                      {viewingReceipt.type === "income" ? "Customer Details" : "Vendor/Payee Details"}
-                    </h3>
-                    <p className="text-sm" style={{ fontFamily: "Arial, sans-serif" }}>{viewingReceipt.customerName}</p>
-                    <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: "Arial, sans-serif" }}>ID: {viewingReceipt.customerId}</p>
-                    
-                    {/* Show customer details if available */}
-                    {(() => {
-                      const customer = customers.find(c => c.id === viewingReceipt.customerId);
-                      if (customer) {
-                        return (
-                          <div className="mt-1">
-                            {customer.phone && <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{customer.phone}</p>}
-                            {customer.email && <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>{customer.email}</p>}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                  
-                  {/* Description for both types */}
-                  <div className="mb-4">
-                    <h3 className="font-medium text-sm text-gray-800 mb-1" style={{ fontFamily: "Arial, sans-serif" }}>Description</h3>
-                    <p className="text-sm text-gray-700 bg-gray-50 p-2 border border-gray-200 rounded" style={{ fontFamily: "Arial, sans-serif" }}>
-                      {viewingReceipt.description || "No description provided"}
-                    </p>
-                  </div>
-                  
-                  {/* Items purchased - only show for receipts with items */}
-                  {viewingReceipt.items.length > 0 ? (
-                    <div className="mb-4">
-                      <h3 className="font-medium text-sm text-gray-800 mb-2" style={{ fontFamily: "Arial, sans-serif" }}>Items</h3>
-                      <div className="border-t border-b border-gray-200 py-2">
-                        {viewingReceipt.items.map((item, index) => (
-                          <div 
-                            key={index} 
-                            className="flex justify-between py-2 border-b border-gray-100 last:border-0"
-                          >
-                            <div className="flex-1">
-                              <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>{item.name}</p>
-                              <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>
-                                {item.quantity} x {selectedCurrency.symbol}{item.price.toFixed(2)}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>
-                                {selectedCurrency.symbol}{(item.quantity * item.price).toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  
-                  {/* Total section */}
-                  <div className="border-t border-gray-200 pt-3">
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Subtotal</p>
-                      <p className="text-sm" style={{ fontFamily: "Arial, sans-serif" }}>{formatCurrency(viewingReceipt.totalAmount)}</p>
-                    </div>
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Tax</p>
-                      <p className="text-sm" style={{ fontFamily: "Arial, sans-serif" }}>{formatCurrency(0)}</p>
-                    </div>
-                    <div className="flex justify-between items-center font-bold border-t border-gray-200 mt-2 pt-2">
-                      <p style={{ fontFamily: "Arial, sans-serif" }}>Total</p>
-                      <p className={viewingReceipt.type === "expense" ? "text-rose-600" : "text-emerald-600"} 
-                         style={{ fontFamily: "Arial, sans-serif" }}>
-                        {formatCurrency(viewingReceipt.totalAmount)}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Footer */}
-                  <div className="text-center mt-6 pt-4 border-t border-gray-200">
-                    <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>
-                      {viewingReceipt.type === "income" 
-                        ? "Thank you for your business!" 
-                        : "This expense has been recorded in our system."}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: "Arial, sans-serif" }}>
-                      Generated on {new Date().toLocaleString()}
-                    </p>
-                  </div>
+            {/* Customer/Vendor details */}
+            <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
+              <div className="flex items-center mb-2">
+                {viewingReceipt.type === "income" ? (
+                  <FaUser className="mr-2 text-emerald-500" />
+                ) : (
+                  <FaStore className="mr-2 text-rose-500" />
+                )}
+                <h3 className="font-bold text-gray-700" style={{ fontFamily: "Arial, sans-serif" }}>
+                  {viewingReceipt.type === "income" ? "Customer Details" : "Vendor/Payee Details"}
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="font-medium text-sm text-gray-700" style={{ fontFamily: "Arial, sans-serif" }}>
+                    {viewingReceipt.customerName || "Not specified"}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: "Arial, sans-serif" }}>
+                    ID: {viewingReceipt.customerId || "N/A"}
+                  </p>
                 </div>
-
-                {/* Download button below the receipt */}
-                <div className="flex justify-center mt-6">
-                  <button
-                    onClick={generateReceiptImage}
-                    disabled={isLoading}
-                    className={`flex items-center px-4 py-2 bg-${currentTheme.primary} text-white rounded-md hover:bg-${currentTheme.primary}/80 transition-colors duration-200`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <FaSync className="animate-spin mr-2" /> Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FaDownload className="mr-2" /> Download Receipt
-                      </>
-                    )}
-                  </button>
+                {(() => {
+                  const customer = customers.find(c => c.id === viewingReceipt.customerId);
+                  if (customer) {
+                    return (
+                      <div className="text-xs text-gray-500">
+                        <div className="flex items-center mb-1">
+                          {customer.phone && (
+                            <>
+                              <FaPhone className="mr-1" />
+                              <span style={{ fontFamily: "Arial, sans-serif" }}>{customer.phone}</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center">
+                          {customer.email && (
+                            <>
+                              <FaEnvelope className="mr-1" />
+                              <span style={{ fontFamily: "Arial, sans-serif" }}>{customer.email}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            </div>
+            
+            {/* Description */}
+            <div className="mb-6">
+              <div className="flex items-center mb-2">
+                <FaFileAlt className="mr-2 text-gray-400" />
+                <h3 className="font-bold text-gray-700" style={{ fontFamily: "Arial, sans-serif" }}>Description</h3>
+              </div>
+              <div className="bg-gray-50 p-3 border border-gray-200 rounded-lg">
+                <p className="text-sm text-gray-700" style={{ fontFamily: "Arial, sans-serif" }}>
+                  {viewingReceipt.description || "No description provided"}
+                </p>
+              </div>
+            </div>
+            
+            {/* Items purchased - with improved styling */}
+            {viewingReceipt.items.length > 0 ? (
+              <div className="mb-6">
+                <div className="flex items-center mb-2">
+                  <FaShoppingCart className="mr-2 text-gray-400" />
+                  <h3 className="font-bold text-gray-700" style={{ fontFamily: "Arial, sans-serif" }}>Items</h3>
+                </div>
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs uppercase">
+                      <tr>
+                        <th className="text-left py-2 px-3" style={{ fontFamily: "Arial, sans-serif" }}>Item</th>
+                        <th className="text-center py-2 px-3" style={{ fontFamily: "Arial, sans-serif" }}>Qty</th>
+                        <th className="text-right py-2 px-3" style={{ fontFamily: "Arial, sans-serif" }}>Price</th>
+                        <th className="text-right py-2 px-3" style={{ fontFamily: "Arial, sans-serif" }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewingReceipt.items.map((item, index) => (
+                        <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="py-3 px-3" style={{ fontFamily: "Arial, sans-serif" }}>{item.name}</td>
+                          <td className="py-3 px-3 text-center" style={{ fontFamily: "Arial, sans-serif" }}>{item.quantity}</td>
+                          <td className="py-3 px-3 text-right" style={{ fontFamily: "Arial, sans-serif" }}>{selectedCurrency.symbol}{item.price.toFixed(2)}</td>
+                          <td className="py-3 px-3 text-right font-medium" style={{ fontFamily: "Arial, sans-serif" }}>
+                            {selectedCurrency.symbol}{(item.quantity * item.price).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            ) : null}
+            
+            {/* Total section - more detailed */}
+            <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
+              <table className="w-full">
+                <tbody className="divide-y divide-gray-200">
+                  <tr>
+                    <td className="py-2 text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Subtotal:</td>
+                    <td className="py-2 text-sm text-right" style={{ fontFamily: "Arial, sans-serif" }}>
+                      {formatCurrency(viewingReceipt.totalAmount)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Tax (0%):</td>
+                    <td className="py-2 text-sm text-right" style={{ fontFamily: "Arial, sans-serif" }}>
+                      {formatCurrency(0)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-sm text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>Discount:</td>
+                    <td className="py-2 text-sm text-right" style={{ fontFamily: "Arial, sans-serif" }}>
+                      {formatCurrency(0)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 font-bold" style={{ fontFamily: "Arial, sans-serif" }}>Total:</td>
+                    <td className={`py-3 text-right font-bold ${viewingReceipt.type === "expense" ? "text-rose-600" : "text-emerald-600"}`} style={{ fontFamily: "Arial, sans-serif" }}>
+                      {formatCurrency(viewingReceipt.totalAmount)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Payment status section (new) */}
+            <div className="mb-6 flex justify-center">
+              <div className={`inline-flex items-center ${
+                viewingReceipt.type === "income" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+              } rounded-full px-4 py-1`}>
+                <div className={`h-3 w-3 rounded-full mr-2 ${
+                  viewingReceipt.type === "income" ? "bg-emerald-500" : "bg-amber-500"
+                }`}></div>
+                <span className="text-sm font-medium" style={{ fontFamily: "Arial, sans-serif" }}>
+                  {viewingReceipt.type === "income" ? "Payment Received" : "Payment Made"}
+                </span>
+              </div>
+            </div>
+            
+            {/* Footer with barcode */}
+            <div className="text-center border-t border-gray-200 pt-6 mt-6">
+              {/* Fake barcode for visual effect */}
+              <div className="flex justify-center mb-4">
+                <svg className="h-10 w-48" viewBox="0 0 100 30">
+                  {[...Array(20)].map((_, i) => (
+                    <rect 
+                      key={i} 
+                      x={i * 5} 
+                      y="0" 
+                      width={Math.random() * 3 + 1} 
+                      height="30" 
+                      fill="#333" 
+                    />
+                  ))}
+                </svg>
+              </div>
+              
+              <p className="text-sm font-medium text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
+                {viewingReceipt.type === "income" 
+                  ? "Thank you for your business!" 
+                  : "This expense has been recorded in our system."}
+              </p>
+              <p className="text-xs text-gray-400 mt-2" style={{ fontFamily: "Arial, sans-serif" }}>
+                Receipt generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+              </p>
+              <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: "Arial, sans-serif" }}>
+                Powered by BookKeep Pro
+              </p>
+            </div>
+          </div>
+
+          {/* Actions toolbar below the receipt */}
+          <div className="flex md:flex-col justify-center gap-2 mt-6">
+            <button
+              onClick={generateReceiptImage}
+              disabled={isLoading}
+              className={`flex items-center px-4 py-2 bg-${currentTheme.primary} text-white rounded-md hover:bg-${currentTheme.primary}/80 transition-colors duration-200 shadow-md`}
+            >
+              {isLoading ? (
+                <>
+                  <FaSync className="animate-spin mr-2" /> Generating...
+                </>
+              ) : (
+                <>
+                  <FaDownload className="mr-2" /> Download PNG
+                </>
+              )}
+            </button>
+            
+            <button
+              onClick={() => {
+                // Optional: Print functionality
+                window.print();
+              }}
+              className={`flex items-center px-4 py-2 bg-${currentTheme.background} text-${currentTheme.text} border border-${currentTheme.border} rounded-md hover:bg-${currentTheme.border}/20 transition-colors duration-200`}
+            >
+              <FaPrint className="mr-2" /> Print Receipt
+            </button>
+            
+            {/* <button
+              onClick={() => {
+                // Optional: Send receipt via email
+                alert("Email functionality would go here");
+              }}
+              className={`flex items-center px-4 py-2 bg-${currentTheme.accent}/10 text-${currentTheme.accent} border border-${currentTheme.accent}/20 rounded-md hover:bg-${currentTheme.accent}/20 transition-colors duration-200`}
+            >
+              <FaEnvelope className="mr-2" /> Email Receipt
+            </button> */}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       {/* Business Onboarding Modal */}
       <AnimatePresence>
