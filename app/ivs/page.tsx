@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice } from "react-icons/fa";
+  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -716,6 +716,14 @@ export default function BookKeepingSystem() {
  // Update the invoice editing useEffect
 useEffect(() => {
   if (editingInvoice) {
+    // Check if invoice is payment-locked (paid and over 2 hours old)
+    if (isInvoicePaymentLocked(editingInvoice)) {
+      toast.error("This invoice was paid over 2 hours ago and can no longer be modified");
+      setShowInvoiceModal(false);
+      setEditingInvoice(null);
+      return;
+    }
+    
     // Create default due date (30 days from now) as fallback
     const defaultDueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
@@ -2334,6 +2342,14 @@ const validateInventoryTransaction = () => {
 
   const updateInvoice = () => {
     if (!editingInvoice) return;
+    
+    // Check if invoice is payment-locked (paid and over 2 hours old)
+    if (isInvoicePaymentLocked(editingInvoice)) {
+      toast.error("This invoice was paid over 2 hours ago and can no longer be modified");
+      setShowInvoiceModal(false);
+      setEditingInvoice(null);
+      return;
+    }
 
     // Handle new customer creation if needed
     if (invoiceFormData.isNewCustomer && invoiceFormData.customerName) {
@@ -2411,6 +2427,13 @@ const validateInventoryTransaction = () => {
   };
 
   const deleteInvoice = (id: string) => {
+    const invoiceToDelete = invoices.find(invoice => invoice.id === id);
+    
+    if (invoiceToDelete && isInvoicePaymentLocked(invoiceToDelete)) {
+      toast.error("This invoice was paid over 2 hours ago and can no longer be deleted");
+      return;
+    }
+    
     if (window.confirm("Are you sure you want to delete this invoice?")) {
       setInvoices(invoices.filter(invoice => invoice.id !== id));
     }
@@ -3412,370 +3435,845 @@ const generateInvoiceImage = async (invoice: Invoice) => {
             )}
 
             {/* Inventory tab */}
-            {activeTab === "inventory" && (
-              <motion.div variants={fadeIn}>
-                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
-                  <div>
-                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Inventory Management</h2>
-                    {searchQuery && (
-                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                        Showing {searchStats.inventory}
-                      </p>
-                    )}
-                  </div>
-                  <button 
-                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                    onClick={() => {
-                      setEditingInventoryItem(null);
-                      resetInventoryForm();
-                      setShowInventoryModal(true);
-                    }}
-                  >
-                    <FaPlus className="mr-2" /> Add Item
-                  </button>
-                </div>
+            {/* Inventory tab */}
+{activeTab === "inventory" && (
+  <motion.div variants={fadeIn}>
+    <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-4`}>
+      <div>
+        <h2 className={`text-xl sm:text-2xl font-bold text-${currentTheme.text}`}>Inventory Management</h2>
+        {searchQuery && (
+          <p className={`text-xs sm:text-sm text-${currentTheme.accent} mt-1`}>
+            Showing {searchStats.inventory} {Number(searchStats.inventory) === 1 ? 'item' : 'items'}
+          </p>
+        )}
+      </div>
+      <button 
+        className={`flex items-center justify-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200 w-full sm:w-auto`}
+        onClick={() => {
+          setEditingInventoryItem(null);
+          resetInventoryForm();
+          setShowInventoryModal(true);
+        }}
+      >
+        <FaPlus className="mr-2" /> Add Item
+      </button>
+    </div>
+    
+    {filteredInventory.length === 0 ? (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`text-center py-8 sm:py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+      >
+        {searchQuery ? (
+          <>
+            <FaSearch className="mx-auto text-3xl sm:text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-lg sm:text-xl font-medium text-${currentTheme.text}`}>No matching inventory items</h3>
+            <p className="text-gray-400 mt-2 px-4 max-w-md mx-auto">Try different search terms or clear filters to see all items</p>
+          </>
+        ) : (
+          <>
+            <FaBoxOpen className="mx-auto text-3xl sm:text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-lg sm:text-xl font-medium text-${currentTheme.text}`}>No inventory items yet</h3>
+            <p className="text-gray-400 mt-2 px-4 max-w-md mx-auto">Add your first inventory item to get started</p>
+            <button 
+              className={`mt-4 flex items-center justify-center mx-auto bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200`}
+              onClick={() => {
+                setEditingInventoryItem(null);
+                resetInventoryForm();
+                setShowInventoryModal(true);
+              }}
+            >
+              <FaPlus className="mr-2" /> Add First Item
+            </button>
+          </>
+        )}
+      </motion.div>
+    ) : (
+      <>
+        {/* Stock Status Legend */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 text-xs">
+          <span className="text-gray-400">Status indicators: </span>
+          <div className="flex items-center">
+            <span className={`inline-block w-3 h-3 rounded-full bg-${currentTheme.danger} mr-1`}></span>
+            <span className="text-gray-300">Out of Stock</span>
+          </div>
+          <div className="flex items-center">
+            <span className={`inline-block w-3 h-3 rounded-full bg-${currentTheme.warning} mr-1`}></span>
+            <span className="text-gray-300">Low Stock (≤5)</span>
+          </div>
+          <div className="flex items-center">
+            <span className={`inline-block w-3 h-3 rounded-full bg-${currentTheme.success} mr-1`}></span>
+            <span className="text-gray-300">In Stock</span>
+          </div>
+        </div>
+        
+        {/* Desktop table view (hidden on small screens) */}
+        <div className={`hidden md:block overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`bg-${currentTheme.background}`}>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Item Name</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">SKU</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Category</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider text-center">Status</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider text-center">Quantity</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Cost Price</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Selling Price</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <motion.tbody
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className={`divide-y divide-${currentTheme.border}`}
+            >
+              {filteredInventory.map((item) => {
+                // Determine stock status
+                const stockStatus = 
+                  item.quantity <= 0 ? "out" :
+                  item.quantity <= 5 ? "low" :
+                  "in";
                 
-                {filteredInventory.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+                const statusColor = 
+                  stockStatus === "out" ? currentTheme.danger :
+                  stockStatus === "low" ? currentTheme.warning :
+                  currentTheme.success;
+                
+                const statusText = 
+                  stockStatus === "out" ? "Out of Stock" :
+                  stockStatus === "low" ? "Low Stock" :
+                  "In Stock";
+                
+                return (
+                  <motion.tr 
+                    key={item.id} 
+                    variants={tableRowVariant}
+                    className={`hover:bg-${currentTheme.background}/50 transition-colors`}
                   >
-                    {searchQuery ? (
-                      <>
-                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching inventory items</h3>
-                        <p className="text-gray-400 mt-2">Try different search terms</p>
-                      </>
-                    ) : (
-                      <>
-                        <FaBoxOpen className="mx-auto text-4xl text-gray-500 mb-4" />
-                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No inventory items yet</h3>
-                        <p className="text-gray-400 mt-2">Add your first inventory item to get started</p>
-                      </>
-                    )}
-                  </motion.div>
-                ) : (
-                  <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className={`bg-${currentTheme.background}`}>
-                          <th className="p-4 text-gray-400 font-semibold">Item Name</th>
-                          <th className="p-4 text-gray-400 font-semibold">SKU</th>
-                          <th className="p-4 text-gray-400 font-semibold">Category</th>
-                          <th className="p-4 text-gray-400 font-semibold">Quantity</th>
-                          <th className="p-4 text-gray-400 font-semibold">Cost Price</th>
-                          <th className="p-4 text-gray-400 font-semibold">Selling Price</th>
-                          <th className="p-4 text-gray-400 font-semibold">Actions</th>
-                        </tr>
-                      </thead>
-                      <motion.tbody
-                        variants={staggerContainer}
-                        initial="hidden"
-                        animate="visible"
-                      >
-                        {filteredInventory.map((item) => (
-                          <motion.tr 
-                            key={item.id} 
-                            variants={tableRowVariant}
-                            className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
-                          >
-                            <td className={`p-4 text-${currentTheme.text}`}>{item.name}</td>
-                            <td className="p-4 text-gray-400">{item.sku}</td>
-                            <td className="p-4">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                // Find matching category to apply its color
-                                (() => {
-                                  const category = categories.find(c => c.id === item.category);
-                                  return category 
-                                    ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
-                                    : `bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`;
-                                })()
-                              }`}>
-                                {/* Display category name instead of ID */}
-                                {(() => {
-                                  const category = categories.find(c => c.id === item.category);
-                                  return category ? category.name : item.category;
-                                })()}
-                              </span>
-                            </td>
-                            <td className={`p-4 text-${currentTheme.text}`}>{item.quantity}</td>
-                            <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.costPrice)}</td>
-                            <td className={`p-4 text-${currentTheme.text}`}>{formatCurrency(item.sellingPrice)}</td>
-                            <td className="p-4 space-x-2">
-                              <button 
-                                className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                                onClick={() => setEditingInventoryItem(item)}
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                                onClick={() => deleteInventoryItem(item.id)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </motion.tbody>
-                    </table>
+                    <td className={`px-4 py-3 text-sm font-medium text-${currentTheme.text}`}>{item.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{item.sku}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 inline-flex items-center rounded-full text-xs ${
+                        (() => {
+                          const category = categories.find(c => c.id === item.category);
+                          return category 
+                            ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
+                            : `bg-${currentTheme.primary}/20 text-${currentTheme.accent} border border-${currentTheme.primary}/30`;
+                        })()
+                      }`}>
+                        {(() => {
+                          const category = categories.find(c => c.id === item.category);
+                          return category ? category.name : item.category;
+                        })()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs bg-${statusColor}/20 text-${statusColor} border border-${statusColor}/30`}>
+                        <span className={`mr-1.5 w-2 h-2 rounded-full bg-${statusColor}`}></span>
+                        {statusText}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 text-center text-sm ${
+                      stockStatus === "out" ? `text-${currentTheme.danger}` :
+                      stockStatus === "low" ? `text-${currentTheme.warning}` :
+                      `text-${currentTheme.text}`
+                    } font-medium`}>
+                      {item.quantity}
+                    </td>
+                    <td className={`px-4 py-3 text-sm text-${currentTheme.text}`}>{formatCurrency(item.costPrice)}</td>
+                    <td className={`px-4 py-3 text-sm text-${currentTheme.text}`}>{formatCurrency(item.sellingPrice)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex space-x-2">
+                        <button 
+                          className={`p-1.5 text-${currentTheme.accent} hover:text-${currentTheme.primary} hover:bg-${currentTheme.background} rounded transition-colors`}
+                          onClick={() => setEditingInventoryItem(item)}
+                          title="Edit item"
+                        >
+                          <FaEdit className="h-4 w-4" />
+                        </button>
+                        <button 
+                          className={`p-1.5 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 hover:bg-${currentTheme.background} rounded transition-colors`}
+                          onClick={() => deleteInventoryItem(item.id)}
+                          title="Delete item"
+                        >
+                          <FaTrash className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
+            </motion.tbody>
+          </table>
+        </div>
+
+        {/* Mobile card view (visible only on small screens) */}
+        <div className="md:hidden space-y-3">
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden" 
+            animate="visible" 
+            className="grid gap-3"
+          >
+            {filteredInventory.map((item) => {
+              // Determine stock status for mobile view
+              const stockStatus = 
+                item.quantity <= 0 ? "out" :
+                item.quantity <= 5 ? "low" :
+                "in";
+              
+              const statusColor = 
+                stockStatus === "out" ? currentTheme.danger :
+                stockStatus === "low" ? currentTheme.warning :
+                currentTheme.success;
+              
+              const statusText = 
+                stockStatus === "out" ? "Out of Stock" :
+                stockStatus === "low" ? "Low Stock" :
+                "In Stock";
+              
+              return (
+                <motion.div 
+                  key={item.id} 
+                  variants={tableRowVariant}
+                  className={`p-4 rounded-lg border border-${currentTheme.border} bg-${currentTheme.background}/50 ${
+                    stockStatus === "out" ? `border-l-4 border-l-${currentTheme.danger}` :
+                    stockStatus === "low" ? `border-l-4 border-l-${currentTheme.warning}` :
+                    ""
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className={`text-sm sm:text-base font-medium text-${currentTheme.text}`}>{item.name}</div>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs bg-${statusColor}/20 text-${statusColor} border border-${statusColor}/30`}>
+                      <span className={`mr-1.5 w-2 h-2 rounded-full bg-${statusColor}`}></span>
+                      {statusText}
+                    </span>
                   </div>
-                )}
-              </motion.div>
-            )}
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-3 text-xs sm:text-sm">
+                    <div>
+                      <span className="text-gray-400">SKU:</span>
+                      <span className="ml-1 text-gray-300">{item.sku}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Quantity:</span>
+                      <span className={`ml-1 font-medium ${
+                        stockStatus === "out" ? `text-${currentTheme.danger}` :
+                        stockStatus === "low" ? `text-${currentTheme.warning}` :
+                        `text-${currentTheme.text}`
+                      }`}>{item.quantity}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Cost:</span>
+                      <span className="ml-1 text-gray-300">{formatCurrency(item.costPrice)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Price:</span>
+                      <span className="ml-1 text-gray-300">{formatCurrency(item.sellingPrice)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {(() => {
+                      const category = categories.find(c => c.id === item.category);
+                      if (category) {
+                        return (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs bg-${category.color}/20 text-${category.color} border border-${category.color}/30`}>
+                            <FaTag className="mr-1 h-3 w-3" />
+                            {category.name}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  
+                  <div className="flex justify-end pt-2 border-t border-gray-700/30">
+                    <div className="flex space-x-2">
+                      <button 
+                        className={`p-2 text-${currentTheme.accent} hover:text-${currentTheme.primary} hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => setEditingInventoryItem(item)}
+                      >
+                        <FaEdit className="h-4 w-4" />
+                      </button>
+                      <button 
+                        className={`p-2 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => deleteInventoryItem(item.id)}
+                      >
+                        <FaTrash className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
+
+        {/* Pagination for larger inventory lists */}
+        {filteredInventory.length > 20 && (
+          <div className="mt-4 flex justify-center">
+            <button 
+              className={`px-4 py-2 text-sm text-${currentTheme.accent} hover:text-${currentTheme.primary} border border-${currentTheme.border} rounded-lg flex items-center hover:bg-${currentTheme.background} transition-colors`}
+            >
+              <FaChevronDown className="mr-1.5 h-3 w-3" /> 
+              Load More Items
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </motion.div>
+)}
 
             {/* Transaction tab */}
-            {activeTab === "transactions" && (
-              <motion.div variants={fadeIn}>
-                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
-                  <div>
-                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Financial Transactions</h2>
-                    {searchQuery && (
-                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                        Showing {searchStats.transactions}
-                      </p>
-                    )}
-                  </div>
-                  <button 
-                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                    onClick={() => {
-                      setEditingTransaction(null);
-                      resetTransactionForm();
-                      setShowTransactionModal(true);
-                    }}
-                  >
-                    <FaPlus className="mr-2" /> Add Transaction
-                  </button>
-                </div>
+            {/* Transaction tab */}
+{activeTab === "transactions" && (
+  <motion.div variants={fadeIn}>
+    <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-4`}>
+      <div>
+        <h2 className={`text-xl sm:text-2xl font-bold text-${currentTheme.text}`}>Financial Transactions</h2>
+        {searchQuery && (
+          <p className={`text-xs sm:text-sm text-${currentTheme.accent} mt-1`}>
+            Showing {searchStats.transactions} {Number(searchStats.transactions) === 1 ? 'result' : 'results'}
+          </p>
+        )}
+      </div>
+      <button 
+        className={`flex items-center justify-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200 w-full sm:w-auto`}
+        onClick={() => {
+          setEditingTransaction(null);
+          resetTransactionForm();
+          setShowTransactionModal(true);
+        }}
+      >
+        <FaPlus className="mr-2" /> Add Transaction
+      </button>
+    </div>
+    
+    {filteredTransactions.length === 0 ? (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`text-center py-8 sm:py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+      >
+        {searchQuery ? (
+          <>
+            <FaSearch className="mx-auto text-3xl sm:text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-lg sm:text-xl font-medium text-${currentTheme.text}`}>No matching transactions</h3>
+            <p className="text-gray-400 mt-2 px-4 max-w-md mx-auto">Try different search terms or clear filters to see all transactions</p>
+          </>
+        ) : (
+          <>
+            <FaBook className="mx-auto text-3xl sm:text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-lg sm:text-xl font-medium text-${currentTheme.text}`}>No transactions recorded</h3>
+            <p className="text-gray-400 mt-2 px-4 max-w-md mx-auto">Add your first transaction to start tracking finances</p>
+            <button 
+              className={`mt-4 flex items-center justify-center mx-auto bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200`}
+              onClick={() => {
+                setEditingTransaction(null);
+                resetTransactionForm();
+                setShowTransactionModal(true);
+              }}
+            >
+              <FaPlus className="mr-2" /> Add First Transaction
+            </button>
+          </>
+        )}
+      </motion.div>
+    ) : (
+      <>
+        {/* Desktop table view (hidden on small screens) */}
+        <div className={`hidden md:block overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`bg-${currentTheme.background}`}>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Date</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Description</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Category</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Details</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Amount</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <motion.tbody
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+            >
+              {filteredTransactions.map((transaction) => {
+                const relatedInventory = transaction.relatedInventoryId ? 
+                  inventory.find(i => i.id === transaction.relatedInventoryId) : null;
                 
-                {filteredTransactions.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+                return (
+                  <motion.tr 
+                    key={transaction.id} 
+                    variants={tableRowVariant}
+                    className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 transition-colors`}
                   >
-                    {searchQuery ? (
-                      <>
-                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching transactions</h3>
-                        <p className="text-gray-400 mt-2">Try different search terms</p>
-                      </>
-                    ) : (
-                      <>
-                        <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
-                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No transactions recorded</h3>
-                        <p className="text-gray-400 mt-2">Add your first transaction to start tracking finances</p>
-                      </>
-                    )}
-                  </motion.div>
-                ) : (
-                  <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className={`bg-${currentTheme.background}`}>
-                          <th className="p-4 text-gray-400 font-semibold">Date</th>
-                          <th className="p-4 text-gray-400 font-semibold">Description</th>
-                          <th className="p-4 text-gray-400 font-semibold">Category</th>
-                          <th className="p-4 text-gray-400 font-semibold">Type</th>
-                          <th className="p-4 text-gray-400 font-semibold">Amount</th>
-                          <th className="p-4 text-gray-400 font-semibold">Actions</th>
-                        </tr>
-                      </thead>
-                      <motion.tbody
-                        variants={staggerContainer}
-                        initial="hidden"
-                        animate="visible"
-                      >
-                        {filteredTransactions.map((transaction) => (
-                          <motion.tr 
-                            key={transaction.id} 
-                            variants={tableRowVariant}
-                            className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
-                          >
-                            <td className={`p-4 text-${currentTheme.text}`}>{transaction.date.toLocaleDateString()}</td>
-                            <td className={`p-4 text-${currentTheme.text}`}>{transaction.description}</td>
-                            <td className="p-4">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                // Find matching category to apply its color
-                                (() => {
-                                  const category = categories.find(c => c.id === transaction.category);
-                                  return category 
-                                    ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
-                                    : transaction.type === "income"
-                                      ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
-                                      : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`;
-                                })()
-                              }`}>
-                                {/* Display category name instead of ID */}
-                                {(() => {
-                                  const category = categories.find(c => c.id === transaction.category);
-                                  return category ? category.name : transaction.category;
-                                })()}
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                transaction.type === "income" ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
-                              }`}>
-                                {transaction.type}
-                              </span>
-                            </td>
-                            <td className={`p-4 ${transaction.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
-                              {formatCurrency(transaction.amount)}
-                            </td>
-                            <td className="p-4 space-x-2">
-                              <button 
-                                className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                                onClick={() => setEditingTransaction(transaction)}
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                                onClick={() => deleteTransaction(transaction.id)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </motion.tbody>
-                    </table>
+                    <td className={`px-4 py-3 text-sm text-${currentTheme.text}`}>
+                      {new Date(transaction.date).toLocaleDateString()}
+                    </td>
+                    <td className={`px-4 py-3 text-sm text-${currentTheme.text}`}>{transaction.description}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 inline-flex items-center rounded-full text-xs ${
+                        (() => {
+                          const category = categories.find(c => c.id === transaction.category);
+                          return category 
+                            ? `bg-${category.color}/20 text-${category.color} border border-${category.color}/30` 
+                            : transaction.type === "income"
+                              ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
+                              : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`;
+                        })()
+                      }`}>
+                        {(() => {
+                          const category = categories.find(c => c.id === transaction.category);
+                          return category ? category.name : transaction.category;
+                        })()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="flex flex-col">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                          transaction.type === "income" 
+                            ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` 
+                            : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                        }`}>
+                          {transaction.type === "income" ? <FaArrowUp className="mr-1 h-3 w-3" /> : <FaArrowDown className="mr-1 h-3 w-3" />}
+                          {transaction.type === "income" ? "Income" : "Expense"}
+                        </span>
+                        
+                        {relatedInventory && (
+                          <span className={`mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}>
+                            <FaBox className="mr-1 h-3 w-3" />
+                            {transaction.quantity || 1} × {relatedInventory.name}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className={`px-4 py-3 text-sm font-medium ${transaction.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
+                      {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex space-x-1">
+                        <button 
+                          className={`p-1.5 text-${currentTheme.accent} hover:text-${currentTheme.primary} hover:bg-${currentTheme.background} rounded transition-colors`}
+                          onClick={() => setEditingTransaction(transaction)}
+                          title="Edit transaction"
+                        >
+                          <FaEdit className="h-4 w-4" />
+                        </button>
+                        <button 
+                          className={`p-1.5 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 hover:bg-${currentTheme.background} rounded transition-colors`}
+                          onClick={() => deleteTransaction(transaction.id)}
+                          title="Delete transaction"
+                        >
+                          <FaTrash className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
+            </motion.tbody>
+          </table>
+        </div>
+
+        {/* Mobile card view (visible only on small screens) */}
+        <div className="md:hidden space-y-3">
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden" 
+            animate="visible" 
+            className="grid gap-3"
+          >
+            {filteredTransactions.map((transaction) => {
+              const relatedInventory = transaction.relatedInventoryId ? 
+                inventory.find(i => i.id === transaction.relatedInventoryId) : null;
+              const category = categories.find(c => c.id === transaction.category);
+              
+              return (
+                <motion.div 
+                  key={transaction.id} 
+                  variants={tableRowVariant}
+                  className={`p-3 rounded-lg border border-${currentTheme.border} bg-${currentTheme.background}/50`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className={`px-2 py-1 rounded-full text-xs ${
+                      transaction.type === "income" 
+                        ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` 
+                        : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                    }`}>
+                      {transaction.type === "income" ? <FaArrowUp className="mr-1 inline h-3 w-3" /> : <FaArrowDown className="mr-1 inline h-3 w-3" />}
+                      {transaction.type === "income" ? "Income" : "Expense"}
+                    </div>
+                    <span className="text-xs text-gray-400">{new Date(transaction.date).toLocaleDateString()}</span>
                   </div>
-                )}
-              </motion.div>
-            )}
+                  
+                  <div className="mb-1">
+                    <p className={`text-sm sm:text-base font-medium text-${currentTheme.text}`}>{transaction.description}</p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {category && (
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        `bg-${category.color}/20 text-${category.color} border border-${category.color}/30`
+                      }`}>
+                        {category.name}
+                      </span>
+                    )}
+                    
+                    {relatedInventory && (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}>
+                        <FaBox className="mr-1 h-3 w-3" />
+                        {transaction.quantity || 1} × {relatedInventory.name}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-700/30">
+                    <div className={`text-sm font-medium ${transaction.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
+                      {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                    </div>
+                    
+                    <div className="flex space-x-1">
+                      <button 
+                        className={`p-1.5 text-${currentTheme.accent} hover:text-${currentTheme.primary} hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => setEditingTransaction(transaction)}
+                      >
+                        <FaEdit className="h-3.5 w-3.5" />
+                      </button>
+                      <button 
+                        className={`p-1.5 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => deleteTransaction(transaction.id)}
+                      >
+                        <FaTrash className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
+
+        {/* Pagination or "Load More" button if needed */}
+        {filteredTransactions.length > 20 && (
+          <div className="mt-4 flex justify-center">
+            <button 
+              className={`px-4 py-2 text-sm text-${currentTheme.accent} hover:text-${currentTheme.primary} border border-${currentTheme.border} rounded-lg flex items-center hover:bg-${currentTheme.background} transition-colors`}
+            >
+              <FaChevronDown className="mr-1.5 h-3 w-3" /> 
+              Load More Transactions
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </motion.div>
+)}
 
             {/* Receipts tab */}
             {activeTab === "receipts" && (
-              <motion.div variants={fadeIn}>
-                <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
+  <motion.div variants={fadeIn}>
+    <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-4`}>
+      <div>
+        <h2 className={`text-xl sm:text-2xl font-bold text-${currentTheme.text}`}>Receipts & Transactions</h2>
+        {searchQuery && (
+          <p className={`text-xs sm:text-sm text-${currentTheme.accent} mt-1`}>
+            Showing {searchStats.receipts} {Number(searchStats.receipts) === 1 ? 'receipt' : 'receipts'}
+          </p>
+        )}
+      </div>
+      <button
+        className={`flex items-center justify-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200 w-full sm:w-auto`}
+        onClick={() => {
+          setEditingReceipt(null);
+          resetReceiptForm();
+          setShowReceiptModal(true);
+        }}
+      >
+        <FaPlus className="mr-2" /> Add Receipt
+      </button>
+    </div>
+
+    {filteredReceipts.length === 0 ? (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`text-center py-8 sm:py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+      >
+        {searchQuery ? (
+          <>
+            <FaSearch className="mx-auto text-3xl sm:text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-lg sm:text-xl font-medium text-${currentTheme.text}`}>No matching receipts</h3>
+            <p className="text-gray-400 mt-2 px-4 max-w-md mx-auto">Try different search terms or clear filters to see all receipts</p>
+          </>
+        ) : (
+          <>
+            <FaBook className="mx-auto text-3xl sm:text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-lg sm:text-xl font-medium text-${currentTheme.text}`}>No receipts recorded</h3>
+            <p className="text-gray-400 mt-2 px-4 max-w-md mx-auto">Add your first receipt to start tracking your sales</p>
+            <button 
+              className={`mt-4 flex items-center justify-center mx-auto bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200`}
+              onClick={() => {
+                setEditingReceipt(null);
+                resetReceiptForm();
+                setShowReceiptModal(true);
+              }}
+            >
+              <FaPlus className="mr-2" /> Add First Receipt
+            </button>
+          </>
+        )}
+      </motion.div>
+    ) : (
+      <>
+        {/* Desktop table view (hidden on small screens) */}
+        <div className={`hidden md:block overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`bg-${currentTheme.background}`}>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Date</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Type</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Description</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Customer/Vendor</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Items</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Total Amount</th>
+                <th className="px-4 py-3 text-xs uppercase font-semibold text-gray-400 tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <motion.tbody
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className={`divide-y divide-${currentTheme.border}`}
+            >
+              {filteredReceipts.map((receipt) => (
+                <motion.tr 
+                  key={receipt.id} 
+                  variants={tableRowVariant}
+                  className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 transition-colors`}
+                >
+                  <td className={`px-4 py-3 text-sm text-${currentTheme.text}`}>
+                    {new Date(receipt.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                      receipt.type === "income" 
+                        ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` 
+                        : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                    }`}>
+                      {receipt.type === "income" ? (
+                        <><FaArrowUp className="mr-1 h-3 w-3" /> Income</>
+                      ) : (
+                        <><FaArrowDown className="mr-1 h-3 w-3" /> Expense</>
+                      )}
+                    </span>
+                  </td>
+                  <td className={`px-4 py-3 text-sm text-${currentTheme.text} max-w-[200px] truncate`}>
+                    {receipt.description || (receipt.items.length > 0 
+                      ? `Sale (${receipt.items.length} items)` 
+                      : receipt.type === "income" ? "Income" : "Expense")}
+                  </td>
+                  <td className={`px-4 py-3 text-sm text-${currentTheme.text}`}>
+                    {receipt.customerName || "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {receipt.items && receipt.items.length > 0 ? (
+                      <div className="flex items-center">
+                        <span className={`w-5 h-5 rounded-full bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30 text-xs flex items-center justify-center mr-1.5 font-medium`}>
+                          {receipt.items.length}
+                        </span>
+                        <span className={`text-xs text-${currentTheme.text}`}>
+                          {receipt.items.reduce((sum, item) => sum + item.quantity, 0)} units
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">No items</span>
+                    )}
+                  </td>
+                  <td className={`px-4 py-3 text-sm font-medium ${receipt.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
+                    {receipt.type === "income" ? "" : "-"}{formatCurrency(receipt.totalAmount)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex space-x-1">
+                      <button
+                        className={`p-1.5 text-${currentTheme.primary} hover:text-${currentTheme.accent} hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => viewReceipt(receipt)}
+                        title="View receipt"
+                      >
+                        <FaEye className="h-4 w-4" />
+                      </button>
+                      
+                      {/* Only show edit button for manually created receipts */}
+                      {!receipt.isAutoGenerated && (
+                        <button
+                          className={`p-1.5 text-${currentTheme.accent} hover:text-${currentTheme.primary} hover:bg-${currentTheme.background} rounded transition-colors`}
+                          onClick={() => setEditingReceipt(receipt)}
+                          title="Edit receipt"
+                        >
+                          <FaEdit className="h-4 w-4" />
+                        </button>
+                      )}
+                      
+                      {/* Allow deleting real receipts but not auto-generated ones */}
+                      {!receipt.isAutoGenerated && (
+                        <button
+                          className={`p-1.5 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 hover:bg-${currentTheme.background} rounded transition-colors`}
+                          onClick={() => deleteReceipt(receipt.id)}
+                          title="Delete receipt"
+                        >
+                          <FaTrash className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </motion.tr>
+              ))}
+            </motion.tbody>
+          </table>
+        </div>
+
+        {/* Mobile card view (visible only on small screens) */}
+        <div className="md:hidden space-y-3">
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden" 
+            animate="visible" 
+            className="grid gap-3"
+          >
+            {filteredReceipts.map((receipt) => (
+              <motion.div 
+                key={receipt.id} 
+                variants={tableRowVariant}
+                className={`p-4 rounded-lg border border-${currentTheme.border} bg-${currentTheme.background}/50 ${
+                  receipt.isAutoGenerated ? `border-l-4 border-l-${currentTheme.border}` :
+                  receipt.type === "income" ? `border-l-4 border-l-${currentTheme.success}` :
+                  `border-l-4 border-l-${currentTheme.danger}`
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className={`text-sm sm:text-base font-medium text-${currentTheme.text} truncate max-w-[70%]`}>
+                    {receipt.description || (receipt.items.length > 0 
+                      ? `Sale (${receipt.items.length} items)` 
+                      : receipt.type === "income" ? "Income" : "Expense")}
+                  </div>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                    receipt.type === "income" 
+                      ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` 
+                      : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                  }`}>
+                    {receipt.type === "income" ? "Income" : "Expense"}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 mb-3 text-xs sm:text-sm">
                   <div>
-                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Receipts & Transactions</h2>
-                    {searchQuery && (
-                      <p className={`text-sm text-${currentTheme.accent} mt-1`}>
-                        Showing {searchStats.receipts}
-                      </p>
+                    <span className="text-gray-400">Date:</span>
+                    <span className="ml-1 text-gray-300">{new Date(receipt.date).toLocaleDateString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Customer:</span>
+                    <span className="ml-1 text-gray-300">{receipt.customerName || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Amount:</span>
+                    <span className={`ml-1 font-medium ${receipt.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
+                      {receipt.type === "income" ? "" : "-"}{formatCurrency(receipt.totalAmount)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Items:</span>
+                    {receipt.items && receipt.items.length > 0 ? (
+                      <span className="ml-1 text-gray-300">
+                        {receipt.items.length} ({receipt.items.reduce((sum, item) => sum + item.quantity, 0)} units)
+                      </span>
+                    ) : (
+                      <span className="ml-1 text-gray-500">None</span>
                     )}
                   </div>
-                  <button
-                    className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
-                    onClick={() => {
-                      setEditingReceipt(null);
-                      resetReceiptForm();
-                      setShowReceiptModal(true);
-                    }}
-                  >
-                    <FaPlus className="mr-2" /> Add Receipt
-                  </button>
                 </div>
-
-                {filteredReceipts.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
-                  >
-                    {searchQuery ? (
-                      <>
-                        <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching receipts</h3>
-                        <p className="text-gray-400 mt-2">Try different search terms</p>
-                      </>
-                    ) : (
-                      <>
-                        <FaBook className="mx-auto text-4xl text-gray-500 mb-4" />
-                        <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No receipts recorded</h3>
-                        <p className="text-gray-400 mt-2">Add your first receipt to start tracking</p>
-                      </>
-                    )}
-                  </motion.div>
-                ) : (
-                  <div className={`overflow-x-auto rounded-lg border border-${currentTheme.border}`}>
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className={`bg-${currentTheme.background}`}>
-                          <th className="p-4 text-gray-400 font-semibold">Date</th>
-                          <th className="p-4 text-gray-400 font-semibold">Type</th>
-                          <th className="p-4 text-gray-400 font-semibold">Description</th>
-                          <th className="p-4 text-gray-400 font-semibold">Customer/Vendor</th>
-                          <th className="p-4 text-gray-400 font-semibold">Total Amount</th>
-                          <th className="p-4 text-gray-400 font-semibold">Actions</th>
-                        </tr>
-                      </thead>
-                      <motion.tbody
-                        variants={staggerContainer}
-                        initial="hidden"
-                        animate="visible"
-                      >
-                        {filteredReceipts.map((receipt) => (
-                          <motion.tr 
-                            key={receipt.id} 
-                            variants={tableRowVariant}
-                            className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50`}
-                          >
-                            <td className={`p-4 text-${currentTheme.text}`}>{receipt.date.toLocaleDateString()}</td>
-                            <td className="p-4">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                receipt.type === "income" 
-                                  ? `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30` 
-                                  : `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
-                              }`}>
-                                {receipt.type === "income" ? "Income" : "Expense"}
-                              </span>
-                            </td>
-                            <td className={`p-4 text-${currentTheme.text}`}>
-                              {receipt.description || (receipt.items.length > 0 
-                                ? `Sale (${receipt.items.length} items)` 
-                                : receipt.type === "income" ? "Income" : "Expense")}
-                            </td>
-                            <td className={`p-4 text-${currentTheme.text}`}>{receipt.customerName}</td>
-                            <td className={`p-4 ${receipt.type === "income" ? `text-${currentTheme.success}` : `text-${currentTheme.danger}`}`}>
-                              {formatCurrency(receipt.totalAmount)}
-                            </td>
-                            <td className="p-4 space-x-2">
-                              <button
-                                className={`text-${currentTheme.primary} hover:text-${currentTheme.accent} text-sm`}
-                                onClick={() => viewReceipt(receipt)}
-                                title="View receipt"
-                              >
-                                <FaEye />
-                              </button>
-                              
-                              {/* Only show edit button for manually created receipts (not auto-generated from transactions) */}
-                              {!receipt.isAutoGenerated && (
-                                <button
-                                  className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
-                                  onClick={() => setEditingReceipt(receipt)}
-                                  title="Edit receipt"
-                                >
-                                  Edit
-                                </button>
-                              )}
-                              
-                              {/* Allow deleting real receipts but not auto-generated ones */}
-                              {!receipt.isAutoGenerated && (
-                                <button
-                                  className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
-                                  onClick={() => deleteReceipt(receipt.id)}
-                                  title="Delete receipt"
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </motion.tbody>
-                    </table>
+                
+                {receipt.items && receipt.items.length > 0 && (
+                  <div className={`p-2 mb-3 rounded-lg bg-${currentTheme.background} border border-${currentTheme.border}`}>
+                    <div className="flex justify-between items-center mb-1.5 text-xs font-medium">
+                      <span className={`text-${currentTheme.accent}`}>Top Items</span>
+                      <span className={`text-gray-400`}>Qty × Price</span>
+                    </div>
+                    <div className="space-y-1">
+                      {receipt.items.slice(0, 2).map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-xs">
+                          <span className="text-gray-300 truncate max-w-[60%]">{item.name}</span>
+                          <span className="text-gray-400">
+                            {item.quantity} × {formatCurrency(item.price)}
+                          </span>
+                        </div>
+                      ))}
+                      {receipt.items.length > 2 && (
+                        <div className="text-xs text-center text-gray-500 mt-1">
+                          + {receipt.items.length - 2} more items
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
+                
+                <div className="flex justify-end pt-2 border-t border-gray-700/30">
+                  <div className="flex space-x-2">
+                    <button
+                      className={`p-2 text-${currentTheme.primary} hover:text-${currentTheme.accent} hover:bg-${currentTheme.background} rounded transition-colors`}
+                      onClick={() => viewReceipt(receipt)}
+                    >
+                      <FaEye className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Only show edit button for manually created receipts */}
+                    {!receipt.isAutoGenerated && (
+                      <button
+                        className={`p-2 text-${currentTheme.accent} hover:text-${currentTheme.primary} hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => setEditingReceipt(receipt)}
+                      >
+                        <FaEdit className="h-4 w-4" />
+                      </button>
+                    )}
+                    
+                    {/* Allow deleting real receipts but not auto-generated ones */}
+                    {!receipt.isAutoGenerated && (
+                      <button
+                        className={`p-2 text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 hover:bg-${currentTheme.background} rounded transition-colors`}
+                        onClick={() => deleteReceipt(receipt.id)}
+                      >
+                        <FaTrash className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </motion.div>
-            )}
+            ))}
+          </motion.div>
+        </div>
+
+        {/* Pagination for larger receipt lists */}
+        {filteredReceipts.length > 20 && (
+          <div className="mt-4 flex justify-center">
+            <button 
+              className={`px-4 py-2 text-sm text-${currentTheme.accent} hover:text-${currentTheme.primary} border border-${currentTheme.border} rounded-lg flex items-center hover:bg-${currentTheme.background} transition-colors`}
+            >
+              <FaChevronDown className="mr-1.5 h-3 w-3" /> 
+              Load More Receipts
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </motion.div>
+)}
 
             {/* Categories Tab */}
             {activeTab === "categories" && (
@@ -4729,6 +5227,32 @@ const generateInvoiceImage = async (invoice: Invoice) => {
       <div className="px-4 sm:px-6 py-4">
         <form onSubmit={(e) => { 
           e.preventDefault(); 
+          
+          // Enhanced validation before submission
+          if (transactionFormData.relatedInventoryId) {
+            // For income transactions (selling items)
+            if (transactionFormData.type === "income") {
+              const item = inventory.find(i => i.id === transactionFormData.relatedInventoryId);
+              if (!item) return;
+              
+              // Calculate max available quantity
+              let availableQuantity = item.quantity;
+              
+              // If editing, add back the original quantity to available amount
+              if (editingTransaction && 
+                  editingTransaction.relatedInventoryId === transactionFormData.relatedInventoryId &&
+                  editingTransaction.type === "income") {
+                availableQuantity += editingTransaction.quantity || 0;
+              }
+              
+              // Check if we have enough inventory
+              if (availableQuantity < transactionFormData.quantity) {
+                toast.error(`Not enough inventory. Only ${availableQuantity} units of "${item.name}" available.`);
+                return;
+              }
+            }
+          }
+          
           editingTransaction ? updateTransaction() : addTransaction();
         }}>
           <div className="mb-4">
@@ -4844,11 +5368,27 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                   className={`w-full p-2.5 sm:p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
                 >
                   <option value="">None (Manual Entry)</option>
-                  {inventory.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} ({formatCurrency(transactionFormData.type === "income" ? item.sellingPrice : item.costPrice)} each)
-                    </option>
-                  ))}
+                  {inventory.map(item => {
+                    // Calculate display info for quantity available - only needed for income transactions
+                    let availableQty = item.quantity;
+                    let quantityText = "";
+                    
+                    if (transactionFormData.type === "income") {
+                      // If editing, add back original quantity if this was the same item
+                      if (editingTransaction && 
+                          editingTransaction.relatedInventoryId === item.id && 
+                          editingTransaction.type === "income") {
+                        availableQty += editingTransaction.quantity ?? 0;
+                      }
+                      quantityText = ` (Available: ${availableQty})`;
+                    }
+                    
+                    return (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({formatCurrency(transactionFormData.type === "income" ? item.sellingPrice : item.costPrice)} each){quantityText}
+                      </option>
+                    );
+                  })}
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
                   <FaChevronDown className="h-4 w-4 text-gray-400" />
@@ -4870,7 +5410,24 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                 <span>Quantity</span>
                 {(() => {
                   const item = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
-                  const availableText = item ? `Available: ${item.quantity}` : '';
+                  if (!item) return <span></span>;
+                  
+                  let availableText = "";
+                  if (transactionFormData.type === "income") {
+                    // Calculate available quantity for income transactions
+                    let availableQty = item.quantity;
+                    
+                    // If editing, add back original quantity if this was the same item
+                    if (editingTransaction && 
+                        editingTransaction.relatedInventoryId === item.id && 
+                        editingTransaction.type === "income") {
+                      availableQty += editingTransaction.quantity ?? 0;
+                    }
+                    availableText = `Available: ${availableQty}`;
+                  } else {
+                    // For expense transactions, show current inventory
+                    availableText = `Current Inventory: ${item.quantity}`;
+                  }
                   return <span className="text-xs text-gray-400">{availableText}</span>;
                 })()}
               </label>
@@ -4923,12 +5480,25 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                         ? selectedItem.sellingPrice 
                         : selectedItem.costPrice;
                       
-                      // Check if we're exceeding available quantity for expense
-                      if (transactionFormData.type === "expense" && newQuantity > selectedItem.quantity) {
-                        toast.error(`Only ${selectedItem.quantity} items available in inventory`);
-                        return;
-                      }
+                      // For income transactions (selling)
+                      if (transactionFormData.type === "income") {
+                        // Calculate max available with consideration for editing
+                        let maxAvailable = selectedItem.quantity;
                         
+                        // If editing, add back original quantity if this was the same item
+                        if (editingTransaction && 
+                            editingTransaction.relatedInventoryId === selectedItem.id && 
+                            editingTransaction.type === "income") {
+                          maxAvailable += editingTransaction.quantity ?? 0;
+                        }
+                        
+                        // Check if we're exceeding available quantity
+                        if (newQuantity > maxAvailable) {
+                          toast.error(`Only ${maxAvailable} units of "${selectedItem.name}" available`);
+                          return;
+                        }
+                      }
+                      
                       setTransactionFormData({
                         ...transactionFormData, 
                         quantity: newQuantity,
@@ -4946,17 +5516,30 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                     const newQuantity = transactionFormData.quantity + 1;
                     const selectedItem = inventory.find(item => item.id === transactionFormData.relatedInventoryId);
                     
-                    // Check if we're exceeding available quantity for expense
                     if (selectedItem) {
-                      if (transactionFormData.type === "expense" && newQuantity > selectedItem.quantity) {
-                        toast.error(`Only ${selectedItem.quantity} items available in inventory`);
-                        return;
+                      // For income transactions (selling)
+                      if (transactionFormData.type === "income") {
+                        // Calculate max available with consideration for editing
+                        let maxAvailable = selectedItem.quantity;
+                        
+                        // If editing, add back original quantity if this was the same item
+                        if (editingTransaction && 
+                            editingTransaction.relatedInventoryId === selectedItem.id && 
+                            editingTransaction.type === "income") {
+                          maxAvailable += editingTransaction.quantity ?? 0;
+                        }
+                        
+                        // Check if we're exceeding available quantity
+                        if (newQuantity > maxAvailable) {
+                          toast.error(`Only ${maxAvailable} units of "${selectedItem.name}" available`);
+                          return;
+                        }
                       }
                       
                       const pricePerItem = transactionFormData.type === "income" 
                         ? selectedItem.sellingPrice 
                         : selectedItem.costPrice;
-                        
+                      
                       setTransactionFormData({
                         ...transactionFormData, 
                         quantity: newQuantity,
@@ -4965,17 +5548,52 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                     }
                   }}
                   className={`px-3 py-2.5 bg-${currentTheme.background} border border-${currentTheme.border} border-l-0 text-${currentTheme.text} hover:bg-${currentTheme.background}/80 transition-colors duration-200 ${
-                    transactionFormData.type === "expense" && 
+                    transactionFormData.type === "income" && 
                     transactionFormData.relatedInventoryId && 
-                    transactionFormData.quantity >= (inventory.find(i => i.id === transactionFormData.relatedInventoryId)?.quantity || 0)
+                    (() => {
+                      // Calculate if the button should be disabled
+                      const item = inventory.find(i => i.id === transactionFormData.relatedInventoryId);
+                      if (!item) return true;
+                      
+                      // For income transactions (selling)
+                      if (transactionFormData.type === "income") {
+                        let maxAvailable = item.quantity;
+                        
+                        // If editing, add back original quantity
+                        if (editingTransaction && 
+                            editingTransaction.relatedInventoryId === item.id && 
+                            editingTransaction.type === "income") {
+                          maxAvailable += editingTransaction.quantity ?? 0;
+                        }
+                        
+                        return transactionFormData.quantity >= maxAvailable;
+                      }
+                      
+                      return false;
+                    })()
                       ? 'opacity-50 cursor-not-allowed'
                       : ''
                   }`}
-                  disabled={
-                    !!(transactionFormData.type === "expense" && 
+                  disabled={Boolean(
+                    transactionFormData.type === "income" && 
                     transactionFormData.relatedInventoryId && 
-                    transactionFormData.quantity >= (inventory.find(i => i.id === transactionFormData.relatedInventoryId)?.quantity || 0))
-                  }
+                    (() => {
+                      // Calculate if the button should be disabled
+                      const item = inventory.find(i => i.id === transactionFormData.relatedInventoryId);
+                      if (!item) return true;
+                      
+                      let maxAvailable = item.quantity;
+                      
+                      // If editing, add back original quantity
+                      if (editingTransaction && 
+                          editingTransaction.relatedInventoryId === item.id && 
+                          editingTransaction.type === "income") {
+                        maxAvailable += editingTransaction.quantity ?? 0;
+                      }
+                      
+                      return transactionFormData.quantity >= maxAvailable;
+                    })()
+                  )}
                 >
                   <FaPlus className="h-3 w-3" />
                 </button>
@@ -4993,6 +5611,34 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                   })()}
                 </div>
               </div>
+              
+              {/* Max quantity indicator */}
+              {transactionFormData.type === "income" && (
+                <div className="mt-1 text-xs">
+                  {(() => {
+                    const item = inventory.find(i => i.id === transactionFormData.relatedInventoryId);
+                    if (!item) return null;
+                    
+                    let maxAvailable = item.quantity;
+                    
+                    // If editing, add back original quantity
+                    if (editingTransaction && 
+                        editingTransaction.relatedInventoryId === item.id && 
+                        editingTransaction.type === "income") {
+                      maxAvailable += editingTransaction.quantity ?? 0;
+                    }
+                    
+                    return (
+                      <div className="flex justify-between">
+                        <span></span>
+                        <span className={`text-${transactionFormData.quantity === maxAvailable ? 'amber-500' : 'gray-400'}`}>
+                          {transactionFormData.quantity} of {maxAvailable} available
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </motion.div>
           )}
           
