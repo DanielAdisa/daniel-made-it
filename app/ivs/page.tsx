@@ -253,6 +253,7 @@ const convertToCSV = (data: any[], headers: string[]): string => {
 };
 
 
+
 // Add this function to generate invoice numbers
 const generateInvoiceNumber = (businessInfo: any) => {
   const date = new Date();
@@ -645,6 +646,8 @@ export default function BookKeepingSystem() {
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<Theme>(themes[0]);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
+
+  
   
   // Add state for data persistence
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -1240,192 +1243,224 @@ useEffect(() => {
     });
   };
 
-  // Updated add transaction function to associate with customer
-  const addTransaction = () => {
-    const newTransaction: Transaction = {
-      id: `txn-${Date.now()}`,
-      description: transactionFormData.description,
-      type: transactionFormData.type,
-      category: transactionFormData.category,
-      amount: Number(transactionFormData.amount),
-      date: new Date(transactionFormData.date),
-      relatedInventoryId: transactionFormData.relatedInventoryId,
-      customerId: transactionFormData.customerId || undefined, // Add customerId if provide
-    };
-    
-    // Update customer purchase count if transaction is income and has a customer
-    if (transactionFormData.type === "income" && transactionFormData.customerId) {
-      setCustomers(customers.map(customer =>
-        customer.id === transactionFormData.customerId
-          ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
-          : customer
-      ));
-    }
-    if (newTransaction.relatedInventoryId) {
-      // Find the inventory item
-      const inventoryItemIndex = inventory.findIndex(item => item.id === newTransaction.relatedInventoryId);
-      
-      if (inventoryItemIndex >= 0) {
-        // Create a copy of inventory for immutability
-        const updatedInventory = [...inventory];
-        const item = { ...updatedInventory[inventoryItemIndex] };
-        
-        // Update quantity based on transaction type
-        if (newTransaction.type === "income") {
-          // For sales (income), decrease inventory
-          item.quantity = Math.max(0, item.quantity - (newTransaction.quantity || 1));
-        } else {
-          // For purchases (expense), increase inventory
-          item.quantity = item.quantity + (newTransaction.quantity || 1);
-        }
-        
-        // Update the inventory item
-        updatedInventory[inventoryItemIndex] = item;
-        setInventory(updatedInventory);
-        
-        // Show success message
-        const actionType = newTransaction.type === "income" ? "decreased" : "increased";
-        toast.success(`Inventory for "${item.name}" ${actionType} by ${newTransaction.quantity} unit(s)`);
-      }
-    }
-    
-    setTransactions([...transactions, newTransaction]);
-    setShowTransactionModal(false);
-    resetTransactionForm();
-
-    setDataChanged(true);
-  toast.success('Transaction added successfully!');
+// Updated add transaction function to associate with customer and handle inventory
+const addTransaction = () => {
+  // Validate inventory quantities for sales transactions
+  if (!validateInventoryTransaction()) {
+    return;
+  }
+  
+  const newTransaction: Transaction = {
+    id: `txn-${Date.now()}`,
+    description: transactionFormData.description,
+    type: transactionFormData.type,
+    category: transactionFormData.category,
+    amount: Number(transactionFormData.amount),
+    date: new Date(transactionFormData.date),
+    relatedInventoryId: transactionFormData.relatedInventoryId,
+    customerId: transactionFormData.customerId || undefined,
+    quantity: Number(transactionFormData.quantity) || 1 // Ensure we have a quantity value
   };
   
-  // Updated update transaction function to handle customer association changes
-  const updateTransaction = () => {
-    if (!editingTransaction) return;
-    
-    const updatedTransaction: Transaction = {
-      ...editingTransaction,
-      description: transactionFormData.description,
-      type: transactionFormData.type,
-      category: transactionFormData.category,
-      amount: Number(transactionFormData.amount),
-      date: new Date(transactionFormData.date),
-      relatedInventoryId: transactionFormData.relatedInventoryId,
-      customerId: transactionFormData.customerId || undefined,
-    };
-    
-    // Handle customer purchase count updates if the customer association changed
-    if (transactionFormData.type === "income" && 
-        transactionFormData.customerId && 
-        transactionFormData.customerId !== editingTransaction.customerId) {
-      // Increment new customer's purchase count
-      setCustomers(customers.map(customer =>
-        customer.id === transactionFormData.customerId
-          ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
-          : customer
-      ));
-    }
-
-    if (editingTransaction.relatedInventoryId) {
-      const originalInventoryItemIndex = inventory.findIndex(item => item.id === editingTransaction.relatedInventoryId);
-      
-      if (originalInventoryItemIndex >= 0) {
-        const updatedInventory = [...inventory];
-        const originalItem = { ...updatedInventory[originalInventoryItemIndex] };
-        
-        // Reverse the original transaction's effect
-        if (editingTransaction.type === "income") {
-          // Original was a sale, so add back to inventory
-          originalItem.quantity = originalItem.quantity + (editingTransaction.quantity || 1);
-        } else {
-          // Original was a purchase, so remove from inventory
-          originalItem.quantity = Math.max(0, originalItem.quantity - (editingTransaction.quantity || 1));
-        }
-        
-        updatedInventory[originalInventoryItemIndex] = originalItem;
-        setInventory(updatedInventory);
-      }
-    }
-
-    if (updatedTransaction.relatedInventoryId) {
-      const newInventoryItemIndex = inventory.findIndex(item => item.id === updatedTransaction.relatedInventoryId);
-      
-      if (newInventoryItemIndex >= 0) {
-        const updatedInventory = [...inventory];
-        const newItem = { ...updatedInventory[newInventoryItemIndex] };
-        
-        // Apply the new transaction's effect
-          if (updatedTransaction.type === "income") {
-          // For sales (income), decrease inventory
-          newItem.quantity = Math.max(0, newItem.quantity - (updatedTransaction.quantity || 1));
-        } else {
-          // For purchases (expense), increase inventory
-          newItem.quantity = newItem.quantity + (updatedTransaction.quantity || 1);
-        }
-        
-        updatedInventory[newInventoryItemIndex] = newItem;
-        setInventory(updatedInventory);
-        
-        const actionType = updatedTransaction.type === "income" ? "decreased" : "increased";
-        toast.success(`Inventory for "${newItem.name}" ${actionType} by ${updatedTransaction.quantity} unit(s)`);
-      }
-    }
-
-
-    
-    setTransactions(transactions.map(transaction => 
-      transaction.id === updatedTransaction.id ? updatedTransaction : transaction
+  // Update customer purchase count if transaction is income and has a customer
+  if (transactionFormData.type === "income" && transactionFormData.customerId) {
+    setCustomers(customers.map(customer =>
+      customer.id === transactionFormData.customerId
+        ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
+        : customer
     ));
-    
-    setShowTransactionModal(false);
-    setEditingTransaction(null);
-    resetTransactionForm();
-
-    setDataChanged(true);
-    toast.success('Transaction updated successfully!');
-  };
+  }
   
-  // Function to delete a transaction
-  const deleteTransaction = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this transaction?")) {
-      setTransactions(transactions.filter(transaction => transaction.id !== id));
-    }
-    const transactionToDelete = transactions.find(t => t.id === id);
-  
-    if (!transactionToDelete) return;
+  // Update inventory if this transaction relates to an inventory item
+  if (newTransaction.relatedInventoryId) {
+    // Find the inventory item
+    const inventoryItemIndex = inventory.findIndex(item => item.id === newTransaction.relatedInventoryId);
     
-    // If this transaction affected inventory, revert those changes
-    if (transactionToDelete.relatedInventoryId && transactionToDelete.quantity) {
-      const inventoryItemIndex = inventory.findIndex(item => item.id === transactionToDelete.relatedInventoryId);
+    if (inventoryItemIndex >= 0) {
+      // Create a copy of inventory for immutability
+      const updatedInventory = [...inventory];
+      const item = { ...updatedInventory[inventoryItemIndex] };
       
-      if (inventoryItemIndex >= 0) {
-        const updatedInventory = [...inventory];
-        const item = { ...updatedInventory[inventoryItemIndex] };
-        
-        // Reverse the transaction's effect on inventory
-        if (transactionToDelete.type === "income") {
-          // Original was a sale, so add back to inventory
-          item.quantity = item.quantity + transactionToDelete.quantity;
-        } else {
-          // Original was a purchase, so remove from inventory
-          item.quantity = Math.max(0, item.quantity - transactionToDelete.quantity);
+      // Update quantity based on transaction type
+      if (newTransaction.type === "income") {
+        // For sales (income), decrease inventory
+        const quantityToDecrease = newTransaction.quantity || 1;
+        if (item.quantity < quantityToDecrease) {
+          toast.error(`Not enough inventory for ${item.name}. Only ${item.quantity} units available.`);
+          return;
         }
-        
-        updatedInventory[inventoryItemIndex] = item;
-        setInventory(updatedInventory);
-        
-        const actionType = transactionToDelete.type === "income" ? "increased" : "decreased";
-        toast.success(`Inventory for "${item.name}" ${actionType} by ${transactionToDelete.quantity} unit(s)`);
+        item.quantity = Math.max(0, item.quantity - quantityToDecrease);
+      } else {
+        // For purchases (expense), increase inventory
+        item.quantity = item.quantity + (newTransaction.quantity || 1);
+        // Update last restocked date
+        item.lastRestocked = new Date();
       }
+      
+      // Update the inventory item
+      updatedInventory[inventoryItemIndex] = item;
+      setInventory(updatedInventory);
+      
+      // Show success message
+      const actionType = newTransaction.type === "income" ? "decreased" : "increased";
+      toast.success(`Inventory for "${item.name}" ${actionType} by ${newTransaction.quantity || 1} unit(s)`);
     }
+  }
   
-    // Remove the transaction
-    const updatedTransactions = transactions.filter(t => t.id !== id);
-    setTransactions(updatedTransactions);
-    
-    setDataChanged(true);
-    toast.success('Transaction deleted successfully!');
-  };
+  setTransactions([...transactions, newTransaction]);
+  setShowTransactionModal(false);
+  resetTransactionForm();
 
-  // Add this check before submitting the form
+  setDataChanged(true);
+  toast.success('Transaction added successfully!');
+};
+
+// Updated update transaction function to handle customer association changes and inventory adjustments
+const updateTransaction = () => {
+  if (!editingTransaction) return;
+  
+  // Validate inventory quantities for sales transactions
+  if (!validateInventoryTransaction()) {
+    return;
+  }
+  
+  const updatedTransaction: Transaction = {
+    ...editingTransaction,
+    description: transactionFormData.description,
+    type: transactionFormData.type,
+    category: transactionFormData.category,
+    amount: Number(transactionFormData.amount),
+    date: new Date(transactionFormData.date),
+    relatedInventoryId: transactionFormData.relatedInventoryId,
+    customerId: transactionFormData.customerId || undefined,
+    quantity: Number(transactionFormData.quantity) || 1 // Ensure we have a quantity value
+  };
+  
+  // Handle customer purchase count updates if the customer association changed
+  if (transactionFormData.type === "income" && 
+      transactionFormData.customerId && 
+      transactionFormData.customerId !== editingTransaction.customerId) {
+    // Increment new customer's purchase count
+    setCustomers(customers.map(customer =>
+      customer.id === transactionFormData.customerId
+        ? { ...customer, totalPurchases: customer.totalPurchases + 1 }
+        : customer
+    ));
+  }
+  
+  // FIRST: Reverse the original transaction's effect on inventory
+  if (editingTransaction.relatedInventoryId) {
+    const originalItemIndex = inventory.findIndex(item => item.id === editingTransaction.relatedInventoryId);
+    
+    if (originalItemIndex >= 0) {
+      const updatedInventory = [...inventory];
+      const originalItem = { ...updatedInventory[originalItemIndex] };
+      
+      // Reverse the original transaction's effect
+      if (editingTransaction.type === "income") {
+        // Original was a sale, so add back to inventory
+        originalItem.quantity = originalItem.quantity + (editingTransaction.quantity || 1);
+      } else {
+        // Original was a purchase, so remove from inventory
+        originalItem.quantity = Math.max(0, originalItem.quantity - (editingTransaction.quantity || 1));
+      }
+      
+      // Update the inventory
+      updatedInventory[originalItemIndex] = originalItem;
+      setInventory(updatedInventory);
+    }
+  }
+  
+  // SECOND: Apply the updated transaction's effect on inventory
+  if (updatedTransaction.relatedInventoryId) {
+    const newItemIndex = inventory.findIndex(item => item.id === updatedTransaction.relatedInventoryId);
+    
+    if (newItemIndex >= 0) {
+      const updatedInventory = [...inventory];
+      const newItem = { ...updatedInventory[newItemIndex] };
+      
+      // Apply the new transaction's effect
+      if (updatedTransaction.type === "income") {
+        // For sales (income), decrease inventory
+        const quantityToDecrease = updatedTransaction.quantity || 1;
+        if (newItem.quantity < quantityToDecrease) {
+          toast.error(`Not enough inventory for ${newItem.name}. Only ${newItem.quantity} units available.`);
+          return;
+        }
+        newItem.quantity = Math.max(0, newItem.quantity - quantityToDecrease);
+      } else {
+        // For purchases (expense), increase inventory
+        newItem.quantity = newItem.quantity + (updatedTransaction.quantity || 1);
+        // Update last restocked date if this is a purchase
+        newItem.lastRestocked = new Date();
+      }
+      
+      // Update the inventory
+      updatedInventory[newItemIndex] = newItem;
+      setInventory(updatedInventory);
+      
+      // Show success message
+      const actionType = updatedTransaction.type === "income" ? "decreased" : "increased";
+      toast.success(`Inventory for "${newItem.name}" ${actionType} by ${updatedTransaction.quantity || 1} unit(s)`);
+    }
+  }
+  
+  // Update transactions array
+  setTransactions(transactions.map(transaction => 
+    transaction.id === updatedTransaction.id ? updatedTransaction : transaction
+  ));
+  
+  setShowTransactionModal(false);
+  setEditingTransaction(null);
+  resetTransactionForm();
+  
+  setDataChanged(true);
+  toast.success('Transaction updated successfully!');
+};
+
+// Function to delete a transaction
+const deleteTransaction = (id: string) => {
+  if (!window.confirm("Are you sure you want to delete this transaction?")) {
+    return;
+  }
+  
+  const transactionToDelete = transactions.find(t => t.id === id);
+  
+  if (!transactionToDelete) return;
+  
+  // If this transaction affected inventory, revert those changes
+  if (transactionToDelete.relatedInventoryId) {
+    const inventoryItemIndex = inventory.findIndex(item => item.id === transactionToDelete.relatedInventoryId);
+    
+    if (inventoryItemIndex >= 0) {
+      const updatedInventory = [...inventory];
+      const item = { ...updatedInventory[inventoryItemIndex] };
+      
+      // Reverse the transaction's effect on inventory
+      if (transactionToDelete.type === "income") {
+        // Original was a sale, so add back to inventory
+        item.quantity = item.quantity + (transactionToDelete.quantity || 1);
+      } else {
+        // Original was a purchase, so remove from inventory
+        item.quantity = Math.max(0, item.quantity - (transactionToDelete.quantity || 1));
+      }
+      
+      updatedInventory[inventoryItemIndex] = item;
+      setInventory(updatedInventory);
+      
+      const actionType = transactionToDelete.type === "income" ? "increased" : "decreased";
+      toast.success(`Inventory for "${item.name}" ${actionType} by ${transactionToDelete.quantity || 1} unit(s)`);
+    }
+  }
+
+  // Remove the transaction
+  setTransactions(transactions.filter(t => t.id !== id));
+  
+  setDataChanged(true);
+  toast.success('Transaction deleted successfully!');
+};
+
+// Add this check before submitting the form
 const validateInventoryTransaction = () => {
   // Only validate for expenses related to inventory
   if (transactionFormData.type === "expense" && transactionFormData.relatedInventoryId) {
@@ -1438,14 +1473,15 @@ const validateInventoryTransaction = () => {
     
     // If editing, we need to account for the original quantity
     let availableQuantity = item?.quantity || 0;
-    if (editingTransaction && editingTransaction.relatedInventoryId === transactionFormData.relatedInventoryId) {
+    if (editingTransaction && 
+        editingTransaction.relatedInventoryId === transactionFormData.relatedInventoryId &&
+        editingTransaction.type === "income") {
       // Add back the original quantity for proper calculation
-      if (editingTransaction.type === "income") {
-        availableQuantity += (editingTransaction.quantity || 0);
-      }
+      availableQuantity += (editingTransaction.quantity || 1);
     }
     
-    if (availableQuantity < transactionFormData.quantity) {
+    const requestedQuantity = Number(transactionFormData.quantity) || 1;
+    if (availableQuantity < requestedQuantity) {
       toast.error(`Not enough inventory. Only ${availableQuantity} units of ${item?.name} available.`);
       return false;
     }
