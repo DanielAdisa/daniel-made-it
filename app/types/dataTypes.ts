@@ -70,6 +70,17 @@ export interface Currency {
   name: string;
 }
 
+export interface Budget {
+  id: string;
+  name: string;
+  amount: number;
+  category: string;
+  period: 'monthly' | 'quarterly' | 'yearly';
+  startDate: Date;
+  endDate?: Date;
+  actualSpent?: number;
+}
+
 export interface AppData {
   inventory: InventoryItem[];
   transactions: Transaction[];
@@ -78,4 +89,5 @@ export interface AppData {
   selectedCurrency: string;
   clientId?: string;
   syncTimestamp?: string;
+  budgets: Budget[];
 }

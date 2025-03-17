@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { FaBook, FaBoxOpen, FaChartLine, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
+import { FaBook, FaBoxOpen, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
   FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
@@ -324,11 +324,96 @@ const formatDateForInput = (dateValue: any): string => {
   }
 };
 
+interface BudgetCategory {
+  id?: string;
+  name: string;
+  allocated: number;
+  spent: number;
+}
 
+interface BudgetTransaction {
+  id?: string;
+  description: string;
+  amount: number;
+  date: string | Date;
+  category: string;
+  type: 'income' | 'expense';
+}
+
+interface Budget {
+  id: string;
+  name: string;
+  period: string;
+  startDate: string | Date;
+  endDate: string | Date;
+  targetAmount: number;
+  spentAmount: number;
+  categories?: BudgetCategory[];
+  recentTransactions?: BudgetTransaction[];
+  notes?: string;
+}
 // Main component
+// Budget Category interface
+interface BudgetCategory {
+  name: string;
+  allocated: number;
+  spent: number;
+}
+
+// Recent Transaction interface for budget view
+interface BudgetTransaction {
+  id?: string;
+  date: string | Date;
+  description: string;
+  category: string;
+  amount: number;
+  type: 'income' | 'expense';
+}
+
+// Main Budget interface
+interface Budget {
+  id: string;
+  name: string;
+  period: string;
+  startDate: string | Date;
+  endDate: string | Date;
+  targetAmount: number;
+  spentAmount: number;
+  categories?: BudgetCategory[];
+  recentTransactions?: BudgetTransaction[];
+  notes?: string;
+}
+
+// Budget form data interface
+interface BudgetFormData {
+  name: string;
+  period: string;
+  startDate: string;
+  endDate: string;
+  targetAmount: number;
+  categories: BudgetCategory[];
+  notes?: string;
+}
+
+// Hook states and functions related to Budget management
+interface BudgetHookReturn {
+  filteredBudgets: Budget[];
+  expandedBudget: string | null;
+  editingBudget: Budget | null;
+  budgetFormData: BudgetFormData;
+  showBudgetModal: boolean;
+  setExpandedBudget: (id: string | null) => void;
+  setEditingBudget: (budget: Budget | null) => void;
+  resetBudgetForm: () => void;
+  setShowBudgetModal: (show: boolean) => void;
+  handleBudgetFormChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
+  saveBudget: (budget: BudgetFormData) => void;
+  deleteBudget: (id: string) => void;
+}
+
 export default function BookKeepingSystem() {
   // Update the activeTab state to include customers
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "categories" | "customers" | "invoices">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices">("dashboard");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -352,6 +437,462 @@ export default function BookKeepingSystem() {
   });
 
   const invoiceCardRef = useRef<HTMLDivElement>(null);
+
+  const [categories, setCategories] = useState<Category[]>([
+    // Some default categories to start with
+    { id: "cat-1", name: "Electronics", description: "Electronic items and gadgets", type: "inventory", color: "blue-500" },
+    { id: "cat-2", name: "Stationery", description: "Office supplies and stationery", type: "inventory", color: "green-500" },
+    { id: "cat-3", name: "Sales", description: "Income from sales", type: "transaction", color: "emerald-500" },
+    { id: "cat-4", name: "Utilities", description: "Utility bills and expenses", type: "transaction", color: "amber-500" },
+    { id: "cat-5", name: "Salaries", description: "Staff salaries", type: "transaction", color: "rose-500" }
+  ]);
+  const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
+  
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [filteredBudgets, setFilteredBudgets] = useState<Budget[]>([]);
+  const [expandedBudget, setExpandedBudget] = useState<string | null>(null);
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [budgetFormData, setBudgetFormData] = useState({
+    name: '',
+    period: 'Monthly',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+    targetAmount: 0,
+    categories: [] as {id: string, name: string, allocated: number}[],
+    notes: ''
+  });
+
+  const [tempBudgetCategory, setTempBudgetCategory] = useState({
+    name: "",
+    allocated: 0
+  });
+
+  // Format date utility function
+  const formatDate = (dateString: string | Date | undefined): string => {
+    if (!dateString) return 'N/A';
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  // Calculate dates within budget period
+  const isDateInBudgetPeriod = (date: Date, budget: Budget): boolean => {
+    const startDate = new Date(budget.startDate);
+    const endDate = new Date(budget.endDate);
+    return date >= startDate && date <= endDate;
+  };
+
+  // Filter budgets based on search query
+  useEffect(() => {
+    if (!searchQuery) {
+      setFilteredBudgets(budgets);
+      return;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    const filtered = budgets.filter(budget => 
+      budget.name.toLowerCase().includes(query) || 
+      budget.period.toLowerCase().includes(query) ||
+      budget.notes?.toLowerCase().includes(query) ||
+      budget.categories?.some(cat => cat.name.toLowerCase().includes(query))
+    );
+    
+    setFilteredBudgets(filtered);
+    
+    // Update search stats
+    searchStats.budgets = filtered.length.toString();
+  }, [searchQuery, budgets]);
+
+  // Initialize with demo data if none exists
+  useEffect(() => {
+    if (budgets.length === 0) {
+      // Only add sample data if we're in a clean state
+      const sampleBudget: Budget = {
+        id: 'budget-' + Date.now(),
+        name: 'Monthly Operations',
+        period: 'Monthly',
+        startDate: new Date(new Date().setDate(1)).toISOString(),
+        endDate: new Date(new Date().setMonth(new Date().getMonth() + 1, 0)).toISOString(),
+        targetAmount: 5000,
+        spentAmount: 2100,
+        categories: [
+          { id: 'cat1', name: 'Supplies', allocated: 2000, spent: 1200 },
+          { id: 'cat2', name: 'Marketing', allocated: 1500, spent: 600 },
+          { id: 'cat3', name: 'Utilities', allocated: 500, spent: 300 }
+        ],
+        recentTransactions: [
+          {
+            id: 'tr1',
+            description: 'Office supplies purchase',
+            amount: 450,
+            date: new Date(Date.now() - 86400000 * 3).toISOString(),
+            category: 'Supplies',
+            type: 'expense'
+          },
+          {
+            id: 'tr2',
+            description: 'Facebook ad campaign',
+            amount: 600,
+            date: new Date(Date.now() - 86400000 * 5).toISOString(),
+            category: 'Marketing',
+            type: 'expense'
+          }
+        ]
+      };
+      
+      setBudgets([sampleBudget]);
+    }
+  }, []);
+
+  // Reset budget form data
+  // const resetBudgetForm = () => {
+  //   setBudgetFormData({
+  //     name: '',
+  //     period: 'Monthly',
+  //     startDate: new Date().toISOString().split('T')[0],
+  //     endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+  //     targetAmount: 0,
+  //     categories: [],
+  //     notes: ''
+  //   });
+  // };
+
+  const resetBudgetForm = () => {
+    setBudgetFormData({
+      name: "",
+      period: "Monthly",
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+      targetAmount: 0,
+      categories: [],
+      notes: ""
+    });
+    setTempBudgetCategory({ name: "", allocated: 0 });
+  };
+  
+  // Handle budget form changes
+  const handleBudgetFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    if (name === "targetAmount") {
+      setBudgetFormData({
+        ...budgetFormData,
+        [name]: parseFloat(value) || 0
+      });
+    } else {
+      setBudgetFormData({
+        ...budgetFormData,
+        [name]: value
+      });
+    }
+  };
+  
+  // Handle temporary category form changes
+  const handleTempCategoryChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setTempBudgetCategory({
+      ...tempBudgetCategory,
+      [name]: name === "allocated" ? parseFloat(value) || 0 : value
+    });
+  };
+  
+  // Add a category to the form
+  const addCategoryToForm = () => {
+    if (!tempBudgetCategory.name || tempBudgetCategory.allocated <= 0) {
+      toast.error("Please enter a valid category name and allocation amount");
+      return;
+    }
+    
+    setBudgetFormData({
+      ...budgetFormData,
+      categories: [
+        ...budgetFormData.categories, 
+        { 
+          id: uuidv4(),
+          name: tempBudgetCategory.name, 
+          allocated: tempBudgetCategory.allocated 
+        }
+      ]
+    });
+    
+    setTempBudgetCategory({ name: "", allocated: 0 });
+  };
+  
+  // Remove a category from the form
+  const removeCategoryFromForm = (id: string) => {
+    setBudgetFormData({
+      ...budgetFormData,
+      categories: budgetFormData.categories.filter(cat => cat.id !== id)
+    });
+  };
+  
+  // Function to save a new budget
+  const saveBudget = () => {
+    // Validation
+    if (!budgetFormData.name) {
+      toast.error("Budget name is required");
+      return;
+    }
+    
+    if (parseFloat(String(budgetFormData.targetAmount)) <= 0) {
+      toast.error("Budget target amount must be greater than zero");
+      return;
+    }
+    
+    if (new Date(budgetFormData.startDate) >= new Date(budgetFormData.endDate)) {
+      toast.error("End date must be after start date");
+      return;
+    }
+    
+    if (budgetFormData.categories.length === 0) {
+      toast.error("Please add at least one category to your budget");
+      return;
+    }
+    
+    if (editingBudget) {
+      // Update existing budget
+      const updatedBudget: Budget = {
+        ...editingBudget,
+        name: budgetFormData.name,
+        period: budgetFormData.period,
+        startDate: budgetFormData.startDate,
+        endDate: budgetFormData.endDate,
+        targetAmount: budgetFormData.targetAmount,
+        categories: budgetFormData.categories.map(cat => {
+          // Find matching category in existing budget to preserve spent amounts
+          const existingCat = (editingBudget.categories || []).find(c => c.id === cat.id);
+          return {
+            id: cat.id,
+            name: cat.name,
+            allocated: cat.allocated,
+            spent: existingCat ? existingCat.spent : 0
+          };
+        }),
+        notes: budgetFormData.notes
+      };
+      
+      setBudgets(budgets.map(b => b.id === updatedBudget.id ? updatedBudget : b));
+      toast.success("Budget updated successfully");
+    } else {
+      // Create new budget
+      const newBudget: Budget = {
+        id: uuidv4(),
+        name: budgetFormData.name,
+        period: budgetFormData.period,
+        startDate: budgetFormData.startDate,
+        endDate: budgetFormData.endDate,
+        targetAmount: budgetFormData.targetAmount,
+        spentAmount: 0,
+        categories: budgetFormData.categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          allocated: cat.allocated,
+          spent: 0
+        })),
+        recentTransactions: [],
+        notes: budgetFormData.notes
+      };
+      
+      setBudgets([...budgets, newBudget]);
+      toast.success("Budget created successfully");
+    }
+    
+    setShowBudgetModal(false);
+    setEditingBudget(null);
+    resetBudgetForm();
+    setDataChanged(true);
+  };
+  
+  // Function to delete a budget
+  // const deleteBudget = (id: string) => {
+  //   if (window.confirm("Are you sure you want to delete this budget? This action cannot be undone.")) {
+  //     setBudgets(budgets.filter(budget => budget.id !== id));
+  //     setExpandedBudget(null);
+  //     toast.success("Budget deleted");
+  //     setDataChanged(true);
+  //   }
+  // };
+
+  // Handle budget form changes
+  // const handleBudgetFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  //   const { name, value } = e.target;
+  //   setBudgetFormData(prev => ({
+  //     ...prev,
+  //     [name]: name === 'targetAmount' ? parseFloat(value) : value
+  //   }));
+  // };
+
+  // Add a new budget
+  const addBudget = () => {
+    const newBudget: Budget = {
+      id: 'budget-' + Date.now(),
+      name: budgetFormData.name,
+      period: budgetFormData.period,
+      startDate: budgetFormData.startDate,
+      endDate: budgetFormData.endDate,
+      targetAmount: budgetFormData.targetAmount,
+      spentAmount: 0, // New budgets start with 0 spent
+      categories: budgetFormData.categories.map(cat => ({
+        ...cat,
+        spent: 0 // New categories start with 0 spent
+      })),
+      recentTransactions: []
+    };
+    
+    if (budgetFormData.notes) {
+      newBudget.notes = budgetFormData.notes;
+    }
+    
+    setBudgets(prev => [...prev, newBudget]);
+    setShowBudgetModal(false);
+    resetBudgetForm();
+    setDataChanged(true);
+  };
+
+  // Update an existing budget
+  const updateBudget = () => {
+    if (!editingBudget) return;
+    
+    const updatedBudgets = budgets.map(budget => {
+      if (budget.id === editingBudget.id) {
+        return {
+          ...budget,
+          name: budgetFormData.name,
+          period: budgetFormData.period,
+          startDate: budgetFormData.startDate,
+          endDate: budgetFormData.endDate,
+          targetAmount: budgetFormData.targetAmount,
+          categories: budgetFormData.categories.map(cat => {
+            // Preserve spent amounts for existing categories
+            const existingCat = budget.categories?.find(c => c.id === cat.id);
+            return {
+              ...cat,
+              spent: existingCat ? existingCat.spent : 0
+            };
+          }),
+          notes: budgetFormData.notes
+        };
+      }
+      return budget;
+    });
+    
+    setBudgets(updatedBudgets);
+    setShowBudgetModal(false);
+    setEditingBudget(null);
+    resetBudgetForm();
+    setDataChanged(true);
+  };
+
+  // Delete a budget
+  const deleteBudget = (id: string) => {
+    if (confirm('Are you sure you want to delete this budget? This action cannot be undone.')) {
+      setBudgets(budgets.filter(budget => budget.id !== id));
+      setEditingBudget(null);
+      setExpandedBudget(null);
+      setDataChanged(true);
+    }
+  };
+
+  
+
+  // Load budget data into form for editing
+  useEffect(() => {
+    if (editingBudget) {
+      setBudgetFormData({
+        name: editingBudget.name,
+        period: editingBudget.period,
+        startDate: typeof editingBudget.startDate === 'string' ? 
+          editingBudget.startDate.split('T')[0] : 
+          editingBudget.startDate.toISOString().split('T')[0],
+        endDate: typeof editingBudget.endDate === 'string' ? 
+          editingBudget.endDate.split('T')[0] : 
+          editingBudget.endDate.toISOString().split('T')[0],
+        targetAmount: editingBudget.targetAmount,
+        categories: (editingBudget.categories || []).map(cat => ({
+          id: cat.id || '',
+          name: cat.name,
+          allocated: cat.allocated
+        })),
+        notes: editingBudget.notes || ''
+      });
+      setShowBudgetModal(true);
+    }
+  }, [editingBudget]);
+
+  // Update transaction effects on budgets
+  useEffect(() => {
+    // If we have both budgets and transactions, we can update spent amounts
+    if (budgets.length > 0 && transactions.length > 0) {
+      const updatedBudgets = budgets.map(budget => {
+        // Find transactions in this budget period
+        const budgetTransactions = transactions.filter(transaction => 
+          isDateInBudgetPeriod(new Date(transaction.date), budget)
+        );
+        
+        // Calculate total spent amount
+        let totalSpent = 0;
+        
+        // Category spending map
+        const categorySpending = new Map<string, number>();
+        
+        // Initialize category spending with 0
+        (budget.categories || []).forEach(cat => {
+          categorySpending.set(cat.name.toLowerCase(), 0);
+        });
+        
+        // Calculate spending per category and total
+        budgetTransactions.forEach(transaction => {
+          if (transaction.type === 'expense') {
+            // Get category name from categories
+            const category = categories.find(c => c.id === transaction.category);
+            const categoryName = category ? category.name.toLowerCase() : 'uncategorized';
+            
+            // Add to total spent
+            totalSpent += transaction.amount;
+            
+            // Add to category if it exists
+            if (categorySpending.has(categoryName)) {
+              categorySpending.set(
+                categoryName, 
+                (categorySpending.get(categoryName) || 0) + transaction.amount
+              );
+            }
+          }
+        });
+        
+        // Update categories spent amounts
+        const updatedCategories = (budget.categories || []).map(cat => ({
+          ...cat,
+          spent: categorySpending.get(cat.name.toLowerCase()) || 0
+        }));
+        
+        // Get recent transactions (last 5)
+        const recentTxs = budgetTransactions
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 5)
+          .map(t => {
+            const category = categories.find(c => c.id === t.category);
+            return {
+              id: t.id,
+              description: t.description,
+              amount: t.amount,
+              date: t.date,
+              category: category ? category.name : 'Uncategorized',
+              type: t.type
+            };
+          });
+        
+        return {
+          ...budget,
+          spentAmount: totalSpent,
+          categories: updatedCategories,
+          recentTransactions: recentTxs
+        };
+      });
+      
+      setBudgets(updatedBudgets);
+    }
+  }, [transactions, categories]);
 
   
   // Business type options
@@ -655,15 +1196,15 @@ export default function BookKeepingSystem() {
   const [dataChanged, setDataChanged] = useState(false);
 
   // Add categories state
-  const [categories, setCategories] = useState<Category[]>([
-    // Some default categories to start with
-    { id: "cat-1", name: "Electronics", description: "Electronic items and gadgets", type: "inventory", color: "blue-500" },
-    { id: "cat-2", name: "Stationery", description: "Office supplies and stationery", type: "inventory", color: "green-500" },
-    { id: "cat-3", name: "Sales", description: "Income from sales", type: "transaction", color: "emerald-500" },
-    { id: "cat-4", name: "Utilities", description: "Utility bills and expenses", type: "transaction", color: "amber-500" },
-    { id: "cat-5", name: "Salaries", description: "Staff salaries", type: "transaction", color: "rose-500" }
-  ]);
-  const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
+  // const [categories, setCategories] = useState<Category[]>([
+  //   // Some default categories to start with
+  //   { id: "cat-1", name: "Electronics", description: "Electronic items and gadgets", type: "inventory", color: "blue-500" },
+  //   { id: "cat-2", name: "Stationery", description: "Office supplies and stationery", type: "inventory", color: "green-500" },
+  //   { id: "cat-3", name: "Sales", description: "Income from sales", type: "transaction", color: "emerald-500" },
+  //   { id: "cat-4", name: "Utilities", description: "Utility bills and expenses", type: "transaction", color: "amber-500" },
+  //   { id: "cat-5", name: "Salaries", description: "Staff salaries", type: "transaction", color: "rose-500" }
+  // ]);
+  // const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
   
   // Add category form state
   const [categoryFormData, setCategoryFormData] = useState<{
@@ -2122,7 +2663,8 @@ const validateInventoryTransaction = () => {
     receipts: searchQuery ? `${filteredReceipts.length} of ${receipts.length}` : `${receipts.length} records`,
     categories: searchQuery ? `${filteredCategories.length} of ${categories.length}` : `${categories.length} categories`,
     customers: searchQuery ? `${filteredCustomers.length} of ${customers.length}` : `${customers.length} customers`,
-    invoices: searchQuery ? `${filteredInvoices.length} of ${invoices.length}` : `${invoices.length} invoices`
+    invoices: searchQuery ? `${filteredInvoices.length} of ${invoices.length}` : `${invoices.length} invoices`,
+    budgets: searchQuery ? `${filteredBudgets.length} of ${budgets.length}` : `${budgets.length} budgets`
   };
 
   // Add functions to manage categories
@@ -3093,6 +3635,17 @@ const generateInvoiceImage = async (invoice: Invoice) => {
                   >
                     <FaDollarSign className="mr-3" />
                     <span>Invoices</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "budgets" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("budgets" as any)}
+                  >
+                    <FaChartPie className="mr-3" />
+                    <span>Budgets</span>
                   </button>
                 </li>
               </ul>
@@ -4880,6 +5433,434 @@ const generateInvoiceImage = async (invoice: Invoice) => {
     )}
   </motion.div>
 )}
+
+            {/* Budgets Tab */}
+            {activeTab === "budgets" && (
+  <motion.div variants={fadeIn}>
+    <div className={`flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-3`}>
+      <div>
+        <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Budget Management</h2>
+        {searchQuery && (
+          <p className={`text-sm text-${currentTheme.accent} mt-1`}>
+            Showing {filteredBudgets?.length || 0} {filteredBudgets?.length === 1 ? 'budget' : 'budgets'}
+          </p>
+        )}
+      </div>
+      <button
+        className={`flex items-center bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm`}
+        onClick={() => {
+          setEditingBudget(null);
+          resetBudgetForm();
+          setShowBudgetModal(true);
+        }}
+      >
+        <FaPlus className="mr-2" /> Add Budget
+      </button>
+    </div>
+
+    {!filteredBudgets || filteredBudgets.length === 0 ? (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`text-center py-12 bg-${currentTheme.background} rounded-lg border border-${currentTheme.border}`}
+      >
+        {searchQuery ? (
+          <>
+            <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No matching budgets</h3>
+            <p className="text-gray-400 mt-2">Try different search terms</p>
+          </>
+        ) : (
+          <>
+            <FaChartPie className="mx-auto text-4xl text-gray-500 mb-4" />
+            <h3 className={`text-xl font-medium text-${currentTheme.text}`}>No budgets created</h3>
+            <p className="text-gray-400 mt-2">Create your first budget to track income and expenses</p>
+            <button 
+              className={`mt-4 flex items-center mx-auto bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} px-4 py-2 rounded-md shadow text-sm transition-colors duration-200`}
+              onClick={() => {
+                setEditingBudget(null);
+                resetBudgetForm();
+                setShowBudgetModal(true);
+              }}
+            >
+              <FaPlus className="mr-2" /> Create First Budget
+            </button>
+          </>
+        )}
+      </motion.div>
+    ) : (
+      <div className={`rounded-lg border border-${currentTheme.border} overflow-auto`}>
+        <table className="w-full text-left">
+          <thead className="sticky top-0">
+            <tr className={`bg-${currentTheme.background}`}>
+              <th className="p-4 text-gray-400 font-semibold whitespace-nowrap">Budget Name</th>
+              <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Period</th>
+              <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Date Range</th>
+              <th className="p-4 text-gray-400 font-semibold">Target Amount</th>
+              <th className="p-4 text-gray-400 font-semibold hidden md:table-cell">Status</th>
+              <th className="p-4 text-gray-400 font-semibold text-right">Actions</th>
+            </tr>
+          </thead>
+          <motion.tbody
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            {filteredBudgets.map((budget) => {
+              // Calculate spent amount based on transactions that match budget categories and date range
+              const budgetStart = new Date(budget.startDate);
+              const budgetEnd = new Date(budget.endDate);
+              
+              // Get all transactions that fall within this budget's date range and match its categories
+              const relevantTransactions = transactions.filter(transaction => {
+                // Check if transaction is within date range
+                const transactionDate = new Date(transaction.date);
+                const inDateRange = transactionDate >= budgetStart && transactionDate <= budgetEnd;
+                
+                // Check if transaction category matches any budget category
+                const matchesCategory = (budget.categories || []).some(
+                  budgetCat => budgetCat.name === 
+                    categories.find(c => c.id === transaction.category)?.name
+                );
+                
+                // Only count expenses towards budget spending
+                return inDateRange && matchesCategory && transaction.type === 'expense';
+              });
+              
+              // Calculate total spent amount from relevant transactions
+              const calculatedSpent = relevantTransactions.reduce(
+                (total, transaction) => total + transaction.amount, 0
+              );
+              
+              // Update each category's spent amount
+              const updatedCategories = budget.categories?.map(category => {
+                const categoryTransactions = relevantTransactions.filter(
+                  transaction => 
+                    categories.find(c => c.id === transaction.category)?.name === category.name
+                );
+                
+                const categorySpent = categoryTransactions.reduce(
+                  (total, transaction) => total + transaction.amount, 0
+                );
+                
+                return {
+                  ...category,
+                  spent: categorySpent
+                };
+              }) || [];
+              
+              // Use the calculated values or fallback to the stored values
+              const spentAmount = calculatedSpent || budget.spentAmount;
+              const spentPercentage = (spentAmount / budget.targetAmount) * 100;
+              
+              return (
+                <React.Fragment key={budget.id}>
+                  <motion.tr
+                    variants={tableRowVariant}
+                    className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/50 cursor-pointer`}
+                    onClick={() => {
+                      setExpandedBudget(expandedBudget === budget.id ? null : budget.id);
+                    }}
+                  >
+                    <td className={`p-4 text-${currentTheme.text} font-medium`}>
+                      <div className="flex items-center">
+                        <span className={`mr-2 ${expandedBudget === budget.id ? 'transform rotate-90' : ''} transition-transform duration-200`}>
+                          <FaChevronRight size={10} />
+                        </span>
+                        <div>
+                          <div>{budget.name}</div>
+                          <div className="text-xs text-gray-400 md:hidden">
+                            {budget.period} • {formatDate(budget.startDate)}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`p-4 text-${currentTheme.text} hidden md:table-cell`}>{budget.period}</td>
+                    <td className={`p-4 text-${currentTheme.text} hidden md:table-cell whitespace-nowrap`}>
+                      {formatDate(budget.startDate)} - {formatDate(budget.endDate)}
+                    </td>
+                    <td className={`p-4 text-${currentTheme.text} font-semibold`}>
+                      <div>
+                        {formatCurrency(budget.targetAmount)}
+                        <div className="text-xs font-normal text-gray-400 md:hidden">
+                          {`${spentPercentage.toFixed(0)}% used`}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      {(() => {
+                        if (spentPercentage >= 100) {
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`}>
+                              Over Budget ({spentPercentage.toFixed(0)}%)
+                            </span>
+                          );
+                        } else if (spentPercentage >= 80) {
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`}>
+                              Near Limit ({spentPercentage.toFixed(0)}%)
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`}>
+                              On Track ({spentPercentage.toFixed(0)}%)
+                            </span>
+                          );
+                        }
+                      })()}
+                    </td>
+                    <td className="p-4 space-x-2 text-right">
+                      <button
+                        className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-sm`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingBudget(budget);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 text-sm`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteBudget(budget.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </motion.tr>
+                  
+                  {/* Expanded budget details */}
+                  {expandedBudget === budget.id && (
+                    <motion.tr 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className={`bg-${currentTheme.background}/30 border-b border-${currentTheme.border}`}
+                    >
+                      <td colSpan={6} className="p-0">
+                        <motion.div 
+                          initial={{ height: 0 }}
+                          animate={{ height: 'auto' }}
+                          exit={{ height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="p-6 space-y-6">
+                            {/* Budget header */}
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                              <div>
+                                <h3 className={`text-lg font-bold text-${currentTheme.text}`}>
+                                  {budget.name}
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                  {budget.period} ({formatDate(budget.startDate)} - {formatDate(budget.endDate)})
+                                </p>
+                              </div>
+                              <div className={`px-3 py-2 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border}`}>
+                                <div className="flex items-center mb-1">
+                                  <span className="text-xs text-gray-400 mr-2">Budget Progress:</span>
+                                  <span className={`text-sm font-medium ${
+                                    spentPercentage > 100
+                                      ? `text-${currentTheme.danger}`
+                                      : `text-${currentTheme.accent}`
+                                  }`}>
+                                    {formatCurrency(spentAmount)} / {formatCurrency(budget.targetAmount)}
+                                  </span>
+                                </div>
+                                <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full ${
+                                      spentPercentage > 100
+                                        ? `bg-${currentTheme.danger}`
+                                        : spentPercentage > 80
+                                          ? `bg-${currentTheme.warning}`
+                                          : `bg-${currentTheme.success}`
+                                    }`}
+                                    style={{ width: `${Math.min(spentPercentage, 100)}%` }}
+                                  ></div>
+                                </div>
+                                <div className="mt-1 text-right">
+                                  <span className="text-xs text-gray-400">
+                                    {Math.round(spentPercentage)}% used
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Budget categories */}
+                            <div>
+                              <h4 className={`text-sm font-medium text-${currentTheme.text} mb-2`}>Budget Categories</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {updatedCategories.map((category, idx) => {
+                                  const categoryPercentage = (category.spent / category.allocated) * 100;
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      className={`p-3 rounded-lg bg-${currentTheme.cardBackground} border border-${currentTheme.border}`}
+                                    >
+                                      <div className="flex justify-between items-start mb-1">
+                                        <span className="text-sm font-medium text-gray-300">{category.name}</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                          category.spent > category.allocated 
+                                            ? `bg-${currentTheme.danger}/20 text-${currentTheme.danger} border border-${currentTheme.danger}/30`
+                                            : category.spent > category.allocated * 0.8
+                                              ? `bg-${currentTheme.warning}/20 text-${currentTheme.warning} border border-${currentTheme.warning}/30`
+                                              : `bg-${currentTheme.success}/20 text-${currentTheme.success} border border-${currentTheme.success}/30`
+                                        }`}>
+                                          {Math.round(categoryPercentage)}%
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                        <span>Allocated: {formatCurrency(category.allocated)}</span>
+                                        <span>Spent: {formatCurrency(category.spent)}</span>
+                                      </div>
+                                      <div className="h-1.5 w-full bg-gray-700 rounded-full overflow-hidden">
+                                        <div 
+                                          className={`h-full ${
+                                            category.spent > category.allocated
+                                              ? `bg-${currentTheme.danger}`
+                                              : category.spent > category.allocated * 0.8
+                                                ? `bg-${currentTheme.warning}`
+                                                : `bg-${currentTheme.success}`
+                                          }`}
+                                          style={{ width: `${Math.min(categoryPercentage, 100)}%` }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            
+                            {/* Related transactions */}
+                            <div>
+                              <h4 className={`text-sm font-medium text-${currentTheme.text} mb-2 flex justify-between items-center`}>
+                                <span>Recent Transactions</span>
+                                <button 
+                                  onClick={() => {
+                                    // Create a category filter instead of budget name
+                                    const categoryNames = budget.categories?.map(cat => cat.name) || [];
+                                    
+                                    // Construct a search query that will match any of these categories
+                                    const categorySearchQuery = categoryNames.join(" OR ");
+                                    
+                                    setSearchQuery(categorySearchQuery);
+                                    setActiveTab("transactions");
+                                  }}
+                                  className={`text-xs text-${currentTheme.accent} hover:text-${currentTheme.primary}`}
+                                >
+                                  View All
+                                </button>
+                              </h4>
+                              {relevantTransactions.length > 0 ? (
+                                <div className={`rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+                                  <table className="w-full text-left text-sm">
+                                    <thead className={`bg-${currentTheme.background}`}>
+                                      <tr>
+                                        <th className="p-2 text-xs text-gray-400">Date</th>
+                                        <th className="p-2 text-xs text-gray-400">Description</th>
+                                        <th className="p-2 text-xs text-gray-400">Category</th>
+                                        <th className="p-2 text-xs text-gray-400 text-right">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className={`divide-y divide-${currentTheme.border}`}>
+                                      {relevantTransactions.slice(0, 5).map((transaction, idx) => (
+                                        <tr key={idx} className={`hover:bg-${currentTheme.background}/50`}>
+                                          <td className="p-2 text-gray-400">{formatDate(transaction.date)}</td>
+                                          <td className="p-2 text-gray-300">{transaction.description}</td>
+                                          <td className="p-2">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-xs ${
+                                              `bg-${currentTheme.accent}/10 text-${currentTheme.accent}`
+                                            }`}>
+                                              {(() => {
+                                                const category = categories.find(c => c.id === transaction.category);
+                                                return category ? category.name : transaction.category;
+                                              })()}
+                                            </span>
+                                          </td>
+                                          <td className={`p-2 text-right text-${currentTheme.danger} font-medium`}>
+                                            -{formatCurrency(transaction.amount)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <div className={`py-4 text-center text-sm text-gray-400 bg-${currentTheme.background}/30 rounded-lg border border-${currentTheme.border}`}>
+                                  No recent transactions for this budget period
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Notes section */}
+                            {budget.notes && (
+                              <div className={`p-3 bg-${currentTheme.background}/50 rounded-lg border border-${currentTheme.border}`}>
+                                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</h4>
+                                <p className="text-sm text-gray-300 whitespace-pre-wrap">{budget.notes}</p>
+                              </div>
+                            )}
+                            
+                            {/* Action buttons */}
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button 
+                                className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded border border-${currentTheme.accent}/30 flex items-center`}
+                                onClick={() => {
+                                  // Generate budget report PDF using existing generateReceipt mechanism
+                                  const reportData = {
+                                    title: `Budget Report: ${budget.name}`,
+                                    date: new Date().toLocaleDateString(),
+                                    content: {
+                                      budget: budget.name,
+                                      period: budget.period,
+                                      dateRange: `${formatDate(budget.startDate)} - ${formatDate(budget.endDate)}`,
+                                      targetAmount: formatCurrency(budget.targetAmount),
+                                      spentAmount: formatCurrency(spentAmount),
+                                      remaining: formatCurrency(budget.targetAmount - spentAmount),
+                                      percentUsed: `${Math.round(spentPercentage)}%`,
+                                      categories: updatedCategories.map(cat => ({
+                                        name: cat.name,
+                                        allocated: formatCurrency(cat.allocated),
+                                        spent: formatCurrency(cat.spent),
+                                        remaining: formatCurrency(cat.allocated - cat.spent),
+                                        percentUsed: `${Math.round((cat.spent / cat.allocated) * 100)}%`
+                                      }))
+                                    }
+                                  };
+                                  
+                                  // generateReceiptImage(reportData, `Budget_${budget.name.replace(/\s+/g, '_')}`);
+                                }}
+                              >
+                                <FaDownload className="mr-1.5" size={12} /> Generate Report
+                              </button>
+                              
+                              <button 
+                                className={`px-3 py-1.5 text-xs bg-${currentTheme.primary}/10 hover:bg-${currentTheme.primary}/20 text-${currentTheme.primary} rounded border border-${currentTheme.primary}/30 flex items-center`}
+                                onClick={() => {
+                                  setEditingBudget(budget);
+                                }}
+                              >
+                                <FaEdit className="mr-1.5" size={12} /> Edit Budget
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </td>
+                    </motion.tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </motion.tbody>
+        </table>
+      </div>
+    )}
+  </motion.div>
+)}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -5822,6 +6803,376 @@ const generateInvoiceImage = async (invoice: Invoice) => {
   </motion.div>
 )}
       </AnimatePresence>
+
+
+      {/* // Budget Modal Component - Add this to the modals section of your render */}
+<AnimatePresence>
+{showBudgetModal && (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+    onClick={() => setShowBudgetModal(false)}
+  >
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      className={`bg-${currentTheme.cardBackground} rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className={`p-6 border-b border-${currentTheme.border}`}>
+        <h3 className={`text-xl font-semibold text-${currentTheme.text}`}>
+          {editingBudget ? 'Edit Budget' : 'Create New Budget'}
+        </h3>
+      </div>
+      
+      <div className="p-6 space-y-4">
+        {/* Budget Name */}
+        <div>
+          <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+            Budget Name
+          </label>
+          <input
+            type="text"
+            name="name"
+            value={budgetFormData.name}
+            onChange={handleBudgetFormChange}
+            className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary}`}
+            placeholder="e.g., Monthly Household Budget"
+          />
+        </div>
+        
+        {/* Period */}
+        <div>
+          <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+            Budget Period
+          </label>
+          <select
+            name="period"
+            value={budgetFormData.period}
+            onChange={(e) => {
+              const newPeriod = e.target.value;
+              handleBudgetFormChange(e);
+              
+              // Auto-calculate end date based on the period and start date
+              if (newPeriod !== "Custom" && budgetFormData.startDate) {
+                const startDate = new Date(budgetFormData.startDate);
+                let endDate = new Date(startDate);
+                
+                switch(newPeriod) {
+                  case "Weekly":
+                    // Add 6 days to make it a 7-day week
+                    endDate.setDate(startDate.getDate() + 6);
+                    break;
+                  case "Monthly":
+                    // Last day of current month
+                    endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+                    break;
+                  case "Quarterly":
+                    // Add 3 months and get last day of that month
+                    endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 3, 0);
+                    break;
+                  case "Yearly":
+                    // Add 1 year minus 1 day
+                    endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth(), startDate.getDate() - 1);
+                    break;
+                }
+                
+                const formattedEndDate = endDate.toISOString().split('T')[0];
+                
+                setBudgetFormData(prev => ({
+                  ...prev,
+                  period: newPeriod,
+                  endDate: formattedEndDate
+                }));
+              }
+            }}
+            className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary}`}
+          >
+            <option value="Weekly">Weekly</option>
+            <option value="Monthly">Monthly</option>
+            <option value="Quarterly">Quarterly</option>
+            <option value="Yearly">Yearly</option>
+            <option value="Custom">Custom</option>
+          </select>
+        </div>
+        
+        {/* Date Range */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+              Start Date
+            </label>
+            <input
+              type="date"
+              title="Budget start date"
+              name="startDate"
+              value={budgetFormData.startDate}
+              onChange={(e) => {
+                handleBudgetFormChange(e);
+                
+                // Auto-recalculate end date if period is not Custom
+                if (budgetFormData.period !== "Custom") {
+                  const startDate = new Date(e.target.value);
+                  let endDate = new Date(startDate);
+                  
+                  switch(budgetFormData.period) {
+                    case "Weekly":
+                      endDate.setDate(startDate.getDate() + 6);
+                      break;
+                    case "Monthly":
+                      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+                      break;
+                    case "Quarterly":
+                      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 3, 0);
+                      break;
+                    case "Yearly":
+                      endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth(), startDate.getDate() - 1);
+                      break;
+                  }
+                  
+                  const formattedEndDate = endDate.toISOString().split('T')[0];
+                  
+                  setBudgetFormData(prev => ({
+                    ...prev,
+                    endDate: formattedEndDate
+                  }));
+                }
+              }}
+              className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary}`}
+            />
+          </div>
+          <div>
+            <label className={`flex justify-between text-sm font-medium text-${currentTheme.text} mb-1`}>
+              <span>End Date</span>
+              {budgetFormData.period !== "Custom" && (
+                <span className="text-xs text-gray-400">(Auto-calculated)</span>
+              )}
+            </label>
+            <input
+              type="date"
+              name="endDate"
+              title="Budget end date"
+              value={budgetFormData.endDate}
+              onChange={handleBudgetFormChange}
+              className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} ${
+                budgetFormData.period !== "Custom" ? "opacity-75" : ""
+              } focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary}`}
+              disabled={budgetFormData.period !== "Custom"}
+            />
+          </div>
+        </div>
+        
+        {/* Target Amount */}
+        <div>
+          <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+            Target Amount
+          </label>
+          <div className="relative">
+            <span className={`absolute left-3 top-2 text-${currentTheme.text}`}>
+              {selectedCurrency.symbol}
+            </span>
+            <input
+              type="number"
+              name="targetAmount"
+              value={budgetFormData.targetAmount}
+              onChange={handleBudgetFormChange}
+              className={`w-full pl-7 pr-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary}`}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+            />
+          </div>
+        </div>
+        
+        {/* Categories */}
+        <div>
+          <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+            Budget Categories
+          </label>
+          
+          <div className={`mb-4 p-4 border border-${currentTheme.border} rounded-md space-y-4`}>
+            {/* Add Category Form with Dropdown */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <select
+                  name="name"
+                  value={tempBudgetCategory.name === "new" ? "" : tempBudgetCategory.name}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "new") {
+                      // Show a modal or inline form to create a new category
+                      // For simplicity, we'll just prompt for a name
+                      const newCategoryName = prompt("Enter new category name:");
+                      if (newCategoryName && newCategoryName.trim()) {
+                        setTempBudgetCategory({
+                          ...tempBudgetCategory,
+                          name: newCategoryName.trim()
+                        });
+                      }
+                    } else {
+                      setTempBudgetCategory({
+                        ...tempBudgetCategory,
+                        name: value
+                      });
+                    }
+                  }}
+                  className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm`}
+                >
+                  <option value="">Select a category</option>
+                  {/* Filter to show only transaction-related categories */}
+                  {categories
+                    .filter(cat => cat.type === "transaction" || cat.type === "both")
+                    .map(category => (
+                      <option key={category.id} value={category.name}>
+                        {category.name}
+                      </option>
+                    ))}
+                  <option value="new" className={`text-${currentTheme.accent}`}>+ Create new category</option>
+                </select>
+              </div>
+              <div className="relative">
+                <span className={`absolute left-3 top-2 text-${currentTheme.text} text-sm`}>
+                  {selectedCurrency.symbol}
+                </span>
+                <input
+                  type="number"
+                  name="allocated"
+                  value={tempBudgetCategory.allocated}
+                  onChange={handleTempCategoryChange}
+                  placeholder="Amount"
+                  min="0"
+                  step="0.01"
+                  className={`w-full pl-7 pr-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm`}
+                />
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => {
+                if (!tempBudgetCategory.name || tempBudgetCategory.allocated <= 0) {
+                  toast.error("Please enter a valid category name and amount");
+                  return;
+                }
+                
+                // Check if it's a new category we need to add to the main categories
+                const existingCategory = categories.find(
+                  cat => cat.name.toLowerCase() === tempBudgetCategory.name.toLowerCase()
+                );
+                
+                if (!existingCategory) {
+                  // Create a new category in the main category list
+                  const newCategory = {
+                    id: uuidv4(),
+                    name: tempBudgetCategory.name,
+                    type: "transaction" as "inventory" | "transaction" | "both", // Explicitly cast to union type
+                    description: `Budget category created from ${budgetFormData.name} budget`,
+                    color: "zinc-500" // Default color or generate randomly
+                  };
+                  
+                  // Add to categories list
+                  setCategories(prev => [...prev, newCategory]);
+                  toast.success(`Added new category: ${tempBudgetCategory.name}`);
+                }
+                
+                // Add to budget form categories
+                addCategoryToForm();
+              }}
+              className={`w-full py-2 bg-${currentTheme.accent}/10 text-${currentTheme.accent} hover:bg-${currentTheme.accent}/20 rounded-md transition-colors text-sm flex items-center justify-center`}
+            >
+              <FaPlus className="mr-1" size={12} /> Add Category
+            </button>
+            
+            {/* Category List */}
+            <div className={`space-y-2 ${budgetFormData.categories.length > 0 ? `pt-4 border-t border-${currentTheme.border}` : ''}`}>
+              {budgetFormData.categories.map((category, index) => (
+                <div key={category.id || index} className="flex justify-between items-center">
+                  <span className={`text-${currentTheme.text} text-sm`}>{category.name}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-${currentTheme.accent} text-sm`}>
+                      {selectedCurrency.symbol}{category.allocated.toFixed(2)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeCategoryFromForm(category.id)}
+                      className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 p-1`}
+                    >
+                      <FaTrash size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Notes */}
+        <div>
+          <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+            Notes
+          </label>
+          <textarea
+            name="notes"
+            value={budgetFormData.notes}
+            onChange={handleBudgetFormChange}
+            rows={3}
+            className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary}`}
+            placeholder="Optional notes about this budget..."
+          ></textarea>
+        </div>
+      </div>
+      
+      <div className={`p-6 border-t border-${currentTheme.border} flex justify-end space-x-3`}>
+        <button
+          type="button"
+          onClick={() => {
+            setShowBudgetModal(false);
+            setEditingBudget(null);
+            resetBudgetForm();
+          }}
+          className={`px-4 py-2 bg-${currentTheme.background} hover:bg-${currentTheme.border} text-${currentTheme.text} rounded-md transition-colors`}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            // Validate the form
+            if (!budgetFormData.name) {
+              toast.error("Please enter a budget name");
+              return;
+            }
+            
+            if (budgetFormData.targetAmount <= 0) {
+              toast.error("Target amount must be greater than zero");
+              return;
+            }
+            
+            if (new Date(budgetFormData.startDate) > new Date(budgetFormData.endDate)) {
+              toast.error("Start date cannot be after end date");
+              return;
+            }
+            
+            if (budgetFormData.categories.length === 0) {
+              toast.error("Please add at least one category");
+              return;
+            }
+            
+            // Save the budget
+            saveBudget();
+          }}
+          className={`px-4 py-2 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-md transition-colors`}
+        >
+          {editingBudget ? 'Update Budget' : 'Create Budget'}
+        </button>
+      </div>
+    </motion.div>
+  </motion.div>
+)}
+</AnimatePresence>
 
       {/* Receipt Modal */}
       <AnimatePresence>
