@@ -1466,7 +1466,7 @@ useEffect(() => {
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   // Update the export function to support CSV format
-  const exportData = (format: 'json' | 'csv-inventory' | 'csv-transactions' | 'csv-receipts' | 'csv-customers' | 'csv-all') => {
+  const exportData = (format: 'json' | 'csv-inventory' | 'csv-transactions' | 'csv-receipts' | 'csv-customers' | 'csv-invoices' | 'csv-budgets' | 'csv-all') => {
     try {
       const currentTime = new Date().toISOString().replace(/[:.]/g, '-');
       
@@ -1617,6 +1617,73 @@ useEffect(() => {
       
       if (format === 'csv-all') {
         fileName = `bookkeep-all-data-${currentTime}.csv`;
+      }
+      
+      if (format === 'csv-invoices' || format === 'csv-all') {
+        const headers = ['Invoice Number', 'Date', 'Due Date', 'Customer Name', 
+          `Total Amount (${currencySymbol})`, 'Status', 'Payment Date', 'Items Count', 'Notes'];
+        
+        const invoiceData = invoices.map(inv => ({
+          id: inv.invoiceNumber,
+          date: formatDate(inv.date),
+          dueDate: formatDate(inv.dueDate),
+          customerName: inv.customerName,
+          totalAmount: formatCurrency(inv.totalAmount).replace(currencySymbol, '').trim(),
+          status: inv.isPaid ? 'Paid' : 'Unpaid',
+          paymentDate: inv.paidDate ? formatDate(inv.paidDate) : 'N/A',
+          itemsCount: inv.items?.length || 0,
+          notes: inv.notes || ''
+        }));
+        
+        const invoiceMappings = [
+          'id', 'date', 'dueDate', 'customerName', 'totalAmount', 'status', 'paymentDate', 'itemsCount', 'notes'
+        ];
+        
+        const invoicesCSV = convertToCSV(invoiceData, invoiceMappings);
+        
+        if (format === 'csv-invoices') {
+          csvContent = invoicesCSV;
+          fileName = `bookkeep-invoices-${currentTime}.csv`;
+        } else {
+          csvContent += `\n\n--- INVOICES ---\n${invoicesCSV}\n\n`;
+        }
+      }
+      
+      if (format === 'csv-budgets' || format === 'csv-all') {
+        const headers = ['Name', 'Period', 'Start Date', 'End Date', 
+          `Target Amount (${currencySymbol})`, `Spent Amount (${currencySymbol})`,
+          'Categories Count', 'Notes', 'Percent Used'];
+        
+        const budgetData = budgets.map(bud => {
+          const percentUsed = bud.targetAmount > 0 ? 
+            Math.round((bud.spentAmount || 0) / bud.targetAmount * 100) : 0;
+            
+          return {
+            id: bud.name,
+            period: bud.period,
+            startDate: formatDate(bud.startDate),
+            endDate: formatDate(bud.endDate),
+            targetAmount: formatCurrency(bud.targetAmount).replace(currencySymbol, '').trim(),
+            spentAmount: formatCurrency(bud.spentAmount || 0).replace(currencySymbol, '').trim(),
+            categoriesCount: bud.categories?.length || 0,
+            notes: bud.notes || '',
+            percentUsed: `${percentUsed}%`
+          };
+        });
+        
+        const budgetMappings = [
+          'id', 'period', 'startDate', 'endDate', 'targetAmount', 'spentAmount', 
+          'categoriesCount', 'notes', 'percentUsed'
+        ];
+        
+        const budgetsCSV = convertToCSV(budgetData, budgetMappings);
+        
+        if (format === 'csv-budgets') {
+          csvContent = budgetsCSV;
+          fileName = `bookkeep-budgets-${currentTime}.csv`;
+        } else {
+          csvContent += `\n\n--- BUDGETS ---\n${budgetsCSV}\n\n`;
+        }
       }
       
       // Create and download the CSV file
@@ -3510,6 +3577,24 @@ const generateBudgetReport = async (budget: Budget) => {
                         }}
                       >
                         <FaFileExcel className={`mr-2 text-${currentTheme.warning}`} /> Customers Only
+                      </button>
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-invoices');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.buttonText}`} /> Invoices Only
+                      </button>
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-${currentTheme.background} text-${currentTheme.text} flex items-center`}
+                        onClick={() => {
+                          exportData('csv-budgets');
+                          setShowExportDropdown(false);
+                        }}
+                      >
+                        <FaFileExcel className={`mr-2 text-${currentTheme.secondary}`} /> Budgets Only
                       </button>
                     </div>
                   </div>
