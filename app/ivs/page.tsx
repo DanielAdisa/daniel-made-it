@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { FaBook, FaBoxOpen, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
+import { FaBook, FaBoxOpen, FaBriefcase, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
   FaChevronDown, FaChevronRight, FaChevronLeft, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, 
   FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, 
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
   FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
-  FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown } from "react-icons/fa";
+  FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown, FaMoneyCheckAlt, FaCalendarCheck ,FaArrowRight,FaExternalLinkAlt,FaCalendarDay,
+  FaAddressCard,FaEquals} from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -147,6 +148,9 @@ interface Payroll {
   status: 'paid' | 'pending';
   paymentDate?: Date;
   transactionId?: string; // Links to financial transactions
+  employeePhone?: string; // Employee contact phone
+  employeeEmail?: string; // Employee contact email
+  employeeAddress?: string; // Employee physical address
 }
 
 // Add Invoice form data interface
@@ -651,7 +655,7 @@ export default function BookKeepingSystem() {
     setTempBudgetCategory({ name: "", allocated: 0 });
   };
 
-  // Payroll form handling
+// Payroll form handling
 const [payrollFormData, setPayrollFormData] = useState({
   employeeName: '',
   position: '',
@@ -659,7 +663,10 @@ const [payrollFormData, setPayrollFormData] = useState({
   payPeriodEnd: new Date(),
   baseSalary: 0,
   overtime: 0,
-  deductions: 0
+  deductions: 0,
+  employeePhone: '', // New field for phone number
+  employeeEmail: '', // New field for email address
+  employeeAddress: '' // New field for physical address
 });
 
 const handlePayrollFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -6546,8 +6553,8 @@ const generateBudgetReport = async (budget: Budget) => {
     </motion.div>
   )}       
             
-            {/* Payrolls Tab */}
-            {activeTab === "payrolls" && (
+{/* Payrolls Tab */}
+{activeTab === "payrolls" && (
   <motion.div variants={fadeIn}>
     <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4`}>
       <div>
@@ -6610,7 +6617,7 @@ const generateBudgetReport = async (budget: Budget) => {
           <div className={`flex items-center px-4 py-2 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border} w-full sm:w-auto`}>
             <FaFilter className={`mr-2 text-${currentTheme.accent}`} size={12} />
             <select 
-            title="Filter by status"
+              title="Filter by status"
               className={`bg-transparent text-${currentTheme.text} text-sm focus:outline-none w-full`}
               onChange={(e) => {/* implement filter handler */}}
             >
@@ -6624,7 +6631,7 @@ const generateBudgetReport = async (budget: Budget) => {
           <div className={`flex items-center px-4 py-2 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border} w-full sm:w-auto`}>
             <FaSortAmountDown className={`mr-2 text-${currentTheme.accent}`} size={12} />
             <select 
-            title="Sort by date or amount"
+              title="Sort by date or amount"
               className={`bg-transparent text-${currentTheme.text} text-sm focus:outline-none w-full`}
               onChange={(e) => {/* implement sort handler */}}
             >
@@ -6643,11 +6650,12 @@ const generateBudgetReport = async (budget: Budget) => {
         </div>
 
         {/* Desktop table view (hidden on small screens) */}
-        <div className={`hidden md:block overflow-hidden rounded-xl border border-${currentTheme.border} shadow-sm`}>
+        <div className={`hidden lg:block overflow-hidden rounded-xl border border-${currentTheme.border} shadow-sm`}>
           <table className="w-full text-left">
             <thead>
               <tr className={`bg-gradient-to-r from-${currentTheme.background} to-${currentTheme.cardBackground}`}>
                 <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Contact Info</th>
                 <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Pay Period</th>
                 <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Compensation</th>
                 <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider text-center">Status</th>
@@ -6674,6 +6682,30 @@ const generateBudgetReport = async (budget: Budget) => {
                         <div className={`text-sm font-medium text-${currentTheme.text}`}>{payroll.employeeName}</div>
                         <div className="text-xs text-gray-400">{payroll.position}</div>
                       </div>
+                    </div>
+                  </td>
+                  <td className={`px-6 py-4`}>
+                    <div className="space-y-1">
+                      {payroll.employeePhone && (
+                        <div className="flex items-center text-xs text-gray-400">
+                          <FaPhone className="mr-2 text-gray-500" size={10} />
+                          <span>{payroll.employeePhone}</span>
+                        </div>
+                      )}
+                      {payroll.employeeEmail && (
+                        <div className="flex items-center text-xs text-gray-400">
+                          <FaEnvelope className="mr-2 text-gray-500" size={10} />
+                          <span>{payroll.employeeEmail}</span>
+                        </div>
+                      )}
+                      {payroll.employeeAddress && (
+                        <div className="flex items-start text-xs text-gray-400">
+                          <FaMapMarkerAlt className="mr-2 mt-0.5 text-gray-500" size={10} />
+                          <span className="truncate max-w-[200px]" title={payroll.employeeAddress}>
+                            {payroll.employeeAddress}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className={`px-6 py-4`}>
@@ -6769,6 +6801,123 @@ const generateBudgetReport = async (budget: Budget) => {
           </table>
         </div>
 
+        {/* Medium screen table view (hidden on small and large screens) */}
+        <div className={`hidden md:block lg:hidden overflow-hidden rounded-xl border border-${currentTheme.border} shadow-sm`}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`bg-gradient-to-r from-${currentTheme.background} to-${currentTheme.cardBackground}`}>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Pay Period</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider text-center">Status</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <motion.tbody
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+            >
+              {payrolls.map((payroll) => (
+                <motion.tr 
+                  key={payroll.id} 
+                  variants={tableRowVariant}
+                  className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/70 transition-all duration-200`}
+                >
+                  <td className={`px-6 py-4`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-${currentTheme.primary}/20 to-${currentTheme.accent}/30 border border-${currentTheme.border} flex items-center justify-center text-${currentTheme.accent} flex-shrink-0`}>
+                        {payroll.employeeName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className={`text-sm font-medium text-${currentTheme.text}`}>{payroll.employeeName}</div>
+                        <div className="text-xs text-gray-400">{payroll.position}</div>
+                        
+                        <div className="mt-1.5 space-y-0.5">
+                          {payroll.employeePhone && (
+                            <div className="flex items-center text-xs text-gray-400">
+                              <FaPhone className="mr-1.5 text-gray-500" size={10} />
+                              <span>{payroll.employeePhone}</span>
+                            </div>
+                          )}
+                          {payroll.employeeEmail && (
+                            <div className="flex items-center text-xs text-gray-400">
+                              <FaEnvelope className="mr-1.5 text-gray-500" size={10} />
+                              <span className="truncate max-w-[150px]" title={payroll.employeeEmail}>{payroll.employeeEmail}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className={`px-6 py-4`}>
+                    <div className="flex items-center">
+                      <div className={`text-sm text-${currentTheme.text}`}>
+                        <div className="flex items-center">
+                          <span>{formatDate(payroll.payPeriodStart)}</span>
+                          <span className="mx-1.5 text-gray-400">→</span>
+                          <span>{formatDate(payroll.payPeriodEnd)}</span>
+                        </div>
+                        <div className="mt-1 flex justify-between items-center">
+                          <div className="text-xs text-gray-400">
+                            {(() => {
+                              const start = new Date(payroll.payPeriodStart);
+                              const end = new Date(payroll.payPeriodEnd);
+                              const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                              return `${days} day${days !== 1 ? 's' : ''}`;
+                            })()}
+                          </div>
+                          <div className={`text-sm font-medium text-${currentTheme.accent}`}>
+                            {formatCurrency(payroll.netPay)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {payroll.status === 'paid' ? (
+                      <div className="flex flex-col items-center">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100/30 text-green-500 border border-green-200/30">
+                          <FaCheckCircle className="mr-1.5" size={12} />
+                          Paid
+                        </span>
+                        {payroll.paymentDate && (
+                          <span className="text-xs text-gray-400 mt-1.5">
+                            {formatDate(payroll.paymentDate)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100/30 text-yellow-500 border border-yellow-200/30">
+                        <FaClock className="mr-1.5" size={12} />
+                        Pending
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {payroll.status === 'paid' ? (
+                      <div className="flex space-x-2">
+                        <button 
+                          className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-md transition-colors flex items-center`}
+                          onClick={() => viewPayrollDetails(payroll)}
+                        >
+                          <FaEye className="mr-1.5" size={12} /> View
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        className={`px-3 py-1.5 text-xs bg-${currentTheme.success}/10 hover:bg-${currentTheme.success}/20 text-${currentTheme.success} rounded-md transition-colors flex items-center`}
+                        onClick={() => handlePayrollPayment(payroll)}
+                      >
+                        <FaMoneyBillWave className="mr-1.5" size={12} /> Pay
+                      </button>
+                    )}
+                  </td>
+                </motion.tr>
+              ))}
+            </motion.tbody>
+          </table>
+        </div>
+
         {/* Mobile card view (visible only on small screens) */}
         <div className="md:hidden space-y-4">
           <motion.div 
@@ -6811,6 +6960,29 @@ const generateBudgetReport = async (budget: Budget) => {
                   )}
                 </div>
                 
+                {/* Contact information */}
+                <div className={`p-3 rounded-lg bg-${currentTheme.background}/70 mb-3 space-y-1.5`}>
+                  {payroll.employeePhone && (
+                    <div className="flex items-center text-xs text-gray-400">
+                      <FaPhone className="mr-2 text-gray-500" size={10} />
+                      <span>{payroll.employeePhone}</span>
+                    </div>
+                  )}
+                  {payroll.employeeEmail && (
+                    <div className="flex items-center text-xs text-gray-400">
+                      <FaEnvelope className="mr-2 text-gray-500" size={10} />
+                      <span className="truncate">{payroll.employeeEmail}</span>
+                    </div>
+                  )}
+                  {payroll.employeeAddress && (
+                    <div className="flex items-start text-xs text-gray-400">
+                      <FaMapMarkerAlt className="mr-2 mt-0.5 text-gray-500" size={10} />
+                      <span className="line-clamp-2">{payroll.employeeAddress}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Pay period info */}
                 <div className={`p-3 rounded-lg bg-${currentTheme.background}/70 mb-3`}>
                   <div className="flex justify-between mb-2">
                     <span className="text-xs text-gray-400">Pay Period</span>
@@ -6826,6 +6998,7 @@ const generateBudgetReport = async (budget: Budget) => {
                   </div>
                 </div>
                 
+                {/* Compensation breakdown */}
                 <div className={`mb-4 grid grid-cols-3 divide-x divide-${currentTheme.border}`}>
                   <div className="px-3 py-1 text-center">
                     <div className="text-xs text-gray-400 mb-1">Base</div>
@@ -6841,6 +7014,7 @@ const generateBudgetReport = async (budget: Budget) => {
                   </div>
                 </div>
                 
+                {/* Action buttons */}
                 <div className="flex justify-end pt-2 border-t border-dashed border-gray-600/20">
                   {payroll.status === 'paid' ? (
                     <button 
@@ -6863,22 +7037,37 @@ const generateBudgetReport = async (budget: Budget) => {
           </motion.div>
         </div>
 
-        {/* Pagination controls - show when there are multiple pages */}
-        {payrolls.length > 10 && (
+                {/* Pagination controls - show when there are multiple pages */}
+                {payrolls.length > 10 && (
           <div className="flex justify-between items-center mt-6 py-3 border-t border-gray-700/30">
             <button 
-              className={`flex items-center text-sm text-${currentTheme.accent} px-3 py-1.5 rounded-md bg-${currentTheme.background}/50 border border-${currentTheme.border}`}
+              className={`flex items-center text-sm text-${currentTheme.accent} px-3 py-1.5 rounded-md bg-${currentTheme.background}/50 border border-${currentTheme.border} hover:bg-${currentTheme.background}/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
               disabled={true}
             >
               <FaChevronLeft className="mr-1" size={12} /> Previous
             </button>
-            <div className="flex items-center space-x-1">
-              <button className={`w-8 h-8 flex items-center justify-center rounded-md bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-sm font-medium border border-${currentTheme.accent}/30`}>1</button>
-              <button className={`w-8 h-8 flex items-center justify-center rounded-md hover:bg-${currentTheme.background} text-gray-400 hover:text-${currentTheme.text} text-sm`}>2</button>
-              <button className={`w-8 h-8 flex items-center justify-center rounded-md hover:bg-${currentTheme.background} text-gray-400 hover:text-${currentTheme.text} text-sm`}>3</button>
+            
+            <div className="flex items-center gap-2">
+              {[1, 2, 3].map((page) => (
+                <button
+                  key={page}
+                  className={`w-8 h-8 text-sm rounded-md ${
+                    page === 1 
+                      ? `bg-${currentTheme.accent} text-${currentTheme.buttonText}` 
+                      : `text-${currentTheme.text} hover:bg-${currentTheme.background}/50`
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <span className={`text-${currentTheme.text} mx-2`}>...</span>
+              <button className={`text-${currentTheme.text} hover:bg-${currentTheme.background}/50 w-8 h-8 text-sm rounded-md`}>
+                5
+              </button>
             </div>
+            
             <button 
-              className={`flex items-center text-sm text-${currentTheme.accent} px-3 py-1.5 rounded-md bg-${currentTheme.background}/50 border border-${currentTheme.border}`}
+              className={`flex items-center text-sm text-${currentTheme.accent} px-3 py-1.5 rounded-md bg-${currentTheme.background}/50 border border-${currentTheme.border} hover:bg-${currentTheme.background}/70 transition-colors`}
             >
               Next <FaChevronRight className="ml-1" size={12} />
             </button>
@@ -8211,232 +8400,387 @@ const generateBudgetReport = async (budget: Budget) => {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={() => setShowPayrollModal(false)}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-2xl border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
-          <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-            <FaMoneyBillWave className={`mr-2 text-${currentTheme.accent}`} />
-            Process Payroll
-          </h3>
-          <button
-            onClick={() => setShowPayrollModal(false)}
-            className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-            aria-label="Close modal"
-          >
-            <FaTimes />
-          </button>
+        {/* Header with gradient */}
+        <div className={`sticky top-0 z-10 rounded-t-xl bg-gradient-to-r from-${currentTheme.primary}/90 to-${currentTheme.accent}/90 px-6 py-5 backdrop-blur-sm`}>
+          <div className="flex justify-between items-center">
+            <h3 className={`text-xl font-bold text-${currentTheme.buttonText} flex items-center`}>
+              <div className={`p-2 rounded-full bg-white/20 mr-3`}>
+                <FaMoneyBillWave className={`text-${currentTheme.buttonText}`} size={18} />
+              </div>
+              Process Employee Payroll
+            </h3>
+            <button
+              onClick={() => setShowPayrollModal(false)}
+              className={`text-${currentTheme.buttonText} hover:text-${currentTheme.buttonText}/70 transition-colors duration-200 p-2 rounded-full hover:bg-black/10`}
+              aria-label="Close modal"
+            >
+              <FaTimes />
+            </button>
+          </div>
+          <p className={`mt-1 text-sm text-${currentTheme.buttonText}/80 ml-11`}>
+            Complete all required fields to process employee payment
+          </p>
         </div>
 
-        <div className="px-6 py-4">
+        <div className="p-6">
           <form onSubmit={handlePayrollSubmit}>
-            {/* Employee Information */}
-            <div className="mb-4">
-              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Employee Name</label>
-              <input
-                type="text"
-                placeholder="Enter employee name"
-                value={payrollFormData.employeeName}
-                onChange={handlePayrollFormChange}
-                name="employeeName"
-                required
-                className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-              />
-            </div>
-            
-            <div className="mb-4">
-              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Position</label>
-              <input
-                type="text"
-                placeholder="Enter position"
-                value={payrollFormData.position}
-                onChange={handlePayrollFormChange}
-                name="position"
-                required
-                className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-              />
-            </div>
+            {/* Form sections with subtle separators */}
+            <div className="space-y-6">
+              {/* Employee Information Section */}
+              <div>
+                <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-4 flex items-center`}>
+                  <FaUser className="mr-2" size={14} />
+                  Employee Details
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Employee Name*
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Full name"
+                      value={payrollFormData.employeeName}
+                      onChange={handlePayrollFormChange}
+                      name="employeeName"
+                      required
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Position*
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Job title"
+                      value={payrollFormData.position}
+                      onChange={handlePayrollFormChange}
+                      name="position"
+                      required
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    />
+                  </div>
+                </div>
 
-            {/* Pay Period */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Start Date</label>
-                <div className="relative">
-                  <input
-                  title="Pay period start date"
-                    type="date"
-                    value={formatDateForInput(payrollFormData.payPeriodStart)}
-                    onChange={(e) => setPayrollFormData({
-                      ...payrollFormData,
-                      payPeriodStart: new Date(e.target.value)
-                    })}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <FaCalendarAlt className="h-4 w-4 text-gray-400" />
+                {/* Contact Fields */}
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Phone Number*
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaPhone className="text-gray-400" size={14} />
+                    </div>
+                    <input
+                      type="tel"
+                      placeholder="Employee contact number"
+                      value={payrollFormData.employeePhone}
+                      onChange={handlePayrollFormChange}
+                      name="employeePhone"
+                      required
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    />
                   </div>
                 </div>
-              </div>
-              <div>
-                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>End Date</label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    title="Pay period end date"
-                    value={formatDateForInput(payrollFormData.payPeriodEnd)}
-                    onChange={(e) => setPayrollFormData({
-                      ...payrollFormData,
-                      payPeriodEnd: new Date(e.target.value)
-                    })}
-                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <FaCalendarAlt className="h-4 w-4 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Salary Components */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Base Salary</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="text-gray-400" size={14} />
+                    </div>
+                    <input
+                      type="email"
+                      placeholder="employee@example.com"
+                      value={payrollFormData.employeeEmail}
+                      onChange={handlePayrollFormChange}
+                      name="employeeEmail"
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={payrollFormData.baseSalary || ''}
-                    onChange={(e) => {
-                      // Allow only numbers and a single decimal point
-                      const value = e.target.value.replace(/[^\d.]/g, '');
-                      const decimalCount = (value.match(/\./g) || []).length;
-                      
-                      if (decimalCount <= 1) {
-                        const amount = parseFloat(value) || 0;
-                        setPayrollFormData({
-                          ...payrollFormData, 
-                          baseSalary: amount
-                        });
-                      }
-                    }}
-                    className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    required
-                  />
                 </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Overtime</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={payrollFormData.overtime || ''}
-                    onChange={(e) => {
-                      // Allow only numbers and a single decimal point
-                      const value = e.target.value.replace(/[^\d.]/g, '');
-                      const decimalCount = (value.match(/\./g) || []).length;
-                      
-                      if (decimalCount <= 1) {
-                        const amount = parseFloat(value) || 0;
-                        setPayrollFormData({
-                          ...payrollFormData, 
-                          overtime: amount
-                        });
-                      }
-                    }}
-                    className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Deductions</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={payrollFormData.deductions || ''}
-                    onChange={(e) => {
-                      // Allow only numbers and a single decimal point
-                      const value = e.target.value.replace(/[^\d.]/g, '');
-                      const decimalCount = (value.match(/\./g) || []).length;
-                      
-                      if (decimalCount <= 1) {
-                        const amount = parseFloat(value) || 0;
-                        setPayrollFormData({
-                          ...payrollFormData, 
-                          deductions: amount
-                        });
-                      }
-                    }}
-                    className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Net Pay</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
-                  </div>
-                  <input
-                    type="text"
-                    readOnly
-                    value={((payrollFormData.baseSalary || 0) + (payrollFormData.overtime || 0) - (payrollFormData.deductions || 0)).toFixed(2)}
-                    className={`w-full pl-7 p-3 bg-${currentTheme.background}/50 border border-${currentTheme.border} text-${currentTheme.accent} font-medium rounded-lg cursor-not-allowed text-sm`}
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* Net Pay Summary Card */}
-            <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.primary}/10 border border-${currentTheme.primary}/20`}>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm font-medium text-${currentTheme.text}`}>Net Pay:</span>
-                <span className={`text-lg font-bold text-${currentTheme.accent}`}>
-                  {formatCurrency((payrollFormData.baseSalary || 0) + (payrollFormData.overtime || 0) - (payrollFormData.deductions || 0))}
-                </span>
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Physical Address*
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 pt-3 pointer-events-none">
+                      <FaMapMarkerAlt className="text-gray-400" size={14} />
+                    </div>
+                    <textarea
+                      placeholder="Street address, city, state, zip code"
+                      value={payrollFormData.employeeAddress}
+                      onChange={(e) => setPayrollFormData({...payrollFormData, employeeAddress: e.target.value})}
+                      name="employeeAddress"
+                      required
+                      rows={2}
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className={`h-0.5 w-full bg-gradient-to-r from-transparent via-${currentTheme.border} to-transparent opacity-30`}></div>
+
+              {/* Pay Period Section */}
+              <div>
+                <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-4 flex items-center`}>
+                  <FaCalendarAlt className="mr-2" size={14} />
+                  Pay Period
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Start Date*
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        title="Pay period start date"
+                        value={formatDateForInput(payrollFormData.payPeriodStart)}
+                        onChange={(e) => setPayrollFormData({
+                          ...payrollFormData,
+                          payPeriodStart: new Date(e.target.value)
+                        })}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        required
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <FaCalendarAlt className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      End Date*
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        title="Pay period end date"
+                        value={formatDateForInput(payrollFormData.payPeriodEnd)}
+                        onChange={(e) => setPayrollFormData({
+                          ...payrollFormData,
+                          payPeriodEnd: new Date(e.target.value)
+                        })}
+                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        required
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <FaCalendarCheck className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`mt-3 p-2 rounded-lg bg-${currentTheme.background} text-xs text-gray-400`}>
+                  <span className="flex items-center">
+                    <FaInfoCircle className="mr-1.5" size={12} />
+                    <span>Pay period represents the timeframe for which the employee is being compensated</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className={`h-0.5 w-full bg-gradient-to-r from-transparent via-${currentTheme.border} to-transparent opacity-30`}></div>
+
+              {/* Salary Components Section */}
+              <div>
+                <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-4 flex items-center`}>
+                  <FaMoneyCheckAlt className="mr-2" size={14} />
+                  Compensation Details
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Base Salary*
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={payrollFormData.baseSalary || ''}
+                        onChange={(e) => {
+                          // Allow only numbers and a single decimal point
+                          const value = e.target.value.replace(/[^\d.]/g, '');
+                          const decimalCount = (value.match(/\./g) || []).length;
+                          
+                          if (decimalCount <= 1) {
+                            const amount = parseFloat(value) || 0;
+                            setPayrollFormData({
+                              ...payrollFormData, 
+                              baseSalary: amount
+                            });
+                          }
+                        }}
+                        className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1 ml-1">Regular earnings for the pay period</p>
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Overtime Pay
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={payrollFormData.overtime || ''}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d.]/g, '');
+                          const decimalCount = (value.match(/\./g) || []).length;
+                          
+                          if (decimalCount <= 1) {
+                            const amount = parseFloat(value) || 0;
+                            setPayrollFormData({
+                              ...payrollFormData, 
+                              overtime: amount
+                            });
+                          }
+                        }}
+                        className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1 ml-1">Additional compensation for extra hours</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Deductions
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={payrollFormData.deductions || ''}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d.]/g, '');
+                          const decimalCount = (value.match(/\./g) || []).length;
+                          
+                          if (decimalCount <= 1) {
+                            const amount = parseFloat(value) || 0;
+                            setPayrollFormData({
+                              ...payrollFormData, 
+                              deductions: amount
+                            });
+                          }
+                        }}
+                        className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1 ml-1">Taxes, insurance, and other withholdings</p>
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.accent} mb-1`}>
+                      Net Pay
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className={`text-${currentTheme.accent} font-medium`}>{selectedCurrency.symbol}</span>
+                      </div>
+                      <input
+                        type="text"
+                        readOnly
+                        value={((payrollFormData.baseSalary || 0) + (payrollFormData.overtime || 0) - (payrollFormData.deductions || 0)).toFixed(2)}
+                        className={`w-full pl-7 p-3 bg-gradient-to-r from-${currentTheme.accent}/10 to-${currentTheme.primary}/10 border border-${currentTheme.primary}/30 text-${currentTheme.accent} font-bold rounded-lg text-sm`}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1 ml-1">Final amount to be paid to employee</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Net Pay Summary Card */}
+              <div className={`p-4 rounded-lg bg-gradient-to-r from-${currentTheme.primary}/10 to-${currentTheme.accent}/10 border border-${currentTheme.primary}/20`}>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                  <div>
+                    <h5 className={`text-sm font-semibold text-${currentTheme.text}`}>Payment Summary</h5>
+                    <p className="text-xs text-gray-400 mt-1">Review the final amount before processing</p>
+                  </div>
+                  
+                  <div className="mt-3 sm:mt-0 flex flex-col items-end">
+                    <div className={`text-sm font-medium text-${currentTheme.text}`}>Total Net Pay:</div>
+                    <div className={`text-xl font-bold text-${currentTheme.accent}`}>
+                      {formatCurrency((payrollFormData.baseSalary || 0) + (payrollFormData.overtime || 0) - (payrollFormData.deductions || 0))}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
+                  <div className={`p-2 rounded bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+                    <div className="text-gray-400">Base Salary</div>
+                    <div className="font-medium text-sm mt-1">{formatCurrency(payrollFormData.baseSalary || 0)}</div>
+                  </div>
+                  <div className={`p-2 rounded bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+                    <div className="text-gray-400">Overtime</div>
+                    <div className="font-medium text-sm mt-1">{formatCurrency(payrollFormData.overtime || 0)}</div>
+                  </div>
+                  <div className={`p-2 rounded bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+                    <div className="text-gray-400">Deductions</div>
+                    <div className="font-medium text-sm mt-1 text-red-400">-{formatCurrency(payrollFormData.deductions || 0)}</div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-${currentTheme.border}`}>
+            <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
               <button
                 type="button"
                 onClick={() => setShowPayrollModal(false)}
-                className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+                className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto flex items-center justify-center`}
               >
-                Cancel
+                <FaTimes className="mr-1.5" size={12} /> Cancel
               </button>
               <button
                 type="submit"
-                className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
+                className={`px-6 py-2.5 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-${currentTheme.buttonText} rounded-lg shadow-md font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
               >
-                <FaMoneyBillWave className="mr-2 h-4 w-4" />
+                <FaMoneyBillWave className="mr-2" size={14} />
                 Process Payroll
               </button>
+            </div>
+            
+            <div className="text-center text-xs text-gray-400 mt-4">
+              <p>Fields marked with * are required</p>
             </div>
           </form>
         </div>
@@ -8972,144 +9316,308 @@ const generateBudgetReport = async (budget: Budget) => {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-lg border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
         ref={payrollDetailRef}
       >
-        <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
-          <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-            <FaMoneyBillWave className={`mr-2 text-${currentTheme.accent}`} />
-            Payroll Details
-          </h3>
-          <button
-            onClick={() => setShowPayrollDetailModal(false)}
-            className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-            aria-label="Close modal"
-          >
-            <FaTimes />
-          </button>
-        </div>
-
-        <div className="px-6 py-4">
-          {/* Employee Information */}
-          <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
-            <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
-              <FaUser className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
-              Employee Information
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Name</div>
-                <div className={`text-sm font-medium text-${currentTheme.text}`}>{selectedPayroll.employeeName}</div>
+        {/* Header with gradient */}
+        <div className={`sticky top-0 z-10 rounded-t-xl bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} px-6 py-5`}>
+          <div className="flex justify-between items-center">
+            <div>
+              <div className={`bg-white/20 rounded-lg p-2 inline-block mb-2`}>
+                <FaMoneyBillWave className={`text-white`} size={18} />
               </div>
               <div>
-                <div className="text-xs text-gray-400 mb-1">Position</div>
-                <div className={`text-sm font-medium text-${currentTheme.text}`}>{selectedPayroll.position}</div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Payment Period & Details */}
-          <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
-            <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
-              <FaCalendarAlt className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
-              Payment Period
-            </h4>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Start Date</div>
-                <div className={`text-sm font-medium text-${currentTheme.text}`}>{formatDate(selectedPayroll.payPeriodStart)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-400 mb-1">End Date</div>
-                <div className={`text-sm font-medium text-${currentTheme.text}`}>{formatDate(selectedPayroll.payPeriodEnd)}</div>
+                <h3 className={`text-xl font-bold text-white flex items-center`}>
+                  {selectedPayroll.employeeName}
+                </h3>
+                <p className="text-white/80 text-sm flex items-center">
+                  <FaBriefcase className="mr-1.5" size={12} /> {selectedPayroll.position}
+                </p>
               </div>
             </div>
             
+            <div>
+              <button
+                onClick={() => setShowPayrollDetailModal(false)}
+                className="text-white/80 hover:text-white transition-colors duration-200 p-2 rounded-full hover:bg-black/10"
+                aria-label="Close modal"
+              >
+                <FaTimes />
+              </button>
+            </div>
+          </div>
+          
+          <div className={`mt-3 flex items-center`}>
+            <div className={`${selectedPayroll.status === 'paid' ? 'bg-green-500' : 'bg-yellow-500'} text-white text-xs px-3 py-1 rounded-full font-medium flex items-center`}>
+              {selectedPayroll.status === 'paid' ? (
+                <>
+                  <FaCheckCircle className="mr-1.5" size={12} /> Paid
+                </>
+              ) : (
+                <>
+                  <FaClock className="mr-1.5" size={12} /> Pending
+                </>
+              )}
+            </div>
+            
             {selectedPayroll.status === 'paid' && selectedPayroll.paymentDate && (
-              <div className="mt-3 pt-3 border-t border-gray-700/30">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <FaCheck className="text-green-500 mr-1.5 h-3.5 w-3.5" />
-                    <span className={`text-sm font-medium text-${currentTheme.text}`}>Payment Date</span>
-                  </div>
-                  <div className="text-sm text-gray-400">{formatDate(selectedPayroll.paymentDate)}</div>
-                </div>
+              <div className="ml-2 text-white/80 text-xs">
+                Processed on {formatDate(selectedPayroll.paymentDate)}
               </div>
             )}
           </div>
+        </div>
+
+        <div className="px-6 py-6">
+          {/* Employee Contact Information - New section */}
+          <div className={`mb-6`}>
+            <div className="flex items-center mb-3">
+              <div className={`w-8 h-8 rounded-full bg-${currentTheme.accent}/10 flex items-center justify-center mr-2`}>
+                <FaAddressCard className={`text-${currentTheme.accent}`} size={14} />
+              </div>
+              <h4 className={`text-base font-semibold text-${currentTheme.text}`}>Contact Information</h4>
+            </div>
+
+            <div className={`bg-${currentTheme.background}/50 rounded-xl border border-${currentTheme.border} p-4 space-y-3`}>
+              {selectedPayroll.employeePhone && (
+                <div className="flex">
+                  <div className={`w-8 flex-shrink-0 text-${currentTheme.accent}`}>
+                    <FaPhone size={12} />
+                  </div>
+                  <div className={`text-sm text-${currentTheme.text}`}>
+                    {selectedPayroll.employeePhone}
+                  </div>
+                </div>
+              )}
+              
+              {selectedPayroll.employeeEmail && (
+                <div className="flex">
+                  <div className={`w-8 flex-shrink-0 text-${currentTheme.accent}`}>
+                    <FaEnvelope size={12} />
+                  </div>
+                  <div className={`text-sm text-${currentTheme.text} break-all`}>
+                    {selectedPayroll.employeeEmail}
+                  </div>
+                </div>
+              )}
+              
+              {selectedPayroll.employeeAddress && (
+                <div className="flex">
+                  <div className={`w-8 flex-shrink-0 text-${currentTheme.accent} pt-0.5`}>
+                    <FaMapMarkerAlt size={12} />
+                  </div>
+                  <div className={`text-sm text-${currentTheme.text}`}>
+                    {selectedPayroll.employeeAddress}
+                  </div>
+                </div>
+              )}
+
+              {(!selectedPayroll.employeePhone && !selectedPayroll.employeeEmail && !selectedPayroll.employeeAddress) && (
+                <div className="text-gray-400 text-sm italic text-center py-2">
+                  No contact information available
+                </div>
+              )}
+            </div>
+          </div>
           
-          {/* Salary Details */}
-          <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
-            <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
-              <FaDollarSign className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
-              Salary Components
-            </h4>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center px-3 py-2 rounded-md bg-gray-700/30">
-                <span className="text-sm text-gray-300">Base Salary</span>
-                <span className={`text-sm font-medium text-${currentTheme.text}`}>{formatCurrency(selectedPayroll.baseSalary)}</span>
+          {/* Payment Period */}
+          <div className={`mb-6`}>
+            <div className="flex items-center mb-3">
+              <div className={`w-8 h-8 rounded-full bg-${currentTheme.accent}/10 flex items-center justify-center mr-2`}>
+                <FaCalendarAlt className={`text-${currentTheme.accent}`} size={14} />
               </div>
-              <div className="flex justify-between items-center px-3 py-2 rounded-md">
-                <span className="text-sm text-gray-300">Overtime</span>
-                <span className={`text-sm font-medium text-${currentTheme.text}`}>{formatCurrency(selectedPayroll.overtime)}</span>
+              <h4 className={`text-base font-semibold text-${currentTheme.text}`}>Payment Period</h4>
+            </div>
+            
+            <div className={`bg-${currentTheme.background}/50 rounded-xl border border-${currentTheme.border} p-4`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center mb-3 sm:mb-0">
+                  <div className={`h-8 w-8 bg-${currentTheme.background} border border-${currentTheme.border} rounded-full flex items-center justify-center mr-2 flex-shrink-0`}>
+                    <FaCalendarDay className="text-gray-400" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">Start Date</div>
+                    <div className={`text-sm font-medium text-${currentTheme.text}`}>
+                      {formatDate(selectedPayroll.payPeriodStart)}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="hidden sm:block text-gray-400">
+                  <FaArrowRight size={12} />
+                </div>
+                
+                <div className="flex items-center">
+                  <div className={`h-8 w-8 bg-${currentTheme.background} border border-${currentTheme.border} rounded-full flex items-center justify-center mr-2 flex-shrink-0`}>
+                    <FaCalendarCheck className="text-gray-400" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">End Date</div>
+                    <div className={`text-sm font-medium text-${currentTheme.text}`}>
+                      {formatDate(selectedPayroll.payPeriodEnd)}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between items-center px-3 py-2 rounded-md bg-gray-700/30">
-                <span className="text-sm text-gray-300">Deductions</span>
-                <span className={`text-sm font-medium text-${currentTheme.text}`}>-{formatCurrency(selectedPayroll.deductions)}</span>
-              </div>
-              <div className="flex justify-between items-center px-3 py-2 mt-2 rounded-md bg-green-900/20 border border-green-900/30">
-                <span className="text-sm font-medium text-green-400">Net Pay</span>
-                <span className="text-sm font-bold text-green-400">{formatCurrency(selectedPayroll.netPay)}</span>
+              
+              {/* Period length indicator */}
+              <div className={`mt-3 pt-3 border-t border-${currentTheme.border}/30`}>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-400">Period Length</div>
+                  <div className={`text-xs font-medium text-${currentTheme.accent} bg-${currentTheme.accent}/10 px-2 py-1 rounded-full`}>
+                    {(() => {
+                      // Calculate days in pay period
+                      const start = new Date(selectedPayroll.payPeriodStart);
+                      const end = new Date(selectedPayroll.payPeriodEnd);
+                      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                      return `${days} day${days !== 1 ? 's' : ''}`;
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
           
-          {/* Transaction Details (if paid) */}
+          {/* Salary Components with visual redesign */}
+          <div className={`mb-6`}>
+            <div className="flex items-center mb-3">
+              <div className={`w-8 h-8 rounded-full bg-${currentTheme.accent}/10 flex items-center justify-center mr-2`}>
+                <FaMoneyCheckAlt className={`text-${currentTheme.accent}`} size={14} />
+              </div>
+              <h4 className={`text-base font-semibold text-${currentTheme.text}`}>Compensation</h4>
+            </div>
+            
+            <div className={`bg-${currentTheme.background}/50 rounded-xl border border-${currentTheme.border} p-4`}>
+              <div className="space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className={`h-7 w-7 bg-${currentTheme.success}/10 rounded-full text-${currentTheme.success} flex items-center justify-center mr-2`}>
+                      <FaPlus size={10} />
+                    </div>
+                    <span className={`text-sm text-${currentTheme.text}`}>Base Salary</span>
+                  </div>
+                  <span className={`text-sm font-medium text-${currentTheme.text}`}>{formatCurrency(selectedPayroll.baseSalary)}</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className={`h-7 w-7 bg-${currentTheme.warning}/10 rounded-full text-${currentTheme.warning} flex items-center justify-center mr-2`}>
+                      <FaClock size={10} />
+                    </div>
+                    <span className={`text-sm text-${currentTheme.text}`}>Overtime</span>
+                  </div>
+                  <span className={`text-sm font-medium text-${currentTheme.text}`}>{formatCurrency(selectedPayroll.overtime)}</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className={`h-7 w-7 bg-${currentTheme.danger}/10 rounded-full text-${currentTheme.danger} flex items-center justify-center mr-2`}>
+                      <FaMinus size={10} />
+                    </div>
+                    <span className={`text-sm text-${currentTheme.text}`}>Deductions</span>
+                  </div>
+                  <span className={`text-sm font-medium text-${currentTheme.danger}`}>-{formatCurrency(selectedPayroll.deductions)}</span>
+                </div>
+                
+                <div className={`h-px w-full bg-gradient-to-r from-transparent via-${currentTheme.border} to-transparent my-2`}></div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className={`h-7 w-7 bg-${currentTheme.accent}/10 rounded-full text-${currentTheme.accent} flex items-center justify-center mr-2`}>
+                      <FaEquals size={10} />
+                    </div>
+                    <span className={`text-sm font-medium text-${currentTheme.accent}`}>Net Pay</span>
+                  </div>
+                  <span className={`text-base font-bold text-${currentTheme.accent}`}>{formatCurrency(selectedPayroll.netPay)}</span>
+                </div>
+              </div>
+              
+              {/* Payment visualization */}
+              <div className={`mt-4 pt-4 border-t border-${currentTheme.border}/30 gap-1.5 flex`}>
+                <div 
+                  className={`bg-${currentTheme.success}/70 h-2 rounded-l-full`} 
+                  style={{ width: `${(selectedPayroll.baseSalary / (selectedPayroll.baseSalary + selectedPayroll.overtime)) * 100}%` }}
+                ></div>
+                <div 
+                  className={`bg-${currentTheme.warning}/70 h-2`} 
+                  style={{ width: `${(selectedPayroll.overtime / (selectedPayroll.baseSalary + selectedPayroll.overtime)) * 100}%` }}
+                ></div>
+                <div 
+                  className={`bg-${currentTheme.danger}/70 h-2 rounded-r-full`} 
+                  style={{ width: `${(selectedPayroll.deductions / (selectedPayroll.baseSalary + selectedPayroll.overtime)) * 100}%` }}
+                ></div>
+              </div>
+              
+              <div className="flex justify-between mt-2 text-xs text-gray-400">
+                <div>Base: {Math.round((selectedPayroll.baseSalary / selectedPayroll.netPay) * 100)}%</div>
+                <div>OT: {Math.round((selectedPayroll.overtime / selectedPayroll.netPay) * 100)}%</div>
+                <div>Ded: {Math.round((selectedPayroll.deductions / selectedPayroll.netPay) * 100)}%</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Transaction Details (if paid) with better visual design */}
           {selectedPayroll.status === 'paid' && selectedPayroll.transactionId && (() => {
             const relatedTransaction = transactions.find(t => t.id === selectedPayroll.transactionId);
             return relatedTransaction ? (
-              <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
-                <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
-                  <FaFileInvoiceDollar className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
-                  Transaction Details
-                </h4>
-                <div className="space-y-2 text-sm">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
+              <div className={`mb-6`}>
+                <div className="flex items-center mb-3">
+                  <div className={`w-8 h-8 rounded-full bg-${currentTheme.accent}/10 flex items-center justify-center mr-2`}>
+                    <FaFileInvoiceDollar className={`text-${currentTheme.accent}`} size={14} />
+                  </div>
+                  <h4 className={`text-base font-semibold text-${currentTheme.text}`}>Transaction Details</h4>
+                </div>
+                
+                <div className={`bg-${currentTheme.background}/50 rounded-xl border border-${currentTheme.border} p-4`}>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div className={`bg-${currentTheme.background} p-3 rounded-lg border border-${currentTheme.border}/50`}>
                       <div className="text-xs text-gray-400 mb-1">Transaction ID</div>
-                      <div className={`font-mono text-xs text-${currentTheme.accent}`}>{selectedPayroll.transactionId}</div>
+                      <div className={`font-mono text-xs text-${currentTheme.accent} truncate`}>{selectedPayroll.transactionId}</div>
                     </div>
-                    <div>
+                    
+                    <div className={`bg-${currentTheme.background} p-3 rounded-lg border border-${currentTheme.border}/50`}>
                       <div className="text-xs text-gray-400 mb-1">Date</div>
-                      <div className={`text-${currentTheme.text}`}>{formatDate(relatedTransaction.date)}</div>
+                      <div className={`text-sm text-${currentTheme.text}`}>{formatDate(relatedTransaction.date)}</div>
                     </div>
                   </div>
-                  <div className="mt-2">
+                  
+                  <div className={`bg-${currentTheme.background} p-3 rounded-lg border border-${currentTheme.border}/50`}>
                     <div className="text-xs text-gray-400 mb-1">Description</div>
-                    <div className={`text-${currentTheme.text}`}>{relatedTransaction.description}</div>
+                    <div className={`text-sm text-${currentTheme.text}`}>
+                      {relatedTransaction.description || "Payroll payment"}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 flex justify-end">
+                    <button 
+                      onClick={() => {/* View transaction details */}}
+                      className={`text-xs flex items-center text-${currentTheme.accent} hover:underline`}
+                    >
+                      <FaExternalLinkAlt size={10} className="mr-1" /> View Transaction
+                    </button>
                   </div>
                 </div>
               </div>
             ) : null;
           })()}
           
-          {/* Action buttons */}
-          <div className={`flex justify-end space-x-3 pt-4 mt-2 border-t border-${currentTheme.border}`}>
+          {/* Action buttons - redesigned with better spacing and icons */}
+          <div className={`flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 mt-2 border-t border-${currentTheme.border}`}>
             <button 
               type="button"
               onClick={() => setShowPayrollDetailModal(false)}
-              className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+              className={`px-4 py-3 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm flex items-center justify-center`}
             >
-              Close
+              <FaTimes className="mr-2 h-4 w-4" /> Close
             </button>
+            
             <button 
               type="button"
-              onClick={() => window.print()}
-              className={`px-5 py-2.5 bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm`}
+              className={`px-5 py-3 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm`}
             >
               <FaPrint className="mr-2 h-4 w-4" /> 
-              Print Details
+              Print Payslip
             </button>
           </div>
         </div>
