@@ -5,11 +5,12 @@ import { FaBook, FaBoxOpen, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, Fa
   FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, 
   FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, 
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
-  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart } from "react-icons/fa";
+  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
 import toast from 'react-hot-toast';
+import Barcode from 'react-barcode';
 
 // Define TypeScript interfaces for our data models
 interface InventoryItem {
@@ -179,6 +180,7 @@ interface AppData {
     email: string;
     logo?: string;
     established?: string;
+    baseCurrency?: string;
   }; // Add business info to AppData
   invoices: Invoice[]; // Add invoices to AppData
   budgets: Budget[]; // Add budgets to AppData
@@ -223,7 +225,55 @@ const exchangeRates = {
 
 // Add conversion function
 // Add conversion function
-const convertCurrency = (usdPrice: number, rate: number): string => (usdPrice * rate).toFixed(2);
+// Define a type for supported currency codes
+type CurrencyCode = 'USD' | 'NGN' | 'EUR' | 'GBP' | 'GHS' | 'JPY' | 'INR';
+
+// Interface for the exchange rates object
+interface ExchangeRates {
+  [key: string]: number;
+}
+
+/**
+ * Converts an amount from one currency to another
+ * @param amount The monetary amount to convert
+ * @param fromCurrency The source currency code
+ * @param toCurrency The target currency code
+ * @returns The converted amount as a number
+ */
+const convertCurrency = (
+  amount: number, 
+  fromCurrency: CurrencyCode = 'USD', 
+  toCurrency: CurrencyCode = 'USD'
+): number => {
+  // Handle same currency case
+  if (fromCurrency === toCurrency) {
+    return amount;
+  }
+  
+  // Ensure both currencies are supported
+  if (!exchangeRates[fromCurrency]) {
+    console.error(`Unsupported source currency: ${fromCurrency}`);
+    return amount;
+  }
+  
+  if (!exchangeRates[toCurrency]) {
+    console.error(`Unsupported target currency: ${toCurrency}`);
+    return amount;
+  }
+  
+  // Convert from source currency to USD first (as intermediary)
+  const amountInUSD = fromCurrency === 'USD' 
+    ? amount 
+    : amount / exchangeRates[fromCurrency];
+  
+  // Then convert from USD to target currency
+  const convertedAmount = toCurrency === 'USD'
+    ? amountInUSD
+    : amountInUSD * exchangeRates[toCurrency];
+  
+  // Return with 2 decimal places for clean formatting
+  return parseFloat(convertedAmount.toFixed(2));
+};
 
 // Add this utility function to convert data to CSV format
 const convertToCSV = (data: any[], headers: string[]): string => {
@@ -432,6 +482,7 @@ export default function BookKeepingSystem() {
     email: string;
     logo?: string;
     established?: string;
+    baseCurrency?: string;
   }>({
     name: "My Business",
     type: "Retail",
@@ -913,7 +964,8 @@ export default function BookKeepingSystem() {
     address: "",
     phone: "",
     email: "",
-    established: new Date().getFullYear().toString()
+    established: new Date().getFullYear().toString(),
+    baseCurrency: ""
   });
   
   // Currency state
@@ -926,7 +978,16 @@ export default function BookKeepingSystem() {
     { code: "INR", symbol: "₹", name: "Indian Rupee", rate: exchangeRates.INR },
     { code: "GHS", symbol: "₵", name: "Ghanaian Cedi", rate: exchangeRates.GHS },
   ]);
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(currencies[0]);
+// Initialize with the user's base currency or default to USD if not set
+const [selectedCurrency, setSelectedCurrency] = useState(() => {
+  // Check if business info has a base currency
+  if (businessInfo && businessInfo.baseCurrency) {
+    const savedCurrency = currencies.find(c => c.code === businessInfo.baseCurrency);
+    return savedCurrency || currencies.find(c => c.code === 'NGN') || currencies[0];
+  }
+  // Default to USD
+  return currencies.find(c => c.code === 'NGN') || currencies[0];
+});
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
   const [showUsdPrices, setShowUsdPrices] = useState<boolean>(true);
   
@@ -2543,7 +2604,7 @@ const validateInventoryTransaction = () => {
       return `${selectedCurrency.symbol}${amount.toFixed(2)}`;
     } else {
       // Convert from USD to selected currency
-      const convertedAmount = parseFloat(convertCurrency(amount, selectedCurrency.rate || 1));
+      const convertedAmount = amount * (selectedCurrency.rate || 1);
       return `${selectedCurrency.symbol}${convertedAmount.toFixed(2)}`;
     }
   };
@@ -3845,7 +3906,8 @@ const generateBudgetReport = async (budget: Budget) => {
           onClick={() => {
             setBusinessFormData({
               ...businessInfo,
-              established: businessInfo.established || new Date().getFullYear().toString()
+              established: businessInfo.established || new Date().getFullYear().toString(),
+              baseCurrency: businessInfo.baseCurrency || ""
             });
             setShowBusinessOnboarding(true);
           }}
@@ -5211,7 +5273,8 @@ const generateBudgetReport = async (budget: Budget) => {
             )}
 
             {/* Invoices Tab */}
-            {activeTab === "invoices" && (
+            {/* Invoices Tab */}
+{activeTab === "invoices" && (
   <motion.div variants={fadeIn}>
     <div className={`flex justify-between items-center mb-6 border-b border-${currentTheme.border} pb-3`}>
       <div>
@@ -5448,8 +5511,6 @@ const generateBudgetReport = async (budget: Budget) => {
                               </div>
                             </div>
                           </div>
-
-                          
                           
                           {/* Invoice Items - responsive table */}
                           <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -5467,7 +5528,18 @@ const generateBudgetReport = async (budget: Budget) => {
                                   invoice.items.map((item, idx) => (
                                     <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                       <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800">{item.name}</td>
-                                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 text-right">{item.quantity}</td>
+                                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 text-right">
+                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full ${
+                                          'inventoryId' in item 
+                                            ? "bg-blue-50 text-blue-700 border border-blue-200" 
+                                            : ""
+                                        }`}>
+                                          {item.quantity}
+                                        </span>
+                                        {'inventoryId' in item && (
+                                          <div className="text-xs text-blue-600 mt-0.5">Inventory item</div>
+                                        )}
+                                      </td>
                                       <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 text-right">{formatCurrency(item.price)}</td>
                                       <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-800 text-right">
                                         {formatCurrency(item.price * item.quantity)}
@@ -5497,45 +5569,49 @@ const generateBudgetReport = async (budget: Budget) => {
                             </table>
                           </div>
 
-                          {invoice.isPaid ? (
-                            <span className={`px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 flex items-center`}>
-                              <FaCheck className="mr-1" size={8} />
-                              Paid {invoice.paidDate && `• ${formatDate(invoice.paidDate)}`}
-                              {invoice.paidTimestamp && checkPaidEditTimeLeft(invoice.paidTimestamp) <= 0 && (
-                                <FaLock className="ml-1" size={8} title="Payment status locked" />
-                              )}
-                            </span>
-                          ) : (() => {
-                              // Calculate invoice status based on due date
-                              const today = new Date();
-                              const dueDate = new Date(invoice.dueDate);
+                          <div className="flex items-center justify-between">
+                            {invoice.isPaid ? (
+                              <span className={`px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 flex items-center`}>
+                                <FaCheck className="mr-1" size={8} />
+                                Paid {invoice.paidDate && `• ${formatDate(invoice.paidDate)}`}
+                                {invoice.paidTimestamp && checkPaidEditTimeLeft(invoice.paidTimestamp) <= 0 && (
+                                  <FaLock className="ml-1" size={8} title="Payment status locked" />
+                                )}
+                              </span>
+                            ) : (() => {
+                                // Calculate invoice status based on due date
+                                const today = new Date();
+                                const dueDate = new Date(invoice.dueDate);
+                                
+                                if (!invoice.dueDate) {
+                                  return (
+                                    <span className={`px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800`}>
+                                      No due date
+                                    </span>
+                                  );
+                                } else if (today > dueDate) {
+                                  return (
+                                    <span className={`px-2 py-1 rounded-full text-xs bg-red-100 text-red-800`}>
+                                      Overdue
+                                    </span>
+                                  );
+                                } else if ((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24) < 7) {
+                                  return (
+                                    <span className={`px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800`}>
+                                      Due soon
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className={`px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800`}>
+                                      Unpaid
+                                    </span>
+                                  );
+                                }
+                              })()}
                               
-                              if (!invoice.dueDate) {
-                                return (
-                                  <span className={`px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800`}>
-                                    No due date
-                                  </span>
-                                );
-                              } else if (today > dueDate) {
-                                return (
-                                  <span className={`px-2 py-1 rounded-full text-xs bg-red-100 text-red-800`}>
-                                    Overdue
-                                  </span>
-                                );
-                              } else if ((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24) < 7) {
-                                return (
-                                  <span className={`px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800`}>
-                                    Due soon
-                                  </span>
-                                );
-                              } else {
-                                return (
-                                  <span className={`px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800`}>
-                                    Unpaid
-                                  </span>
-                                );
-                              }
-                            })()}
+                              <span className="text-xs text-gray-500">Invoice #{invoice.id.slice(-8).toUpperCase()}</span>
+                          </div>
                           
                           {/* Notes section */}
                           {invoice.notes && (
@@ -5545,9 +5621,39 @@ const generateBudgetReport = async (budget: Budget) => {
                             </div>
                           )}
                           
-                          {/* Payment Information and Footer */}
+                          {/* Payment Information and Footer with Barcode */}
                           <div className="mt-4 md:mt-6 pt-3 md:pt-4 border-t border-gray-200">
                             <div className="text-center">
+                              {/* Receipt Barcode - real scannable barcode */}
+                              <div className="flex justify-center mb-4">
+                                <div className="flex flex-col items-center">
+                                  <div className="relative bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                                    {/* Real scannable barcode */}
+                                    <Barcode 
+                                      value={invoice.id.toUpperCase()}
+                                      width={1}
+                                      height={50}
+                                      format="CODE128"
+                                      displayValue={true}
+                                      font="Arial"
+                                      fontSize={12}
+                                      textAlign="center"
+                                      textPosition="bottom"
+                                      textMargin={6}
+                                      background="#FFFFFF"
+                                      lineColor="#000000"
+                                    />
+                                  </div>
+                                  
+                                  {/* Barcode caption */}
+                                  <div className="mt-2 text-center">
+                                    <p className="text-xs font-medium text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
+                                      Scan to verify invoice
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              
                               <p className="text-xs md:text-sm font-medium text-gray-700">Thank you for your business!</p>
                               <p className="text-xs text-gray-500 mt-1">This is a computer-generated document and requires no signature.</p>
                             </div>
@@ -8546,150 +8652,324 @@ const generateBudgetReport = async (budget: Budget) => {
 
                   {/* Invoice Items */}
                   <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Invoice Items</label>
-                    
-                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
-                      {/* Inventory item selection dropdown */}
-                      <div className="mb-4">
-                        <label className="block text-xs text-gray-400 mb-1">Select from Inventory</label>
-                        <select
-                          title="Select inventory item"
-                          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                          onChange={(e) => {
-                            const selectedItemId = e.target.value;
-                            if (!selectedItemId) return;
-                            
-                            const selectedItem = inventory.find(item => item.id === selectedItemId);
-                            if (selectedItem) {
-                              setTempInvoiceItem({
-                                name: selectedItem.name,
-                                quantity: 1,
-                                price: selectedItem.sellingPrice
-                              });
-                            }
-                            e.target.value = ""; // Reset selection after use
-                          }}
-                          value=""
-                        >
-                          <option value="">-- Select inventory item --</option>
-                          {inventory.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name} - {formatCurrency(item.sellingPrice)} ({item.quantity} in stock)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {/* Item input form */}
-                      <div className="grid grid-cols-4 gap-4 mb-4">
-                        <div className="col-span-2">
-                          <label className="block text-xs text-gray-400 mb-1">Item Name</label>
-                          <input
-                            type="text"
-                            placeholder="Item Name"
-                            value={tempInvoiceItem.name}
-                            onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, name: e.target.value})}
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Quantity</label>
-                          <input
-                            type="number"
-                            placeholder="Quantity"
-                            value={tempInvoiceItem.quantity || ''}
-                            onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, quantity: parseInt(e.target.value) || 0})}
-                            min="1"
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Price</label>
-                          <input
-                            type="number"
-                            placeholder="Price"
-                            value={tempInvoiceItem.price || ''}
-                            onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, price: parseFloat(e.target.value) || 0})}
-                            min="0"
-                            step="0.01"
-                            className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                          />
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <button
-                          type="button"
-                          onClick={addInvoiceItem}
-                          disabled={!tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price}
-                          className={`px-4 py-2 ${
-                            !tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price
-                              ? `bg-${currentTheme.primary}/50 cursor-not-allowed`
-                              : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 cursor-pointer`
-                          } text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 text-sm`}
-                        >
-                          Add Item
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Item list */}
-                    <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
-                      {invoiceFormData.items.length > 0 ? (
-                        <table className="min-w-full divide-y divide-gray-700">
-                          <thead>
-                            <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
-                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-400">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className={`divide-y divide-${currentTheme.border}`}>
-                            {invoiceFormData.items.map((item, index) => (
-                              <motion.tr
-                                key={index}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.2 }}
-                              >
-                                <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>{item.name}</td>
-                                <td className="px-3 py-2 text-right text-sm text-gray-400">{item.quantity}</td>
-                                <td className="px-3 py-2 text-right text-sm text-gray-400">
-                                  {formatCurrency(item.price)}
-                                </td>
-                                <td className="px-3 py-2 text-right text-sm text-green-500">
-                                  {formatCurrency(item.price * item.quantity)}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => removeInvoiceItem(index)}
-                                    className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 p-1`}
-                                    title="Remove item"
-                                  >
-                                    <FaTrash size={14} />
-                                  </button>
-                                </td>
-                              </motion.tr>
-                            ))}
-                            <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
-                              <td colSpan={3} className={`px-3 py-2 text-right font-medium text-${currentTheme.text}`}>
-                                Total
-                              </td>
-                              <td className={`px-3 py-2 text-right font-bold text-${currentTheme.success}`}>
-                                {formatCurrency(invoiceFormData.totalAmount)}
-                              </td>
-                              <td></td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="p-4 text-center text-gray-400">
-                          No items added to this invoice yet
-                        </div>
-                      )}
-                    </div>
-                  </div>
+  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Invoice Items</label>
+  
+  <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} p-4 mb-3`}>
+    {/* Inventory item selection dropdown - improved */}
+    <div className="mb-4">
+      <label className="block text-xs font-medium text-gray-400 mb-1">Select from Inventory</label>
+      <div className="relative">
+        <select
+          title="Select inventory item"
+          className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+          onChange={(e) => {
+            const selectedItemId = e.target.value;
+            if (!selectedItemId) return;
+            
+            const selectedItem = inventory.find(item => item.id === selectedItemId);
+            if (selectedItem) {
+              // Set default quantity to 1 or max available if less than 1
+              const defaultQuantity = Math.min(1, selectedItem.quantity);
+              // Add properly typed properties to the state
+              setTempInvoiceItem({
+                name: selectedItem.name,
+                quantity: defaultQuantity,
+                price: selectedItem.sellingPrice,
+                inventoryId: selectedItem.id,
+                maxQuantity: selectedItem.quantity
+              } as any); // Use type assertion on the entire object instead
+            }
+            e.target.value = ""; // Reset selection after use
+          }}
+          value=""
+        >
+          <option value="">-- Select inventory item --</option>
+          {inventory.map((item) => (
+            <option 
+              key={item.id} 
+              value={item.id}
+              disabled={item.quantity <= 0}
+              className={item.quantity <= 0 ? "text-gray-400" : ""}
+            >
+              {item.name} - {formatCurrency(item.sellingPrice)} {" "}
+              {item.quantity <= 0 ? "(Out of stock)" : 
+               item.quantity < 5 ? `(Low stock: ${item.quantity})` : 
+               `(${item.quantity} in stock)`}
+            </option>
+          ))}
+        </select>
+        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+          <FaChevronDown className="h-4 w-4 text-gray-400" />
+        </div>
+      </div>
+    </div>
+    
+    {/* Item input form - improved with validation */}
+    <div className="grid md:grid-cols-2 grid-cols-1 gap-4 mb-4">
+  <div className="col-span-2">
+    <label className="block text-xs font-medium text-gray-400 mb-1">Item Name</label>
+    <input
+      type="text"
+      placeholder="Item Name"
+      value={tempInvoiceItem.name}
+      onChange={(e) => setTempInvoiceItem({...tempInvoiceItem, name: e.target.value})}
+      className={`w-full p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+      readOnly={(tempInvoiceItem as any).inventoryId ? true : false}
+    />
+  </div>
+  <div>
+    <label className="text-xs font-medium text-gray-400 mb-1 flex items-center justify-between">
+      <span>Quantity</span>
+      {(tempInvoiceItem as any).inventoryId && (
+        <span className={`text-xs ${(tempInvoiceItem as any).maxQuantity < 5 ? "text-amber-500" : "text-gray-400"}`}>
+          Max: {(tempInvoiceItem as any).maxQuantity}
+        </span>
+      )}
+    </label>
+    <div className="flex rounded-lg overflow-hidden shadow-sm">
+      <button 
+        type="button"
+        onClick={() => {
+          if (tempInvoiceItem.quantity > 1) {
+            setTempInvoiceItem({
+              ...tempInvoiceItem, 
+              quantity: tempInvoiceItem.quantity - 1
+            });
+          }
+        }}
+        className={`px-2.5 py-1.5 bg-${currentTheme.background} border border-${currentTheme.border} border-r-0 text-${currentTheme.text} hover:bg-${currentTheme.border}/30 active:bg-${currentTheme.border}/50 transition-colors duration-200 ${
+          tempInvoiceItem.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        disabled={tempInvoiceItem.quantity <= 1}
+        aria-label="Decrease quantity"
+      >
+        <FaMinus className="h-3 w-3" />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder="Qty"
+        value={tempInvoiceItem.quantity || ''}
+        onChange={(e) => {
+          const value = e.target.value.replace(/[^\d]/g, '');
+          const newValue = parseInt(value) || 0;
+          
+          if ((tempInvoiceItem as any).inventoryId) {
+            const maxQty = (tempInvoiceItem as any).maxQuantity || 0;
+            setTempInvoiceItem({
+              ...tempInvoiceItem,
+              quantity: Math.min(Math.max(0, newValue), maxQty)
+            });
+          } else {
+            setTempInvoiceItem({...tempInvoiceItem, quantity: Math.max(0, newValue)});
+          }
+        }}
+        min="1"
+        max={(tempInvoiceItem as any).maxQuantity}
+        className="w-full p-2 border-y border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-center font-bold text-gray-900 dark:text-gray-100 appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 text-base"
+        aria-label="Quantity"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          const newQty = tempInvoiceItem.quantity + 1;
+          // Check if it's an inventory item and enforce max quantity
+          if ((tempInvoiceItem as any).inventoryId && (tempInvoiceItem as any).maxQuantity) {
+            if (newQty <= (tempInvoiceItem as any).maxQuantity) {
+              setTempInvoiceItem({...tempInvoiceItem, quantity: newQty});
+            }
+          } else {
+            setTempInvoiceItem({...tempInvoiceItem, quantity: newQty});
+          }
+        }}
+        className={`px-2.5 py-1.5 bg-${currentTheme.background} border border-${currentTheme.border} border-l-0 text-${currentTheme.text} hover:bg-${currentTheme.border}/30 active:bg-${currentTheme.border}/50 transition-colors duration-200 ${
+          (tempInvoiceItem as any).inventoryId && tempInvoiceItem.quantity >= (tempInvoiceItem as any).maxQuantity 
+            ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        disabled={(tempInvoiceItem as any).inventoryId && tempInvoiceItem.quantity >= (tempInvoiceItem as any).maxQuantity}
+        aria-label="Increase quantity"
+      >
+        <FaPlus className="h-3 w-3" />
+      </button>
+    </div>
+    {(tempInvoiceItem as any).inventoryId && (
+      <div className="flex items-center mt-1">
+        {tempInvoiceItem.quantity >= (tempInvoiceItem as any).maxQuantity ? (
+          <p className="text-xs text-amber-500 flex items-center">
+            <FaExclamationTriangle className="mr-1 h-3 w-3" /> Max stock reached
+          </p>
+        ) : (tempInvoiceItem as any).maxQuantity - tempInvoiceItem.quantity < 5 ? (
+          <p className="text-xs text-blue-500">
+            {(tempInvoiceItem as any).maxQuantity - tempInvoiceItem.quantity} more available
+          </p>
+        ) : null}
+      </div>
+    )}
+  </div>
+  <div>
+    <label className="block text-xs font-medium text-gray-400 mb-1 flex items-center justify-between">
+      <span>Price</span>
+      {(tempInvoiceItem as any).inventoryId && (
+        <span className="text-xs text-gray-400">Set by inventory</span>
+      )}
+    </label>
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+      </div>
+      <input
+        type="text"
+        inputMode="decimal"
+        placeholder="0.00"
+        value={tempInvoiceItem.price || ''}
+        onChange={(e) => {
+          // Allow only numbers and a single decimal point
+          const value = e.target.value.replace(/[^\d.]/g, '');
+          const decimalCount = (value.match(/\./g) || []).length;
+          
+          if (decimalCount <= 1) {
+            const price = parseFloat(value) || 0;
+            setTempInvoiceItem({...tempInvoiceItem, price});
+          }
+        }}
+        min="0"
+        step="0.01"
+        className={`w-full pl-7 p-2 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm ${
+          (tempInvoiceItem as any).inventoryId ? 'opacity-75 cursor-not-allowed' : ''
+        }`}
+        aria-label="Price"
+        readOnly={(tempInvoiceItem as any).inventoryId ? true : false}
+        disabled={(tempInvoiceItem as any).inventoryId ? true : false}
+      />
+    </div>
+    {(tempInvoiceItem as any).inventoryId && (
+      <p className="text-xs text-gray-400 mt-1">
+        Price automatically set from inventory item
+      </p>
+    )}
+  </div>
+</div>
+    
+    {/* Improved add item button */}
+    <div className="text-right">
+      <button
+        type="button"
+        onClick={() => {
+          // Additional validation for inventory items
+          if ((tempInvoiceItem as any).inventoryId) {
+            // Check if this inventory item is already in the invoice
+            const existingItemIndex = invoiceFormData.items.findIndex(
+              item => (item as any).inventoryId === (tempInvoiceItem as any).inventoryId
+            );
+            
+            if (existingItemIndex >= 0) {
+              // Calculate total quantity including existing items
+              const existingQty = invoiceFormData.items[existingItemIndex].quantity || 0;
+              const totalQty = existingQty + tempInvoiceItem.quantity;
+              
+              // Check if total exceeds available inventory
+              if (totalQty > (tempInvoiceItem as any).maxQuantity) {
+                toast.error(`Cannot add more than ${(tempInvoiceItem as any).maxQuantity} units of this item`);
+                return;
+              }
+            }
+          }
+          
+          // Proceed with adding the item
+          addInvoiceItem();
+        }}
+        disabled={!tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price}
+        className={`px-4 py-2 ${
+          !tempInvoiceItem.name || !tempInvoiceItem.quantity || !tempInvoiceItem.price
+            ? `bg-${currentTheme.primary}/50 cursor-not-allowed`
+            : `bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 cursor-pointer`
+        } text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 text-sm`}
+      >
+        <span className="flex items-center">
+          <FaPlus className="mr-2" size={12} /> 
+          Add Item
+        </span>
+      </button>
+    </div>
+  </div>
+  
+  {/* Item list - Enhanced with inventory indicators */}
+  <div className={`bg-${currentTheme.background} rounded-lg border border-${currentTheme.border} overflow-hidden`}>
+    {invoiceFormData.items.length > 0 ? (
+      <table className="min-w-full divide-y divide-gray-700">
+        <thead>
+          <tr>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">Item</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Quantity</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Total</th>
+            <th className="px-3 py-2 text-center text-xs font-medium text-gray-400">Action</th>
+          </tr>
+        </thead>
+        <tbody className={`divide-y divide-${currentTheme.border}`}>
+          {invoiceFormData.items.map((item, index) => (
+            <motion.tr
+              key={index}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <td className={`px-3 py-2 text-sm text-${currentTheme.text}`}>
+                <div className="flex flex-col">
+                  <span>{item.name}</span>
+                  {(item as any).inventoryId && (
+                    <span className="inline-flex items-center mt-1 px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 border border-blue-200">
+                      <FaBox className="mr-1" size={8} />
+                      Inventory
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td className="px-3 py-2 text-right text-sm">
+                {(item as any).inventoryId ? (
+                  <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">
+                    {item.quantity}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">{item.quantity}</span>
+                )}
+              </td>
+              <td className="px-3 py-2 text-right text-sm text-gray-400">
+                {formatCurrency(item.price)}
+              </td>
+              <td className="px-3 py-2 text-right text-sm text-green-500">
+                {formatCurrency(item.price * item.quantity)}
+              </td>
+              <td className="px-3 py-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => removeInvoiceItem(index)}
+                  className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 p-1`}
+                  title="Remove item"
+                >
+                  <FaTrash size={14} />
+                </button>
+              </td>
+            </motion.tr>
+          ))}
+          <tr className={`border-t-2 border-${currentTheme.primary}/30`}>
+            <td colSpan={3} className={`px-3 py-2 text-right font-medium text-${currentTheme.text}`}>
+              Total
+            </td>
+            <td className={`px-3 py-2 text-right font-bold text-${currentTheme.success}`}>
+              {formatCurrency(invoiceFormData.totalAmount)}
+            </td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    ) : (
+      <div className="p-4 text-center text-gray-400">
+        No items added to this invoice yet
+      </div>
+    )}
+  </div>
+</div>
 
                   {/* Notes */}
                   <div className="mb-4">
@@ -9057,20 +9337,38 @@ const generateBudgetReport = async (budget: Budget) => {
             
             {/* Footer with barcode */}
             <div className="text-center border-t border-gray-200 pt-6 mt-6">
-              {/* Fake barcode for visual effect */}
+              {/* Receipt QR Code */}
+              {/* Receipt Barcode - real scannable barcode */}
               <div className="flex justify-center mb-4">
-                <svg className="h-10 w-48" viewBox="0 0 100 30">
-                  {[...Array(20)].map((_, i) => (
-                    <rect 
-                      key={i} 
-                      x={i * 5} 
-                      y="0" 
-                      width={Math.random() * 3 + 1} 
-                      height="30" 
-                      fill="#333" 
+                <div className="flex flex-col items-center">
+                  <div className="relative bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    {/* Real scannable barcode */}
+                    <Barcode 
+                      value={viewingReceipt.id.slice(-8).toUpperCase()}
+                      width={1.5}
+                      height={50}
+                      format="CODE128"
+                      displayValue={true}
+                      font="Arial"
+                      fontSize={12}
+                      textAlign="center"
+                      textPosition="bottom"
+                      textMargin={6}
+                      background="#FFFFFF"
+                      lineColor="#000000"
                     />
-                  ))}
-                </svg>
+                  </div>
+                  
+                  {/* Barcode caption */}
+                  <div className="mt-2 text-center">
+                    <p className="text-xs font-medium text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
+                      Scan to verify receipt
+                    </p>
+                    {/* <p className="text-xs text-gray-500" style={{ fontFamily: "Arial, sans-serif" }}>
+                      Receipt #{viewingReceipt.id.slice(-8).toUpperCase()}
+                    </p> */}
+                  </div>
+                </div>
               </div>
               
               <p className="text-sm font-medium text-gray-600" style={{ fontFamily: "Arial, sans-serif" }}>
@@ -9202,6 +9500,32 @@ const generateBudgetReport = async (budget: Budget) => {
                         <option key={type} value={type}>{type}</option>
                       ))}
                     </select>
+                  </div>
+                  
+                  {/* Currency Selection */}
+                  <div className="mb-4">
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                      Base Currency *
+                      <span className="ml-1 text-xs text-gray-400">(Your primary currency for bookkeeping)</span>
+                    </label>
+                    <select 
+                      name="baseCurrency"
+                      title="Base Currency"
+                      value={businessFormData.baseCurrency || ""}
+                      onChange={handleBusinessFormChange}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      required
+                    >
+                      <option value="" disabled>Select your base currency</option>
+                      {currencies.map(currency => (
+                        <option key={currency.code} value={currency.code}>
+                          {currency.symbol} {currency.code} - {currency.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-400">
+                      This will be your default currency. All reports and calculations will use this as the base.
+                    </p>
                   </div>
                   
                   <div className="mb-4">
