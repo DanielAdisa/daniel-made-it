@@ -9585,7 +9585,7 @@ const generateBudgetReport = async (budget: Budget) => {
                     
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Payment Method</div>
-                      <div className="text-sm text-slate-700">{relatedTransaction.paymentMethod || "Bank Transfer"}</div>
+                      <div className="text-sm text-slate-700">Bank Transfer</div>
                     </div>
                     
                     <div className="md:col-span-3">
