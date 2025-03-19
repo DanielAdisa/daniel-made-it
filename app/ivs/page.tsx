@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { FaBook, FaBoxOpen, FaChartLine, FaChartPie, FaHome, FaPlus, FaMinus, FaSearch, FaTimes, FaDollarSign, 
-  FaChevronDown, FaChevronRight, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, 
+  FaChevronDown, FaChevronRight, FaChevronLeft, FaDownload, FaUpload, FaSync, FaSave, FaUser, FaUsers, FaUserPlus, FaEye, FaPrint, 
   FaInfoCircle, FaFileExcel, FaStore, FaMapMarkerAlt, FaPhone, FaEnvelope, FaEdit, FaTrash, FaCheck, FaLock, 
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
-  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle } from "react-icons/fa";
+  FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
+  FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -37,6 +38,7 @@ interface Transaction {
   customerId?: string; // Associate transaction with customer
   relatedInvoiceId?: string; // Add this to link to invoices
   quantity?: number; // Add this field to the interface
+  relatedPayrollId?: string; // Add this field to the interface
 }
 
 // Modify Receipt interface to include a linked transaction id
@@ -86,6 +88,7 @@ interface TransactionFormData {
   customerId?: string; // Associate transaction with customer
   id?: string;
   quantity: number;
+  relatedPayrollId?: string; // Add this field to the interface
 }
 
 // Update ReceiptFormData to include customerId selection
@@ -128,6 +131,22 @@ interface Invoice {
   isPaid: boolean;  // Add this
   paidDate?: Date;  // Add this
   paidTimestamp?: string; // ISO string of when the invoice was marked as paid
+}
+
+interface Payroll {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  position: string;
+  payPeriodStart: Date;
+  payPeriodEnd: Date;
+  baseSalary: number;
+  overtime: number;
+  deductions: number;
+  netPay: number;
+  status: 'paid' | 'pending';
+  paymentDate?: Date;
+  transactionId?: string; // Links to financial transactions
 }
 
 // Add Invoice form data interface
@@ -184,6 +203,7 @@ interface AppData {
   }; // Add business info to AppData
   invoices: Invoice[]; // Add invoices to AppData
   budgets: Budget[]; // Add budgets to AppData
+  payrolls: Payroll[]; // Add payroll to AppData
 }
 
 // First, let's add a Theme interface and available themes
@@ -354,6 +374,8 @@ const formatDate = (dateValue: any): string => {
   }
 };
 
+
+
 const formatDateForInput = (dateValue: any): string => {
   if (!dateValue) return '';
   
@@ -467,7 +489,7 @@ interface BudgetHookReturn {
 
 export default function BookKeepingSystem() {
   // Update the activeTab state to include customers
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices"|"payrolls">("dashboard");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -490,6 +512,8 @@ export default function BookKeepingSystem() {
     phone: "",
     email: "",
   });
+
+  
 
   const invoiceCardRef = useRef<HTMLDivElement>(null);
 
@@ -536,6 +560,8 @@ export default function BookKeepingSystem() {
     const endDate = new Date(budget.endDate);
     return date >= startDate && date <= endDate;
   };
+
+  
 
   // Filter budgets based on search query
   useEffect(() => {
@@ -624,6 +650,68 @@ export default function BookKeepingSystem() {
     });
     setTempBudgetCategory({ name: "", allocated: 0 });
   };
+
+  // Payroll form handling
+const [payrollFormData, setPayrollFormData] = useState({
+  employeeName: '',
+  position: '',
+  payPeriodStart: new Date(),
+  payPeriodEnd: new Date(),
+  baseSalary: 0,
+  overtime: 0,
+  deductions: 0
+});
+
+const handlePayrollFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { name, value } = e.target;
+  setPayrollFormData(prev => ({ ...prev, [name]: value }));
+};
+
+const handlePayrollSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  const newPayroll: Payroll = {
+    id: `payroll-${Date.now()}`,
+    employeeId: 'emp-' + Date.now(), // Add a placeholder employeeId
+    ...payrollFormData,
+    netPay: payrollFormData.baseSalary + payrollFormData.overtime - payrollFormData.deductions,
+    status: 'pending'
+  };
+  
+  setPayrolls([...payrolls, newPayroll]);
+  setShowPayrollModal(false);
+  toast.success('Payroll added successfully!');
+};
+
+// Payment processing
+const handlePayrollPayment = (payroll: Payroll) => {
+  // Create transaction record
+  const transaction: Transaction = {
+    id: `txn-${Date.now()}`,
+    type: 'expense',
+    category: 'Payroll',
+    amount: payroll.netPay,
+    date: new Date(),
+    description: `Salary payment for ${payroll.employeeName}`,
+    relatedPayrollId: payroll.id
+  };
+  
+  // Update payroll status with the correct union type
+  const updatedPayroll: Payroll = {
+    ...payroll,
+    status: "paid" as "paid" | "pending", // Explicitly type as union
+    paymentDate: new Date(),
+    transactionId: transaction.id
+  };
+  
+  // Update state
+  setTransactions([...transactions, transaction]);
+  setPayrolls(payrolls.map(p => 
+    p.id === payroll.id ? updatedPayroll : p
+  ));
+  
+  // Show success message
+  toast.success(`Payment processed for ${payroll.employeeName}`);
+};
   
   // Handle budget form changes
   const handleBudgetFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -1016,6 +1104,20 @@ const [selectedCurrency, setSelectedCurrency] = useState(() => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   // const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
 
+  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [editingPayroll, setEditingPayroll] = useState<Payroll | null>(null);
+  // const [payrollFormData, setPayrollFormData] = useState({
+  //   employeeName: '',
+  //   position: '',
+  //   payPeriodStart: new Date(),
+  //   payPeriodEnd: new Date(),
+  //   baseSalary: 0,
+  //   overtime: 0,
+  //   deductions: 0
+  // });
+
+
   // Add invoice modal state
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
@@ -1038,7 +1140,8 @@ const [selectedCurrency, setSelectedCurrency] = useState(() => {
     date: new Date().toISOString().split('T')[0],
     customerId: "",
   relatedInventoryId: undefined, // No inventory item selected by default
-  quantity: 1      
+  quantity: 1,
+  relatedPayrollId: undefined, // No payroll item selected by default      
   });
 
   // Update form states with new customer fields
@@ -1349,7 +1452,7 @@ useEffect(() => {
       saveToLocalStorage();
       setDataChanged(true);
     }
-  }, [inventory, transactions, receipts, selectedCurrency, budgets]);
+  }, [inventory, transactions, receipts, selectedCurrency, budgets, payrolls, customers, invoices, businessInfo,budgets]);
 
   // Load theme from localStorage
   useEffect(() => {
@@ -1452,6 +1555,17 @@ useEffect(() => {
           setBudgets(loadedBudgets);
         }
 
+        // Load payrolls if they exist
+        if (parsedData.payrolls) {
+          const loadedPayrolls = parsedData.payrolls.map(payroll => ({
+            ...payroll,
+            payPeriodStart: new Date(payroll.payPeriodStart),
+            payPeriodEnd: new Date(payroll.payPeriodEnd),
+            paymentDate: payroll.paymentDate ? new Date(payroll.paymentDate) : undefined
+          }));
+          setPayrolls(loadedPayrolls);
+        }
+
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
       }
@@ -1481,7 +1595,8 @@ useEffect(() => {
         categories,
         businessInfo, // Save business info
         invoices, // Save invoices
-        budgets   // Save budgets
+        budgets,   // Save budgets
+        payrolls
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -1522,6 +1637,52 @@ useEffect(() => {
     });
   };
 
+  // Add these state variables near your other state declarations
+const [payrollFilterStatus, setPayrollFilterStatus] = useState('all');
+const [payrollSortOrder, setPayrollSortOrder] = useState('date-desc');
+
+// Add this function to filter and sort payrolls
+const getFilteredAndSortedPayrolls = () => {
+  // First apply filters
+  let result = [...payrolls];
+  
+  // Filter by status
+  if (payrollFilterStatus === 'paid') {
+    result = result.filter(p => p.status === 'paid');
+  } else if (payrollFilterStatus === 'pending') {
+    result = result.filter(p => p.status !== 'paid');
+  } else if (payrollFilterStatus === 'recent') {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    result = result.filter(p => new Date(p.payPeriodEnd) >= thirtyDaysAgo);
+  }
+  
+  // Apply search query if exists
+  if (searchQuery) {
+    result = result.filter(p => 
+      p.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.position.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
+  
+  // Then sort
+  switch (payrollSortOrder) {
+    case 'date-desc':
+      return result.sort((a, b) => new Date(b.payPeriodEnd).getTime() - new Date(a.payPeriodEnd).getTime());
+    case 'date-asc':
+      return result.sort((a, b) => new Date(a.payPeriodEnd).getTime() - new Date(b.payPeriodEnd).getTime());
+    case 'amount-desc':
+      return result.sort((a, b) => b.netPay - a.netPay);
+    case 'amount-asc':
+      return result.sort((a, b) => a.netPay - b.netPay);
+    default:
+      return result;
+  }
+};
+
+// Get filtered and sorted payrolls
+const filteredPayrolls = getFilteredAndSortedPayrolls();
+
   // EXPORT/IMPORT FUNCTIONALITY
   // Add state for export dropdown
   const [showExportDropdown, setShowExportDropdown] = useState(false);
@@ -1546,6 +1707,7 @@ useEffect(() => {
           businessInfo, // Include business info in export
           invoices, // Include invoices in export
           budgets,   // Include budgets in export
+          payrolls
         };
         
         const json = JSON.stringify(dataToExport, null, 2);
@@ -1966,7 +2128,8 @@ const addTransaction = () => {
     date: new Date(transactionFormData.date),
     relatedInventoryId: transactionFormData.relatedInventoryId,
     customerId: transactionFormData.customerId || undefined,
-    quantity: Number(transactionFormData.quantity) || 1 // Ensure we have a quantity value
+    quantity: Number(transactionFormData.quantity) || 1, // Ensure we have a quantity value
+    relatedPayrollId: transactionFormData.relatedPayrollId
   };
   
   // Update customer purchase count if transaction is income and has a customer
@@ -2211,6 +2374,8 @@ const validateInventoryTransaction = () => {
   quantity: 1      
     });
   };
+
+  
 
   // New functions for receipts
   // Updated add receipt function to handle customer creation/selection
@@ -3282,6 +3447,45 @@ const validateInventoryTransaction = () => {
     }
   };
 
+const processPayroll = (payroll: Payroll) => {
+  // Create transaction record
+  const transaction: Transaction = {
+    id: `txn-${Date.now()}`,
+    type: 'expense',
+    category: 'Salaries',
+    amount: payroll.netPay,
+    date: new Date(),
+    description: `Salary payment for ${payroll.employeeName}`,
+    relatedPayrollId: payroll.id
+  };
+  
+  // Update payroll status with the correct union type
+  const updatedPayroll: Payroll = {
+    ...payroll,
+    status: "paid" as "paid" | "pending", // Explicitly use the union type
+    paymentDate: new Date(),
+    transactionId: transaction.id
+  };
+  
+  // Update state
+  setTransactions([...transactions, transaction]);
+  setPayrolls(payrolls.map(p => 
+    p.id === payroll.id ? updatedPayroll : p
+  ));
+  
+  // Show success message
+  toast.success(`Payroll processed for ${payroll.employeeName}`);
+};
+
+const calculateNetPay = (formData: typeof payrollFormData) => {
+  const gross = formData.baseSalary + formData.overtime;
+  const deductions = formData.deductions;
+  return gross - deductions;
+};
+
+// In form submission:
+const netPay = calculateNetPay(payrollFormData);
+
   // Add state for receipt preview modal
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState<Receipt | null>(null);
@@ -3295,6 +3499,20 @@ const validateInventoryTransaction = () => {
     setViewingReceipt(receipt);
     setShowReceiptPreview(true);
   };
+
+  // Add this function in your component where other handler functions are defined
+
+
+// Add this state to manage the visibility of the payroll detail modal
+const [showPayrollDetailModal, setShowPayrollDetailModal] = useState(false);
+const [selectedPayroll, setSelectedPayroll] = useState<Payroll | null>(null);
+const payrollDetailRef = useRef<HTMLDivElement>(null);
+
+// // Updated implementation of viewPayrollDetails function
+const viewPayrollDetails = (payroll: Payroll) => {
+  setSelectedPayroll(payroll);
+  setShowPayrollDetailModal(true);
+};
 
   // Function to generate and download receipt image
   const generateReceiptImage = async () => {
@@ -3869,6 +4087,19 @@ const generateBudgetReport = async (budget: Budget) => {
                   >
                     <FaChartPie className="mr-3" />
                     <span>Budgets</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${
+                      activeTab === "payrolls" 
+                        ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` 
+                        : `hover:bg-${currentTheme.background} text-gray-300`
+                    }`}
+                    onClick={() => setActiveTab("payrolls")}
+                  >
+                    <FaMoneyBillWave className="mr-3" />
+                    <span>Payroll</span>
                   </button>
                 </li>
               </ul>
@@ -5703,8 +5934,7 @@ const generateBudgetReport = async (budget: Budget) => {
 )}
 
             {/* Budgets Tab */}
-            {
-  activeTab === "budgets" && (
+            {activeTab === "budgets" && (
     <motion.div variants={fadeIn}>
       <div
         className={`flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-${currentTheme.border} pb-3 gap-3`}
@@ -6314,8 +6544,351 @@ const generateBudgetReport = async (budget: Budget) => {
         </div>
       )}
     </motion.div>
-  )
-}        </motion.div>
+  )}       
+            
+            {/* Payrolls Tab */}
+            {activeTab === "payrolls" && (
+  <motion.div variants={fadeIn}>
+    <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4`}>
+      <div>
+        <h2 className={`text-xl sm:text-2xl font-bold bg-gradient-to-r from-${currentTheme.accent} to-${currentTheme.primary} bg-clip-text text-transparent pb-1`}>
+          Payroll Management
+        </h2>
+        <p className={`text-sm text-gray-400`}>
+          {searchQuery ? (
+            `Showing ${payrolls.filter(p => 
+              p.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+              p.position.toLowerCase().includes(searchQuery.toLowerCase())
+            ).length} payroll records`
+          ) : (
+            `Manage employee compensation and payment records`
+          )}
+        </p>
+      </div>
+      <button 
+        className={`group flex items-center justify-center bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-${currentTheme.buttonText} px-5 py-2.5 rounded-lg shadow-md text-sm font-medium transition-all duration-300 transform hover:scale-105 w-full sm:w-auto`}
+        onClick={() => setShowPayrollModal(true)}
+      >
+        <span className={`absolute -inset-0.5 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-300 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent}`}></span>
+        <FaPlus className="mr-2" /> Add New Payroll
+      </button>
+    </div>
+
+    <div className={`h-0.5 w-full bg-gradient-to-r from-${currentTheme.border} via-${currentTheme.accent}/20 to-${currentTheme.border} mb-6 rounded-full`}></div>
+    
+    {payrolls.length === 0 ? (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
+        className={`text-center py-12 sm:py-16 bg-${currentTheme.background}/50 rounded-2xl border border-${currentTheme.border} shadow-sm backdrop-blur-sm`}
+      >
+        <div className="relative mb-6 inline-flex">
+          <div className={`absolute inset-0 rounded-full blur-md bg-${currentTheme.accent}/20`}></div>
+          <div className={`relative z-10 w-20 h-20 flex items-center justify-center rounded-full bg-gradient-to-br from-${currentTheme.background} to-${currentTheme.cardBackground} border border-${currentTheme.border} shadow-inner`}>
+            <FaMoneyBillWave className={`text-5xl text-${currentTheme.accent}/80`} />
+          </div>
+        </div>
+        <h3 className={`text-xl sm:text-2xl font-bold text-${currentTheme.text} mb-3`}>No Payroll Records Yet</h3>
+        <p className="text-gray-400 max-w-md mx-auto px-6">
+          Track employee compensation, process payments, and manage payroll history from one centralized dashboard.
+        </p>
+        <button 
+          className={`mt-6 group relative flex items-center justify-center mx-auto bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-${currentTheme.buttonText} px-6 py-3 rounded-lg shadow-md font-medium transition-all duration-300 transform hover:scale-105`}
+          onClick={() => setShowPayrollModal(true)}
+        >
+          <span className={`absolute -inset-0.5 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-300 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent}`}></span>
+          <span className="relative flex items-center">
+            <FaPlus className="mr-2" /> Create First Payroll Record
+          </span>
+        </button>
+      </motion.div>
+    ) : (
+      <>
+        {/* Filter & Sort Controls */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <div className={`flex items-center px-4 py-2 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border} w-full sm:w-auto`}>
+            <FaFilter className={`mr-2 text-${currentTheme.accent}`} size={12} />
+            <select 
+            title="Filter by status"
+              className={`bg-transparent text-${currentTheme.text} text-sm focus:outline-none w-full`}
+              onChange={(e) => {/* implement filter handler */}}
+            >
+              <option value="all">All Records</option>
+              <option value="paid">Paid Only</option>
+              <option value="pending">Pending Only</option>
+              <option value="recent">Last 30 Days</option>
+            </select>
+          </div>
+          
+          <div className={`flex items-center px-4 py-2 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border} w-full sm:w-auto`}>
+            <FaSortAmountDown className={`mr-2 text-${currentTheme.accent}`} size={12} />
+            <select 
+            title="Sort by date or amount"
+              className={`bg-transparent text-${currentTheme.text} text-sm focus:outline-none w-full`}
+              onChange={(e) => {/* implement sort handler */}}
+            >
+              <option value="date-desc">Newest First</option>
+              <option value="date-asc">Oldest First</option>
+              <option value="amount-desc">Highest Amount</option>
+              <option value="amount-asc">Lowest Amount</option>
+            </select>
+          </div>
+          
+          {payrolls.length > 0 && (
+            <div className={`ml-auto text-sm text-${currentTheme.accent}`}>
+              <span className="font-medium">{payrolls.length}</span> total records
+            </div>
+          )}
+        </div>
+
+        {/* Desktop table view (hidden on small screens) */}
+        <div className={`hidden md:block overflow-hidden rounded-xl border border-${currentTheme.border} shadow-sm`}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`bg-gradient-to-r from-${currentTheme.background} to-${currentTheme.cardBackground}`}>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Pay Period</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Compensation</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider text-center">Status</th>
+                <th className="px-6 py-4 text-xs uppercase font-semibold text-gray-400 tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <motion.tbody
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+            >
+              {payrolls.map((payroll) => (
+                <motion.tr 
+                  key={payroll.id} 
+                  variants={tableRowVariant}
+                  className={`border-b border-${currentTheme.border} hover:bg-${currentTheme.background}/70 transition-all duration-200`}
+                >
+                  <td className={`px-6 py-4`}>
+                    <div className="flex items-center">
+                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-${currentTheme.primary}/20 to-${currentTheme.accent}/30 border border-${currentTheme.border} flex items-center justify-center mr-3 text-${currentTheme.accent}`}>
+                        {payroll.employeeName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className={`text-sm font-medium text-${currentTheme.text}`}>{payroll.employeeName}</div>
+                        <div className="text-xs text-gray-400">{payroll.position}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className={`px-6 py-4`}>
+                    <div className="flex items-center">
+                      <div className={`p-1.5 rounded-md bg-${currentTheme.background} mr-3 border border-${currentTheme.border}`}>
+                        <FaCalendarAlt className="text-gray-400" size={14} />
+                      </div>
+                      <div className={`text-sm text-${currentTheme.text}`}>
+                        <div className="flex items-center">
+                          <span>{formatDate(payroll.payPeriodStart)}</span>
+                          <span className="mx-2 text-gray-400">→</span>
+                          <span>{formatDate(payroll.payPeriodEnd)}</span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {(() => {
+                            // Calculate days in pay period
+                            const start = new Date(payroll.payPeriodStart);
+                            const end = new Date(payroll.payPeriodEnd);
+                            const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                            return `${days} day${days !== 1 ? 's' : ''} period`;
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className={`px-6 py-4`}>
+                    <div className="flex flex-col">
+                      <div className={`text-sm font-semibold text-${currentTheme.text}`}>
+                        {formatCurrency(payroll.netPay)}
+                      </div>
+                      <div className="flex items-center text-xs text-gray-400 mt-1 space-x-2">
+                        <div className="flex items-center">
+                          <FaArrowUp className={`text-${currentTheme.success} mr-1`} size={8} />
+                          <span>Base: {formatCurrency(payroll.baseSalary)}</span>
+                        </div>
+                        {payroll.overtime > 0 && (
+                          <div className="flex items-center">
+                            <FaClock className={`text-${currentTheme.warning} mr-1`} size={8} />
+                            <span>OT: {formatCurrency(payroll.overtime)}</span>
+                          </div>
+                        )}
+                        {payroll.deductions > 0 && (
+                          <div className="flex items-center">
+                            <FaArrowDown className={`text-${currentTheme.danger} mr-1`} size={8} />
+                            <span>Ded: {formatCurrency(payroll.deductions)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {payroll.status === 'paid' ? (
+                      <div className="flex flex-col items-center">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100/30 text-green-500 border border-green-200/30">
+                          <FaCheckCircle className="mr-1.5" size={12} />
+                          Paid
+                        </span>
+                        {payroll.paymentDate && (
+                          <span className="text-xs text-gray-400 mt-1.5">
+                            {formatDate(payroll.paymentDate)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100/30 text-yellow-500 border border-yellow-200/30">
+                        <FaClock className="mr-1.5" size={12} />
+                        Pending
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {payroll.status === 'paid' ? (
+                      <div className="flex space-x-2">
+                        <button 
+                          className={`px-3 py-1.5 text-xs bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-md transition-colors flex items-center`}
+                          onClick={() => viewPayrollDetails(payroll)}
+                        >
+                          <FaEye className="mr-1.5" size={12} /> View Details
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        className={`px-3 py-1.5 text-xs bg-${currentTheme.success}/10 hover:bg-${currentTheme.success}/20 text-${currentTheme.success} rounded-md transition-colors flex items-center`}
+                        onClick={() => handlePayrollPayment(payroll)}
+                      >
+                        <FaMoneyBillWave className="mr-1.5" size={12} /> Process Payment
+                      </button>
+                    )}
+                  </td>
+                </motion.tr>
+              ))}
+            </motion.tbody>
+          </table>
+        </div>
+
+        {/* Mobile card view (visible only on small screens) */}
+        <div className="md:hidden space-y-4">
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden" 
+            animate="visible" 
+            className="grid gap-4"
+          >
+            {payrolls.map((payroll) => (
+              <motion.div 
+                key={payroll.id} 
+                variants={tableRowVariant}
+                className={`p-4 rounded-xl border shadow-sm bg-${currentTheme.cardBackground} ${
+                  payroll.status === 'paid' 
+                    ? `border-l-4 border-green-500/50` 
+                    : `border-l-4 border-yellow-500/50`
+                }`}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center">
+                    <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-${currentTheme.primary}/20 to-${currentTheme.accent}/30 border border-${currentTheme.border} flex items-center justify-center mr-3 text-${currentTheme.accent}`}>
+                      {payroll.employeeName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className={`font-medium text-${currentTheme.text}`}>{payroll.employeeName}</div>
+                      <div className="text-xs text-gray-400">{payroll.position}</div>
+                    </div>
+                  </div>
+                  
+                  {payroll.status === 'paid' ? (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100/30 text-green-500 border border-green-200/30">
+                      <FaCheckCircle className="mr-1" size={10} />
+                      Paid
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100/30 text-yellow-500 border border-yellow-200/30">
+                      <FaClock className="mr-1" size={10} />
+                      Pending
+                    </span>
+                  )}
+                </div>
+                
+                <div className={`p-3 rounded-lg bg-${currentTheme.background}/70 mb-3`}>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-xs text-gray-400">Pay Period</span>
+                    <span className="text-xs text-gray-400">
+                      {payroll.status === 'paid' && payroll.paymentDate ? `Paid on ${formatDate(payroll.paymentDate)}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <FaCalendarAlt className="text-gray-400" size={12} />
+                    <span className={`text-sm text-${currentTheme.text}`}>
+                      {formatDate(payroll.payPeriodStart)} - {formatDate(payroll.payPeriodEnd)}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className={`mb-4 grid grid-cols-3 divide-x divide-${currentTheme.border}`}>
+                  <div className="px-3 py-1 text-center">
+                    <div className="text-xs text-gray-400 mb-1">Base</div>
+                    <div className={`text-sm text-${currentTheme.text}`}>{formatCurrency(payroll.baseSalary)}</div>
+                  </div>
+                  <div className="px-3 py-1 text-center">
+                    <div className="text-xs text-gray-400 mb-1">Net Pay</div>
+                    <div className={`text-sm font-semibold text-${currentTheme.accent}`}>{formatCurrency(payroll.netPay)}</div>
+                  </div>
+                  <div className="px-3 py-1 text-center">
+                    <div className="text-xs text-gray-400 mb-1">Deductions</div>
+                    <div className={`text-sm text-${currentTheme.danger}`}>-{formatCurrency(payroll.deductions)}</div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end pt-2 border-t border-dashed border-gray-600/20">
+                  {payroll.status === 'paid' ? (
+                    <button 
+                      className={`w-full px-3 py-2.5 text-sm bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-lg transition-colors flex items-center justify-center font-medium`}
+                      onClick={() => viewPayrollDetails(payroll)}
+                    >
+                      <FaEye className="mr-1.5" size={14} /> View Payment Details
+                    </button>
+                  ) : (
+                    <button 
+                      className={`w-full px-3 py-2.5 text-sm bg-${currentTheme.success}/10 hover:bg-${currentTheme.success}/20 text-${currentTheme.success} rounded-lg transition-colors flex items-center justify-center font-medium`}
+                      onClick={() => handlePayrollPayment(payroll)}
+                    >
+                      <FaMoneyBillWave className="mr-1.5" size={14} /> Process Payment
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* Pagination controls - show when there are multiple pages */}
+        {payrolls.length > 10 && (
+          <div className="flex justify-between items-center mt-6 py-3 border-t border-gray-700/30">
+            <button 
+              className={`flex items-center text-sm text-${currentTheme.accent} px-3 py-1.5 rounded-md bg-${currentTheme.background}/50 border border-${currentTheme.border}`}
+              disabled={true}
+            >
+              <FaChevronLeft className="mr-1" size={12} /> Previous
+            </button>
+            <div className="flex items-center space-x-1">
+              <button className={`w-8 h-8 flex items-center justify-center rounded-md bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-sm font-medium border border-${currentTheme.accent}/30`}>1</button>
+              <button className={`w-8 h-8 flex items-center justify-center rounded-md hover:bg-${currentTheme.background} text-gray-400 hover:text-${currentTheme.text} text-sm`}>2</button>
+              <button className={`w-8 h-8 flex items-center justify-center rounded-md hover:bg-${currentTheme.background} text-gray-400 hover:text-${currentTheme.text} text-sm`}>3</button>
+            </div>
+            <button 
+              className={`flex items-center text-sm text-${currentTheme.accent} px-3 py-1.5 rounded-md bg-${currentTheme.background}/50 border border-${currentTheme.border}`}
+            >
+              Next <FaChevronRight className="ml-1" size={12} />
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </motion.div>
+)}
+   </motion.div>
         </motion.div>
       </AnimatePresence>
 
@@ -7630,6 +8203,248 @@ const generateBudgetReport = async (budget: Budget) => {
 )}
 </AnimatePresence>
 
+<AnimatePresence>
+  {showPayrollModal && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
+          <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+            <FaMoneyBillWave className={`mr-2 text-${currentTheme.accent}`} />
+            Process Payroll
+          </h3>
+          <button
+            onClick={() => setShowPayrollModal(false)}
+            className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+            aria-label="Close modal"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        <div className="px-6 py-4">
+          <form onSubmit={handlePayrollSubmit}>
+            {/* Employee Information */}
+            <div className="mb-4">
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Employee Name</label>
+              <input
+                type="text"
+                placeholder="Enter employee name"
+                value={payrollFormData.employeeName}
+                onChange={handlePayrollFormChange}
+                name="employeeName"
+                required
+                className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Position</label>
+              <input
+                type="text"
+                placeholder="Enter position"
+                value={payrollFormData.position}
+                onChange={handlePayrollFormChange}
+                name="position"
+                required
+                className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+              />
+            </div>
+
+            {/* Pay Period */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Start Date</label>
+                <div className="relative">
+                  <input
+                  title="Pay period start date"
+                    type="date"
+                    value={formatDateForInput(payrollFormData.payPeriodStart)}
+                    onChange={(e) => setPayrollFormData({
+                      ...payrollFormData,
+                      payPeriodStart: new Date(e.target.value)
+                    })}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <FaCalendarAlt className="h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>End Date</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    title="Pay period end date"
+                    value={formatDateForInput(payrollFormData.payPeriodEnd)}
+                    onChange={(e) => setPayrollFormData({
+                      ...payrollFormData,
+                      payPeriodEnd: new Date(e.target.value)
+                    })}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <FaCalendarAlt className="h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Salary Components */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Base Salary</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={payrollFormData.baseSalary || ''}
+                    onChange={(e) => {
+                      // Allow only numbers and a single decimal point
+                      const value = e.target.value.replace(/[^\d.]/g, '');
+                      const decimalCount = (value.match(/\./g) || []).length;
+                      
+                      if (decimalCount <= 1) {
+                        const amount = parseFloat(value) || 0;
+                        setPayrollFormData({
+                          ...payrollFormData, 
+                          baseSalary: amount
+                        });
+                      }
+                    }}
+                    className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Overtime</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={payrollFormData.overtime || ''}
+                    onChange={(e) => {
+                      // Allow only numbers and a single decimal point
+                      const value = e.target.value.replace(/[^\d.]/g, '');
+                      const decimalCount = (value.match(/\./g) || []).length;
+                      
+                      if (decimalCount <= 1) {
+                        const amount = parseFloat(value) || 0;
+                        setPayrollFormData({
+                          ...payrollFormData, 
+                          overtime: amount
+                        });
+                      }
+                    }}
+                    className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Deductions</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={payrollFormData.deductions || ''}
+                    onChange={(e) => {
+                      // Allow only numbers and a single decimal point
+                      const value = e.target.value.replace(/[^\d.]/g, '');
+                      const decimalCount = (value.match(/\./g) || []).length;
+                      
+                      if (decimalCount <= 1) {
+                        const amount = parseFloat(value) || 0;
+                        setPayrollFormData({
+                          ...payrollFormData, 
+                          deductions: amount
+                        });
+                      }
+                    }}
+                    className={`w-full pl-7 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Net Pay</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className={`text-gray-500 font-medium`}>{selectedCurrency.symbol}</span>
+                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    value={((payrollFormData.baseSalary || 0) + (payrollFormData.overtime || 0) - (payrollFormData.deductions || 0)).toFixed(2)}
+                    className={`w-full pl-7 p-3 bg-${currentTheme.background}/50 border border-${currentTheme.border} text-${currentTheme.accent} font-medium rounded-lg cursor-not-allowed text-sm`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Net Pay Summary Card */}
+            <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.primary}/10 border border-${currentTheme.primary}/20`}>
+              <div className="flex justify-between items-center">
+                <span className={`text-sm font-medium text-${currentTheme.text}`}>Net Pay:</span>
+                <span className={`text-lg font-bold text-${currentTheme.accent}`}>
+                  {formatCurrency((payrollFormData.baseSalary || 0) + (payrollFormData.overtime || 0) - (payrollFormData.deductions || 0))}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-${currentTheme.border}`}>
+              <button
+                type="button"
+                onClick={() => setShowPayrollModal(false)}
+                className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
+              >
+                <FaMoneyBillWave className="mr-2 h-4 w-4" />
+                Process Payroll
+              </button>
+            </div>
+          </form>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
       {/* Receipt Modal */}
       <AnimatePresence>
       {showReceiptModal && (
@@ -8137,7 +8952,171 @@ const generateBudgetReport = async (budget: Budget) => {
     </motion.div>
   </motion.div>
 )}
+
       </AnimatePresence>
+
+
+      {/* Payroll Detail Modal */}
+<AnimatePresence>
+  {showPayrollDetailModal && selectedPayroll && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={() => setShowPayrollDetailModal(false)}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+        ref={payrollDetailRef}
+      >
+        <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
+          <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+            <FaMoneyBillWave className={`mr-2 text-${currentTheme.accent}`} />
+            Payroll Details
+          </h3>
+          <button
+            onClick={() => setShowPayrollDetailModal(false)}
+            className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+            aria-label="Close modal"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        <div className="px-6 py-4">
+          {/* Employee Information */}
+          <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+            <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
+              <FaUser className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
+              Employee Information
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Name</div>
+                <div className={`text-sm font-medium text-${currentTheme.text}`}>{selectedPayroll.employeeName}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Position</div>
+                <div className={`text-sm font-medium text-${currentTheme.text}`}>{selectedPayroll.position}</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Payment Period & Details */}
+          <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+            <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
+              <FaCalendarAlt className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
+              Payment Period
+            </h4>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Start Date</div>
+                <div className={`text-sm font-medium text-${currentTheme.text}`}>{formatDate(selectedPayroll.payPeriodStart)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">End Date</div>
+                <div className={`text-sm font-medium text-${currentTheme.text}`}>{formatDate(selectedPayroll.payPeriodEnd)}</div>
+              </div>
+            </div>
+            
+            {selectedPayroll.status === 'paid' && selectedPayroll.paymentDate && (
+              <div className="mt-3 pt-3 border-t border-gray-700/30">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <FaCheck className="text-green-500 mr-1.5 h-3.5 w-3.5" />
+                    <span className={`text-sm font-medium text-${currentTheme.text}`}>Payment Date</span>
+                  </div>
+                  <div className="text-sm text-gray-400">{formatDate(selectedPayroll.paymentDate)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Salary Details */}
+          <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+            <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
+              <FaDollarSign className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
+              Salary Components
+            </h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-3 py-2 rounded-md bg-gray-700/30">
+                <span className="text-sm text-gray-300">Base Salary</span>
+                <span className={`text-sm font-medium text-${currentTheme.text}`}>{formatCurrency(selectedPayroll.baseSalary)}</span>
+              </div>
+              <div className="flex justify-between items-center px-3 py-2 rounded-md">
+                <span className="text-sm text-gray-300">Overtime</span>
+                <span className={`text-sm font-medium text-${currentTheme.text}`}>{formatCurrency(selectedPayroll.overtime)}</span>
+              </div>
+              <div className="flex justify-between items-center px-3 py-2 rounded-md bg-gray-700/30">
+                <span className="text-sm text-gray-300">Deductions</span>
+                <span className={`text-sm font-medium text-${currentTheme.text}`}>-{formatCurrency(selectedPayroll.deductions)}</span>
+              </div>
+              <div className="flex justify-between items-center px-3 py-2 mt-2 rounded-md bg-green-900/20 border border-green-900/30">
+                <span className="text-sm font-medium text-green-400">Net Pay</span>
+                <span className="text-sm font-bold text-green-400">{formatCurrency(selectedPayroll.netPay)}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Transaction Details (if paid) */}
+          {selectedPayroll.status === 'paid' && selectedPayroll.transactionId && (() => {
+            const relatedTransaction = transactions.find(t => t.id === selectedPayroll.transactionId);
+            return relatedTransaction ? (
+              <div className={`mb-6 p-4 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border}`}>
+                <h4 className={`text-sm font-bold text-${currentTheme.text} mb-3 uppercase tracking-wide flex items-center`}>
+                  <FaFileInvoiceDollar className="mr-2 h-3.5 w-3.5 text-gray-400" /> 
+                  Transaction Details
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Transaction ID</div>
+                      <div className={`font-mono text-xs text-${currentTheme.accent}`}>{selectedPayroll.transactionId}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Date</div>
+                      <div className={`text-${currentTheme.text}`}>{formatDate(relatedTransaction.date)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs text-gray-400 mb-1">Description</div>
+                    <div className={`text-${currentTheme.text}`}>{relatedTransaction.description}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null;
+          })()}
+          
+          {/* Action buttons */}
+          <div className={`flex justify-end space-x-3 pt-4 mt-2 border-t border-${currentTheme.border}`}>
+            <button 
+              type="button"
+              onClick={() => setShowPayrollDetailModal(false)}
+              className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
+            >
+              Close
+            </button>
+            <button 
+              type="button"
+              onClick={() => window.print()}
+              className={`px-5 py-2.5 bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm`}
+            >
+              <FaPrint className="mr-2 h-4 w-4" /> 
+              Print Details
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       {/* Category Modal */}
       <AnimatePresence>
