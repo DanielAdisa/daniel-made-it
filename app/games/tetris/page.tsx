@@ -166,9 +166,9 @@ const TetrisGame = () => {
   const calculateDropTime = useCallback(() => {
     const baseSpeed = 750; // Reduced from 1000 to make game faster
     const speedMultipliers = {
-      slow: 1.2,    // Faster than before (was 1.5)
-      medium: 0.8,  // Faster than before (was 1.0)
-      fast: 0.4     // Faster than before (was 0.6)
+      slow: 0.8,    // Faster than before (was 1.5)
+      medium: 0.4,  // Faster than before (was 1.0)
+      fast: 0.1     // Faster than before (was 0.6)
     };
     
     return (baseSpeed / (level)) * speedMultipliers[gameSpeed] + 150; // Reduced from 200
@@ -787,7 +787,7 @@ const TetrisGame = () => {
         {/* Game Area - With retro styling */}
         <motion.div 
           ref={gameAreaRef}
-          className="relative order-2 md:order-2 w-[280px] sm:w-[320px] md:w-[300px] lg:w-[380px] h-[560px] sm:h-[640px] md:h-[600px] lg:h-[760px] border-8 border-gray-800 bg-black rounded shadow-[0_0_15px_rgba(255,255,255,0.2)] overflow-hidden"
+          className="relative order-2 md:order-4 w-[280px] sm:w-[320px] md:w-[300px] lg:w-[380px] h-[560px] sm:h-[640px] md:h-[600px] lg:h-[760px] border-2 border-amber-400 bg-black rounded shadow-[0_0_15px_rgba(255,255,255,0.2)] overflow-hidden"
           variants={shakeVariants}
           animate={isShaking ? "shaking" : {
             rotate: rotationDegree,
