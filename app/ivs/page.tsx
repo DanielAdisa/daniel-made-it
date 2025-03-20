@@ -7,7 +7,7 @@ import { FaBook, FaBoxOpen, FaBriefcase, FaChartLine, FaChartPie, FaHome, FaPlus
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
   FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
   FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown, FaMoneyCheckAlt, FaCalendarCheck ,FaArrowRight,FaExternalLinkAlt,FaCalendarDay,
-  FaAddressCard,FaEquals,FaSpinner} from "react-icons/fa";
+  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill} from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -9349,299 +9349,324 @@ const generateBudgetReport = async (budget: Budget) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      transition={{ duration: 0.3 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-4"
       onClick={() => setShowPayrollDetailModal(false)}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className={`bg-white p-0 rounded-xl shadow-2xl w-full max-w-2xl border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 10 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200/50 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Payslip header with company info */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 pt-6 pb-4 px-8 rounded-t-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-white text-2xl font-bold mb-1 flex items-center">
-                <FaBriefcase className="mr-2" /> {businessInfo.name || "Company Name"}
-              </h1>
-              <p className="text-blue-100 text-sm">
-                {businessInfo.address || "Company Address"}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-white text-sm font-medium uppercase tracking-wider">
-                Payment Slip
+        {/* Elegant Header */}
+        <div className="relative overflow-hidden">
+          {/* Background elements */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-900"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)]"></div>
+          <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/3 blur-lg"></div>
+          
+          {/* Header content */}
+          <div className="relative z-10 px-8 py-7">
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <FaBriefcase className="text-white w-5 h-5" />
+                  </div>
+                  <h1 className="text-white text-2xl font-bold font-serif tracking-tight">
+                    {businessInfo.name || "Your Company"}
+                  </h1>
+                </div>
+                <p className="text-blue-100/90 text-sm max-w-md pl-10">
+                  {businessInfo.address || "123 Business Street, Financial City"}
+                </p>
               </div>
-              <div className="text-blue-100 text-xs mt-1">
-                REF: PAY-{selectedPayroll.id?.substring(0, 6)}
+              <div className="text-right">
+                <div className="inline-block px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full">
+                  <span className="text-white/90 text-sm font-medium uppercase tracking-wider">
+                    Payslip
+                  </span>
+                </div>
+                <div className="text-blue-100/80 text-xs font-mono mt-2">
+                  {formatDate(selectedPayroll.paymentDate || new Date())}
+                </div>
               </div>
             </div>
           </div>
-          
-          <button
-            onClick={() => setShowPayrollDetailModal(false)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors duration-200 p-2 rounded-full hover:bg-black/10"
-            aria-label="Close modal"
-          >
-            <FaTimes />
-          </button>
         </div>
-        
-        {/* Main payslip content */}
-        <div className="p-6 bg-white" ref={payrollDetailRef}>
-          {/* Employee & Payment Info */}
-          <div className="flex flex-col md:flex-row justify-between mb-8 gap-4">
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex-1">
-              <h2 className="text-slate-500 text-sm font-semibold uppercase tracking-wide flex items-center mb-3">
-                <FaUser className="mr-2 text-blue-600" /> Employee Information
-              </h2>
-              <h3 className="text-slate-800 text-lg font-bold mb-1">{selectedPayroll.employeeName}</h3>
-              <div className="text-slate-600 text-sm mb-3">{selectedPayroll.position}</div>
-              
-              <div className="pt-3 border-t border-slate-200">
-                {selectedPayroll.employeePhone && (
-                  <div className="flex items-center text-sm text-slate-600 mb-1">
-                    <FaPhone className="w-4 h-4 mr-2 text-slate-400" />
-                    {selectedPayroll.employeePhone}
+
+        {/* Main content */}
+        <div className="p-6 md:p-8 bg-white" ref={payrollDetailRef}>
+          {/* Employee & Payment Details - Redesigned grid layout */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Employee card */}
+            <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-5 rounded-xl border border-gray-100 shadow-sm">
+              <div className="flex items-start">
+                <div className="h-10 w-10 rounded-full bg-blue-100/50 border border-blue-200/50 flex items-center justify-center mr-3 shadow-sm">
+                  <FaUser className="text-blue-600 w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Employee</h2>
+                  <h3 className="text-gray-900 text-lg font-bold">{selectedPayroll.employeeName}</h3>
+                  <p className="text-gray-500 text-sm">{selectedPayroll.position}</p>
+                  
+                  <div className="mt-4 space-y-2 text-sm">
+                    {selectedPayroll.employeePhone && (
+                      <div className="flex items-center text-gray-600">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center mr-2">
+                          <FaPhone className="w-3 h-3 text-gray-600" />
+                        </div>
+                        {selectedPayroll.employeePhone}
+                      </div>
+                    )}
+                    {selectedPayroll.employeeEmail && (
+                      <div className="flex items-center text-gray-600">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center mr-2">
+                          <FaEnvelope className="w-3 h-3 text-gray-600" />
+                        </div>
+                        {selectedPayroll.employeeEmail}
+                      </div>
+                    )}
                   </div>
-                )}
-                {selectedPayroll.employeeEmail && (
-                  <div className="flex items-center text-sm text-slate-600 mb-1">
-                    <FaEnvelope className="w-4 h-4 mr-2 text-slate-400" />
-                    {selectedPayroll.employeeEmail}
-                  </div>
-                )}
-                {selectedPayroll.employeeAddress && (
-                  <div className="flex items-start text-sm text-slate-600">
-                    <FaMapMarkerAlt className="w-4 h-4 mr-2 text-slate-400 mt-0.5" />
-                    <span>{selectedPayroll.employeeAddress}</span>
-                  </div>
-                )}
-                {(!selectedPayroll.employeePhone && !selectedPayroll.employeeEmail && !selectedPayroll.employeeAddress) && (
-                  <div className="text-slate-400 text-sm italic">
-                    No contact information available
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex-1">
-              <h2 className="text-slate-500 text-sm font-semibold uppercase tracking-wide flex items-center mb-3">
-                <FaCalendarAlt className="mr-2 text-blue-600" /> Pay Period Details
-              </h2>
-              
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-slate-500">Period Start:</div>
-                <div className="text-sm font-medium text-slate-700">{formatDate(selectedPayroll.payPeriodStart)}</div>
-              </div>
-              
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-slate-500">Period End:</div>
-                <div className="text-sm font-medium text-slate-700">{formatDate(selectedPayroll.payPeriodEnd)}</div>
-              </div>
-              
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-slate-500">Period Length:</div>
-                <div className="text-sm font-medium text-slate-700">
-                  {(() => {
-                    const start = new Date(selectedPayroll.payPeriodStart);
-                    const end = new Date(selectedPayroll.payPeriodEnd);
-                    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                    return `${days} day${days !== 1 ? 's' : ''}`;
-                  })()}
                 </div>
               </div>
-              
-              <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-200">
-                <div className="text-sm text-slate-500">Status:</div>
-                <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  selectedPayroll.status === 'paid' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {selectedPayroll.status === 'paid' ? (
-                    <>
-                      <FaCheckCircle className="mr-1" size={10} /> Paid
-                    </>
-                  ) : (
-                    <>
-                      <FaClock className="mr-1" size={10} /> Pending
-                    </>
+            </div>
+
+            {/* Payment details card */}
+            <div className="bg-gradient-to-br from-slate-50 to-gray-50 p-5 rounded-xl border border-gray-100 shadow-sm">
+              <div className="flex items-start">
+                <div className="h-10 w-10 rounded-full bg-indigo-100/50 border border-indigo-200/50 flex items-center justify-center mr-3 shadow-sm">
+                  <FaCalendarAlt className="text-indigo-600 w-5 h-5" />
+                </div>
+                <div className="w-full">
+                  <h2 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Payment Period</h2>
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-gray-500 text-xs">From:</span>
+                    <span className="font-medium text-gray-900">{formatDate(selectedPayroll.payPeriodStart)}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-gray-500 text-xs">To:</span>
+                    <span className="font-medium text-gray-900">{formatDate(selectedPayroll.payPeriodEnd)}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-gray-500 text-xs">Status:</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      selectedPayroll.status === 'paid' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {selectedPayroll.status === 'paid' ? (
+                        <><FaCheckCircle className="mr-1 w-3 h-3" /> Paid</>
+                      ) : (
+                        <><FaClock className="mr-1 w-3 h-3" /> Pending</>
+                      )}
+                    </span>
+                  </div>
+                  
+                  {selectedPayroll.paymentDate && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 text-xs">Payment Date:</span>
+                      <span className="font-medium text-gray-900">{formatDate(selectedPayroll.paymentDate)}</span>
+                    </div>
                   )}
                 </div>
               </div>
-              
-              {selectedPayroll.status === 'paid' && selectedPayroll.paymentDate && (
-                <div className="flex items-center justify-between mt-2">
-                  <div className="text-sm text-slate-500">Payment Date:</div>
-                  <div className="text-sm font-medium text-slate-700">{formatDate(selectedPayroll.paymentDate)}</div>
-                </div>
-              )}
             </div>
           </div>
-          
-          {/* Payment Details Table */}
-          <div className="mb-8">
-            <h2 className="text-slate-500 text-sm font-semibold uppercase tracking-wide flex items-center mb-3">
-              <FaMoneyCheckAlt className="mr-2 text-blue-600" /> Payment Details
+
+          {/* Earnings Table - Beautifully styled */}
+          <div className="mt-8">
+            <h2 className="flex items-center text-gray-900 text-base font-semibold mb-4">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mr-2">
+                <FaMoneyCheckAlt className="text-blue-600 w-4 h-4" />
+              </div>
+              Compensation Details
             </h2>
             
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200">
+            <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+              <table className="w-full">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
-                    <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
+                    <th className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
+                    <th className="py-3 px-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  <tr>
-                    <td className="py-3 px-4 whitespace-nowrap text-sm font-medium text-slate-700">Base Salary</td>
-                    <td className="py-3 px-4 whitespace-nowrap text-sm text-right text-slate-700">{formatCurrency(selectedPayroll.baseSalary)}</td>
+                <tbody className="divide-y divide-gray-200">
+                  <tr className="bg-white hover:bg-gray-50 transition-colors duration-150">
+                    <td className="py-3.5 px-4 text-sm font-medium text-gray-700 flex items-center">
+                      <div className="w-6 h-6 rounded-full bg-blue-100/70 flex items-center justify-center mr-2">
+                        <FaMoneyBill className="text-blue-700 w-3 h-3" />
+                      </div>
+                      Base Salary
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-sm text-gray-900 font-medium">{formatCurrency(selectedPayroll.baseSalary)}</td>
                   </tr>
-                  
-                  <tr className="bg-slate-50/50">
-                    <td className="py-3 px-4 whitespace-nowrap text-sm font-medium text-slate-700">Overtime</td>
-                    <td className="py-3 px-4 whitespace-nowrap text-sm text-right text-slate-700">{formatCurrency(selectedPayroll.overtime)}</td>
+                  <tr className="bg-white hover:bg-gray-50 transition-colors duration-150">
+                    <td className="py-3.5 px-4 text-sm font-medium text-gray-700 flex items-center">
+                      <div className="w-6 h-6 rounded-full bg-green-100/70 flex items-center justify-center mr-2">
+                        <FaClock className="text-green-700 w-3 h-3" />
+                      </div>
+                      Overtime Pay
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-sm text-green-600 font-medium">+{formatCurrency(selectedPayroll.overtime)}</td>
                   </tr>
-                  
-                  <tr>
-                    <td className="py-3 px-4 whitespace-nowrap text-sm font-medium text-slate-700">Deductions</td>
-                    <td className="py-3 px-4 whitespace-nowrap text-sm text-right text-red-600">-{formatCurrency(selectedPayroll.deductions)}</td>
+                  <tr className="bg-white hover:bg-gray-50 transition-colors duration-150">
+                    <td className="py-3.5 px-4 text-sm font-medium text-gray-700 flex items-center">
+                      <div className="w-6 h-6 rounded-full bg-red-100/70 flex items-center justify-center mr-2">
+                        <FaMinus className="text-red-700 w-3 h-3" />
+                      </div>
+                      Deductions
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-sm text-red-600 font-medium">-{formatCurrency(selectedPayroll.deductions)}</td>
                   </tr>
-                  
-                  <tr className="bg-slate-100">
-                    <td className="py-3 px-4 whitespace-nowrap text-sm font-semibold text-slate-800">Net Pay</td>
-                    <td className="py-3 px-4 whitespace-nowrap text-base font-bold text-right text-blue-600">{formatCurrency(selectedPayroll.netPay)}</td>
+                  <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <td className="py-4 px-4 text-sm font-semibold text-indigo-800">Net Pay</td>
+                    <td className="py-4 px-4 text-right text-lg font-bold text-indigo-800">{formatCurrency(selectedPayroll.netPay)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Elegant Payment visualization */}
+          <div className="mt-6 p-5 rounded-xl border border-gray-100 bg-white shadow-sm">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center text-sm font-medium text-gray-700">
+                <FaChartPie className="w-4 h-4 mr-2 text-blue-500" />
+                Salary Breakdown
+              </div>
+              <div className="text-sm font-medium text-blue-600">
+                {formatCurrency(selectedPayroll.netPay)}
+              </div>
+            </div>
             
-            {/* Payment breakdown visualization */}
-            <div className="mt-4 bg-white p-4 rounded-lg border border-slate-200">
-              <div className="flex justify-between items-center mb-1">
-                <div className="text-xs font-medium text-slate-500">Salary Breakdown</div>
-                <div className="text-xs text-slate-500">{formatCurrency(selectedPayroll.netPay)}</div>
+            {/* Enhanced progress bar */}
+            <div className="relative h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+              <div 
+                className="absolute h-full bg-blue-500 transition-all duration-500 ease-out"
+                style={{ width: `${(selectedPayroll.baseSalary / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%` }}
+              ></div>
+              <div 
+                className="absolute h-full bg-green-500 transition-all duration-500 ease-out"
+                style={{ 
+                  width: `${(selectedPayroll.overtime / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%`,
+                  left: `${(selectedPayroll.baseSalary / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%`
+                }}
+              ></div>
+              <div 
+                className="absolute h-full bg-red-500 transition-all duration-500 ease-out"
+                style={{ 
+                  width: `${(selectedPayroll.deductions / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%`,
+                  left: `${((selectedPayroll.baseSalary + selectedPayroll.overtime) / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%`
+                }}
+              ></div>
+            </div>
+
+            {/* Clean legend */}
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              <div className="flex items-center">
+                <span className="w-3 h-3 rounded bg-blue-500 mr-2"></span>
+                <div>
+                  <p className="text-xs font-medium text-gray-700">Base Salary</p>
+                  <p className="text-xs text-gray-500">
+                    {Math.round((selectedPayroll.baseSalary / selectedPayroll.netPay) * 100)}%
+                  </p>
+                </div>
               </div>
               
-              <div className="flex w-full h-2 rounded-full overflow-hidden bg-slate-200">
-                <div 
-                  className="bg-blue-500 h-full"
-                  style={{ width: `${(selectedPayroll.baseSalary / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%` }}
-                ></div>
-                <div 
-                  className="bg-green-500 h-full"
-                  style={{ width: `${(selectedPayroll.overtime / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%` }}
-                ></div>
-                <div 
-                  className="bg-red-500 h-full"
-                  style={{ width: `${(selectedPayroll.deductions / (selectedPayroll.baseSalary + selectedPayroll.overtime + selectedPayroll.deductions)) * 100}%` }}
-                ></div>
+              <div className="flex items-center">
+                <span className="w-3 h-3 rounded bg-green-500 mr-2"></span>
+                <div>
+                  <p className="text-xs font-medium text-gray-700">Overtime</p>
+                  <p className="text-xs text-gray-500">
+                    {Math.round((selectedPayroll.overtime / selectedPayroll.netPay) * 100)}%
+                  </p>
+                </div>
               </div>
               
-              <div className="flex justify-between mt-2">
-                <div className="flex items-center text-xs">
-                  <span className="w-3 h-3 inline-block bg-blue-500 rounded-sm mr-1"></span>
-                  <span className="text-slate-600">Base: {Math.round((selectedPayroll.baseSalary / selectedPayroll.netPay) * 100)}%</span>
-                </div>
-                <div className="flex items-center text-xs">
-                  <span className="w-3 h-3 inline-block bg-green-500 rounded-sm mr-1"></span>
-                  <span className="text-slate-600">Overtime: {Math.round((selectedPayroll.overtime / selectedPayroll.netPay) * 100)}%</span>
-                </div>
-                <div className="flex items-center text-xs">
-                  <span className="w-3 h-3 inline-block bg-red-500 rounded-sm mr-1"></span>
-                  <span className="text-slate-600">Deductions: {Math.round((selectedPayroll.deductions / selectedPayroll.netPay) * 100)}%</span>
+              <div className="flex items-center">
+                <span className="w-3 h-3 rounded bg-red-500 mr-2"></span>
+                <div>
+                  <p className="text-xs font-medium text-gray-700">Deductions</p>
+                  <p className="text-xs text-gray-500">
+                    {Math.round((selectedPayroll.deductions / selectedPayroll.netPay) * 100)}%
+                  </p>
                 </div>
               </div>
             </div>
           </div>
-          
-          {/* Transaction Information (if paid) */}
-          {selectedPayroll.status === 'paid' && selectedPayroll.transactionId && (() => {
-            const relatedTransaction = transactions.find(t => t.id === selectedPayroll.transactionId);
-            return relatedTransaction ? (
-              <div className="mb-8">
-                <h2 className="text-slate-500 text-sm font-semibold uppercase tracking-wide flex items-center mb-3">
-                  <FaFileInvoiceDollar className="mr-2 text-blue-600" /> Payment Transaction
-                </h2>
-                
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Transaction ID</div>
-                      <div className="font-mono text-xs bg-white border border-slate-200 rounded px-2 py-1 text-slate-700">{selectedPayroll.transactionId}</div>
-                    </div>
-                    
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Payment Date</div>
-                      <div className="text-sm text-slate-700">{formatDate(relatedTransaction.date)}</div>
-                    </div>
-                    
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Payment Method</div>
-                      <div className="text-sm text-slate-700">Bank Transfer</div>
-                    </div>
-                    
-                    <div className="md:col-span-3">
-                      <div className="text-xs text-slate-500 mb-1">Description</div>
-                      <div className="text-sm text-slate-700">{relatedTransaction.description || `Salary payment for ${selectedPayroll.employeeName}`}</div>
-                    </div>
-                  </div>
-                </div>
+
+          {/* Transaction Barcode with elegant styling */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <div className="flex flex-col items-center">
+              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm inline-block">
+                <Barcode
+                  value={selectedPayroll.id?.slice(-8).toUpperCase() || "00000000"}
+                  width={1.5}
+                  height={40}
+                  format="CODE128"
+                  displayValue={true}
+                  font="Inter"
+                  fontSize={12}
+                  textPosition="bottom"
+                  textMargin={6}
+                  background="#F9FAFB"
+                  lineColor="#1f2937"
+                />
               </div>
-            ) : null;
-          })()}
-          
+              <div className="text-center mt-3">
+                <p className="text-xs font-medium text-gray-500">
+                  Transaction ID: {selectedPayroll.id?.substring(0, 10)}...
+                </p>
+                <p className="text-[0.65rem] text-gray-400 uppercase tracking-wider mt-1">
+                  Scan to verify payment authenticity
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Footer Note */}
-          <div className="border-t border-slate-200 pt-6 mt-6 text-center text-slate-500 text-xs">
-            <p>This is an electronic salary slip and doesn't require physical signature.</p>
-            <p className="mt-1">For any discrepancies, please contact the HR department.</p>
+          <div className="mt-6 pt-4 text-center text-xs text-gray-500">
+            <p>This is an official electronic payslip authorized by {businessInfo.name || "Your Company"}</p>
+            <p className="mt-1">Generated on {formatDate(new Date())} • Valid without signature</p>
           </div>
         </div>
-        
-        {/* Action buttons */}
-        <div className="flex justify-end items-center gap-3 p-4 bg-slate-50 rounded-b-xl border-t border-slate-200">
-          <button 
-            type="button"
-            onClick={() => setShowPayrollDetailModal(false)}
-            className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-lg shadow-sm font-medium transition-all duration-200 border border-slate-300 text-sm flex items-center justify-center"
-          >
-            <FaTimes className="mr-1.5 h-3.5 w-3.5" /> Close
-          </button>
-          
-          <button 
-            type="button"
-            onClick={generatePayrollView}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <FaSpinner className="mr-2 h-3.5 w-3.5 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <FaDownload className="mr-1.5 h-3.5 w-3.5" />
-                Download Payslip
-              </>
-            )}
-          </button>
-          
-          <button 
-            type="button"
-            onClick={() => window.print()}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm"
-          >
-            <FaPrint className="mr-1.5 h-3.5 w-3.5" /> 
-            Print Payslip
-          </button>
+
+        {/* Action Buttons */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 p-4 backdrop-blur-md bg-white/90">
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowPayrollDetailModal(false)}
+              className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg border border-gray-200 text-sm font-medium transition-colors duration-150"
+            >
+              Close
+            </button>
+            <button
+              onClick={generatePayrollView}
+              className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-lg shadow-sm font-medium text-sm flex items-center gap-2 transition-all duration-300"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <FaSpinner className="animate-spin" />
+              ) : (
+                <FaDownload />
+              )}
+              Download PDF
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg shadow-sm font-medium text-sm flex items-center gap-2 transition-colors duration-150"
+            >
+              <FaPrint />
+              Print
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>
