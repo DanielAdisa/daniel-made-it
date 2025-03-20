@@ -7,7 +7,7 @@ import { FaBook, FaBoxOpen, FaBriefcase, FaChartLine, FaChartPie, FaHome, FaPlus
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
   FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
   FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown, FaMoneyCheckAlt, FaCalendarCheck ,FaArrowRight,FaExternalLinkAlt,FaCalendarDay,
-  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill} from "react-icons/fa";
+  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase} from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -108,6 +108,18 @@ interface ReceiptFormData {
   };
 }
 
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  position: string;
+  hireDate: Date;
+  department: string;
+  notes: string;
+}
+
 // Add Customer form data interface
 interface CustomerFormData {
   name: string;
@@ -184,6 +196,18 @@ interface Currency {
   rate?: number;
 }
 
+interface EmployeeFormData {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  position: string;
+  hireDate: string;
+  department: string;
+  notes: string;
+}
+
+
 // Add interface for app data
 interface AppData {
   inventory: InventoryItem[];
@@ -208,6 +232,8 @@ interface AppData {
   invoices: Invoice[]; // Add invoices to AppData
   budgets: Budget[]; // Add budgets to AppData
   payrolls: Payroll[]; // Add payroll to AppData
+  employees: Employee[]; // Add employees to AppData
+  
 }
 
 // First, let's add a Theme interface and available themes
@@ -493,11 +519,11 @@ interface BudgetHookReturn {
 
 export default function BookKeepingSystem() {
   // Update the activeTab state to initialize from localStorage
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices"|"payrolls">(() => {
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "employees" | "invoices"|"payrolls">(() => {
     // Check if we're in a browser environment (to avoid issues during SSR)
     if (typeof window !== 'undefined') {
       const savedTab = localStorage.getItem('bookkeep-active-tab');
-      return (savedTab as "dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices"|"payrolls") || "dashboard";
+      return (savedTab as "dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "employees" | "invoices"| "payrolls") || "dashboard";
     }
     return "dashboard";
   });
@@ -599,6 +625,8 @@ export default function BookKeepingSystem() {
     // Update search stats
     searchStats.budgets = filtered.length.toString();
   }, [searchQuery, budgets]);
+
+  
 
   // Initialize with demo data if none exists
   useEffect(() => {
@@ -731,6 +759,54 @@ const handlePayrollPayment = (payroll: Payroll) => {
   // Show success message
   toast.success(`Payment processed for ${payroll.employeeName}`);
 };
+
+const addEmployee = () => {
+  const newEmployee: Employee = {
+    id: uuidv4(),
+    ...employeeFormData,
+    hireDate: new Date(employeeFormData.hireDate),
+  };
+  setEmployees([...employees, newEmployee]);
+  toast.success("Employee added successfully");
+  resetEmployeeForm();
+  setShowEmployeeModal(false);
+};
+
+const updateEmployee = () => {
+  const updatedEmployees = employees.map(e =>
+    e.id === editingEmployee!.id
+      ? { ...editingEmployee!, ...employeeFormData, hireDate: new Date(employeeFormData.hireDate) }
+      : e
+  );
+  setEmployees(updatedEmployees);
+  toast.success("Employee updated");
+  resetEmployeeForm();
+  setShowEmployeeModal(false);
+  setEditingEmployee(null);
+};
+
+const deleteEmployee = (employeeId: string) => {
+  const confirmed = window.confirm("Are you sure?");
+  if (confirmed) {
+    const filtered = employees.filter(e => e.id !== employeeId);
+    setEmployees(filtered);
+    toast.success("Employee removed");
+  }
+};
+
+const resetEmployeeForm = () => {
+  setEmployeeFormData({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    position: "",
+    hireDate: "",
+    department: "",
+    notes: ""
+  });
+};
+
   
   // Handle budget form changes
   const handleBudgetFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -1150,6 +1226,22 @@ const [selectedCurrency, setSelectedCurrency] = useState(() => {
     sellingPrice: 0,
     sku: "",
   });
+
+const [employees, setEmployees] = useState<Employee[]>([]);
+const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+const [employeeFormData, setEmployeeFormData] = useState<EmployeeFormData>({
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  position: "",
+  hireDate: "",
+  department: "",
+  notes: ""
+});
+
   
   const [transactionFormData, setTransactionFormData] = useState<TransactionFormData>({
     description: "",
@@ -1254,6 +1346,47 @@ const [selectedCurrency, setSelectedCurrency] = useState(() => {
     
     return now.getTime() - paidDate.getTime() > twoHoursInMs;
   };
+
+  // Add this effect to populate the form when editing an employee
+useEffect(() => {
+  if (editingEmployee) {
+    // Format the hire date for the date input (YYYY-MM-DD)
+    let formattedHireDate = '';
+    
+    if (editingEmployee.hireDate) {
+      // Handle different date formats
+      const hireDate = editingEmployee.hireDate instanceof Date 
+        ? editingEmployee.hireDate
+        : new Date(editingEmployee.hireDate);
+      
+      formattedHireDate = hireDate.toISOString().split('T')[0];
+    }
+    
+    // Update the form with the employee data
+    setEmployeeFormData({
+      name: editingEmployee.name || '',
+      position: editingEmployee.position || '',
+      department: editingEmployee.department || '',
+      email: editingEmployee.email || '',
+      phone: editingEmployee.phone || '',
+      address: editingEmployee.address || '',
+      hireDate: formattedHireDate,
+      notes: editingEmployee.notes || ''
+    });
+  } else {
+    // Reset the form when not editing
+    setEmployeeFormData({
+      name: '',
+      position: '',
+      department: '',
+      email: '',
+      phone: '',
+      address: '',
+      hireDate: '',
+      notes: ''
+    });
+  }
+}, [editingEmployee]);
 
 
 
@@ -1471,7 +1604,7 @@ useEffect(() => {
       saveToLocalStorage();
       setDataChanged(true);
     }
-  }, [inventory, transactions, receipts, selectedCurrency, budgets, payrolls, customers, invoices, businessInfo,budgets]);
+  }, [inventory, transactions, receipts, selectedCurrency, budgets, payrolls, employees, customers, invoices, businessInfo,budgets]);
 
   // Load theme from localStorage
   useEffect(() => {
@@ -1585,6 +1718,14 @@ useEffect(() => {
           setPayrolls(loadedPayrolls);
         }
 
+        if (parsedData.employees) {
+          const loadedEmployees = parsedData.employees.map(employee => ({
+            ...employee,
+            hireDate: employee.hireDate ? new Date(employee.hireDate) : new Date()
+          }));
+          setEmployees(loadedEmployees);
+        }
+
         setLastSaved(new Date(parsedData.lastUpdated));
         console.log('Data loaded from localStorage');
       }
@@ -1615,7 +1756,8 @@ useEffect(() => {
         businessInfo, // Save business info
         invoices, // Save invoices
         budgets,   // Save budgets
-        payrolls
+        payrolls,
+        employees
       };
       
       localStorage.setItem('bookkeep-data', JSON.stringify(dataToSave));
@@ -1726,7 +1868,8 @@ const filteredPayrolls = getFilteredAndSortedPayrolls();
           businessInfo, // Include business info in export
           invoices, // Include invoices in export
           budgets,   // Include budgets in export
-          payrolls
+          payrolls,
+          employees
         };
         
         const json = JSON.stringify(dataToExport, null, 2);
@@ -3009,6 +3152,15 @@ const validateInventoryTransaction = () => {
     budgets: searchQuery ? `${filteredBudgets.length} of ${budgets.length}` : `${budgets.length} budgets`
   };
 
+  useEffect(() => {
+    const filtered = employees.filter(e =>
+      e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.position.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredEmployees(filtered);
+  }, [employees, searchQuery]);
+  
+
   // Add functions to manage categories
   const addCategory = () => {
     const newCategory: Category = {
@@ -3074,6 +3226,11 @@ const validateInventoryTransaction = () => {
       ...categoryFormData,
       [name]: value,
     });
+  };
+
+  const handleEmployeeFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setEmployeeFormData({ ...employeeFormData, [name]: value });
   };
 
   // Update useEffect for editingCategory
@@ -4161,6 +4318,15 @@ const generateBudgetReport = async (budget: Budget) => {
                   >
                     <FaMoneyBillWave className="mr-3" />
                     <span>Payroll</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`w-full flex items-center p-3 rounded-md text-sm ${activeTab === "employees" ? `bg-${currentTheme.primary}/50 text-${currentTheme.accent}` : `hover:bg-${currentTheme.background} text-gray-300`}`}
+                    onClick={() => setActiveTab("employees")}
+                  >
+                    <FaUsers className="mr-3" />
+                    <span>Employees</span>
                   </button>
                 </li>
               </ul>
@@ -7131,6 +7297,261 @@ const generateBudgetReport = async (budget: Budget) => {
     )}
   </motion.div>
 )}
+
+
+{activeTab === "employees" && (
+  <motion.div 
+    variants={fadeIn}
+    className="space-y-6"
+  >
+    {/* Enhanced Header Section */}
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <div>
+        <h2 className={`bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} bg-clip-text text-transparent text-2xl font-bold pb-1`}>
+          Employee Management
+        </h2>
+        <p className="text-sm text-gray-400">
+          {searchQuery 
+            ? `Showing ${filteredEmployees.length} employee${filteredEmployees.length !== 1 ? 's' : ''}`
+            : 'Manage your team members and staff information'
+          }
+        </p>
+      </div>
+      
+      <button
+        className={`group relative flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-${currentTheme.buttonText} rounded-lg shadow-lg transition-all duration-300 transform hover:scale-[1.02] w-full sm:w-auto`}
+        onClick={() => {
+          setEditingEmployee(null);
+          setShowEmployeeModal(true);
+        }}
+      >
+        <span className={`absolute -inset-0.5 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-300 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent}`}></span>
+        <span className="relative flex items-center">
+          <FaPlus className="mr-2 h-4 w-4" /> Add New Employee
+        </span>
+      </button>
+    </div>
+    
+    {/* Divider with gradient */}
+    <div className={`h-0.5 w-full bg-gradient-to-r from-${currentTheme.border} via-${currentTheme.accent}/20 to-${currentTheme.border} rounded-full`}></div>
+    
+    {/* Search & Filter Section */}
+    <div className="flex flex-col sm:flex-row gap-3">
+      <div className={`relative flex-grow`}>
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <FaSearch className={`text-${currentTheme.accent} h-4 w-4`} />
+        </div>
+        <input
+          type="text"
+          className={`pl-10 pr-4 py-2.5 w-full rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border} text-${currentTheme.text} focus:ring-2 focus:ring-${currentTheme.accent} focus:border-transparent transition-all duration-200`}
+          placeholder="Search employees by name or position..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+      
+      <div className={`flex items-center px-4 py-2.5 rounded-lg bg-${currentTheme.background}/50 border border-${currentTheme.border} w-full sm:w-auto`}>
+        <FaFilter className={`mr-2 text-${currentTheme.accent} h-3.5 w-3.5`} />
+        <select
+        title="Filter by department" 
+          className={`bg-transparent text-${currentTheme.text} focus:outline-none w-full`}
+          onChange={(e) => {/* implement department filter */}}
+        >
+          <option value="">All Departments</option>
+          <option value="marketing">Marketing</option>
+          <option value="engineering">Engineering</option>
+          <option value="finance">Finance</option>
+          <option value="operations">Operations</option>
+        </select>
+      </div>
+    </div>
+    
+    {/* Employee Cards Grid */}
+    {filteredEmployees.length === 0 ? (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className={`text-center py-14 bg-${currentTheme.background}/50 rounded-xl border border-${currentTheme.border} shadow-sm backdrop-blur-sm`}
+      >
+        <div className="relative mb-6 inline-flex">
+          <div className={`absolute inset-0 rounded-full blur-md bg-${currentTheme.accent}/20`}></div>
+          <div className={`relative z-10 w-20 h-20 flex items-center justify-center rounded-full bg-gradient-to-br from-${currentTheme.background} to-${currentTheme.cardBackground} border border-${currentTheme.border} shadow-inner`}>
+            <FaUsers className={`text-5xl text-${currentTheme.accent}/80`} />
+          </div>
+        </div>
+        <h3 className={`text-xl font-bold text-${currentTheme.text} mb-3`}>
+          No employees yet
+        </h3>
+        <p className="text-gray-400 max-w-md mx-auto px-6">
+          {searchQuery 
+            ? "No employees match your search criteria. Try different keywords." 
+            : "Add your first employee to start building your team roster."}
+        </p>
+        {!searchQuery && (
+          <button
+            className={`mt-6 group relative flex items-center justify-center mx-auto bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-${currentTheme.buttonText} px-6 py-3 rounded-lg shadow-md font-medium transition-all duration-300 transform hover:scale-105`}
+            onClick={() => {
+              setEditingEmployee(null);
+              setShowEmployeeModal(true);
+            }}
+          >
+            <span className={`absolute -inset-0.5 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-300 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent}`}></span>
+            <span className="relative flex items-center">
+              <FaPlus className="mr-2" /> Add First Employee
+            </span>
+          </button>
+        )}
+      </motion.div>
+    ) : (
+      <motion.div 
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+        className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+      >
+        {filteredEmployees.map(employee => (
+          <motion.div
+            key={employee.id}
+            variants={cardVariant}
+            whileHover="hover"
+            className={`relative group overflow-hidden bg-gradient-to-br from-${currentTheme.cardBackground} to-${currentTheme.background} rounded-xl border border-${currentTheme.border} shadow-sm hover:shadow-lg transition-all duration-300`}
+          >
+            {/* Card Header - Top Gradient */}
+            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300`}></div>
+            
+            <div className="flex p-5">
+              {/* Employee Avatar */}
+              <div className={`w-16 h-16 rounded-xl bg-gradient-to-br from-${currentTheme.primary}/20 to-${currentTheme.accent}/30 border border-${currentTheme.border} flex items-center justify-center text-${currentTheme.accent} font-bold text-lg mr-4`}>
+                {employee.name.charAt(0).toUpperCase() + (employee.name.split(' ')[1]?.[0]?.toUpperCase() || '')}
+              </div>
+              
+              {/* Employee Info */}
+              <div className="flex-1">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className={`text-base font-semibold text-${currentTheme.text} group-hover:text-${currentTheme.accent} transition-colors duration-300`}>
+                      {employee.name}
+                    </h3>
+                    <div className={`inline-flex items-center px-2.5 py-0.5 mt-1 rounded-full text-xs font-medium bg-${currentTheme.accent}/10 text-${currentTheme.accent} border border-${currentTheme.accent}/30`}>
+                      {employee.position}
+                    </div>
+                  </div>
+                  
+                  {/* Quick Actions - Visible on Hover */}
+                  <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      className={`p-2 rounded-full bg-${currentTheme.accent}/10 hover:bg-${currentTheme.accent}/20 text-${currentTheme.accent} hover:text-${currentTheme.primary} transition-colors`}
+                      onClick={() => {
+                        setEditingEmployee(employee);
+                        setShowEmployeeModal(true);
+                      }}
+                      title="Edit employee"
+                    >
+                      <FaPen className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      className={`p-2 rounded-full bg-${currentTheme.danger}/10 hover:bg-${currentTheme.danger}/20 text-${currentTheme.danger}/80 hover:text-${currentTheme.danger} transition-colors`}
+                      onClick={() => deleteEmployee(employee.id)}
+                      title="Delete employee"
+                    >
+                      <FaTrash className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Department Tag */}
+                {employee.department && (
+                  <div className="mt-2 flex items-center">
+                    <span className={`mr-2 text-${currentTheme.accent}/50`}>
+                      <FaSuitcase className="h-3 w-3" />
+                    </span>
+                    <span className="text-sm text-gray-400">{employee.department}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Contact Info Section */}
+            <div className={`p-4 border-t border-${currentTheme.border}/50 space-y-2.5`}>
+              {employee.email && (
+                <div className="flex items-center text-sm">
+                  <div className={`w-8 h-8 rounded-full bg-${currentTheme.background} flex items-center justify-center mr-3`}>
+                    <FaEnvelope className="h-3.5 w-3.5 text-gray-400" />
+                  </div>
+                  <div className="text-gray-400 truncate">{employee.email}</div>
+                </div>
+              )}
+              
+              {employee.phone && (
+                <div className="flex items-center text-sm">
+                  <div className={`w-8 h-8 rounded-full bg-${currentTheme.background} flex items-center justify-center mr-3`}>
+                    <FaPhone className="h-3.5 w-3.5 text-gray-400" />
+                  </div>
+                  <div className="text-gray-400">{employee.phone}</div>
+                </div>
+              )}
+              
+              {employee.address && (
+                <div className="flex items-start text-sm">
+                  <div className={`w-8 h-8 rounded-full bg-${currentTheme.background} flex items-center justify-center mr-3 mt-0.5`}>
+                    <FaMapMarkerAlt className="h-3.5 w-3.5 text-gray-400" />
+                  </div>
+                  <div className="text-gray-400 line-clamp-2">{employee.address}</div>
+                </div>
+              )}
+            </div>
+            
+            {/* Card Footer */}
+            <div className={`px-5 py-3 border-t border-${currentTheme.border}/50 flex justify-between items-center bg-${currentTheme.background}/30`}>
+              <div className="text-xs text-gray-500">
+                {employee.hireDate ? (
+                  <span className="flex items-center">
+                    <FaCalendarAlt className="mr-1.5 h-3 w-3" />
+                    Hired: {new Date(employee.hireDate).toLocaleDateString()}
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <FaIdCard className="mr-1.5 h-3 w-3" />
+                    ID: {employee.id.substring(0, 8)}
+                  </span>
+                )}
+              </div>
+              
+              <button
+                className={`text-${currentTheme.accent} hover:text-${currentTheme.primary} text-xs flex items-center transition-colors`}
+                onClick={() => {
+                  setEditingEmployee(employee);
+                  setShowEmployeeModal(true);
+                }}
+              >
+                Manage <FaChevronRight className="ml-1 h-2.5 w-2.5" />
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+    )}
+    
+    {/* Show pagination if needed */}
+    {filteredEmployees.length > 12 && (
+      <div className="flex justify-center mt-6">
+        <nav className={`inline-flex rounded-md shadow-sm -space-x-px bg-${currentTheme.background} border border-${currentTheme.border}`} aria-label="Pagination">
+          <button className={`relative inline-flex items-center px-2 py-2 rounded-l-md border-r border-${currentTheme.border} text-sm font-medium text-${currentTheme.accent} hover:bg-${currentTheme.background}/80`}>
+            <FaChevronLeft className="h-4 w-4" />
+          </button>
+          <button className={`relative inline-flex items-center px-4 py-2 border-r border-${currentTheme.border} text-sm font-medium bg-${currentTheme.accent}/20 text-${currentTheme.accent}`}>1</button>
+          <button className={`relative inline-flex items-center px-4 py-2 border-r border-${currentTheme.border} text-sm font-medium text-${currentTheme.text} hover:bg-${currentTheme.background}/80`}>2</button>
+          <button className={`relative inline-flex items-center px-4 py-2 text-sm font-medium text-${currentTheme.text} hover:bg-${currentTheme.background}/80`}>3</button>
+          <button className={`relative inline-flex items-center px-2 py-2 rounded-r-md border-l border-${currentTheme.border} text-sm font-medium text-${currentTheme.accent} hover:bg-${currentTheme.background}/80`}>
+            <FaChevronRight className="h-4 w-4" />
+          </button>
+        </nav>
+      </div>
+    )}
+  </motion.div>
+)}
+
    </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -10555,6 +10976,233 @@ const generateBudgetReport = async (budget: Budget) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+  {showEmployeeModal && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={() => {
+        setShowEmployeeModal(false);
+        setEditingEmployee(null);
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-lg border border-${currentTheme.border} max-h-[90vh] overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`flex justify-between items-center sticky top-0 px-6 py-4 border-b border-${currentTheme.border} bg-${currentTheme.cardBackground} z-10`}>
+          <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
+            <FaUserTie className={`mr-2 text-${currentTheme.accent}`} />
+            {editingEmployee ? 'Edit Employee' : 'Add New Employee'}
+          </h3>
+          <button
+            onClick={() => {
+              setShowEmployeeModal(false);
+              setEditingEmployee(null);
+            }}
+            className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
+            aria-label="Close modal"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        <div className="px-6 py-5">
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            editingEmployee ? updateEmployee() : addEmployee();
+          }}>
+            {/* Basic Information Section */}
+            <div className="mb-5">
+              <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-3 flex items-center`}>
+                <FaIdCard className="mr-2" size={14} />
+                Basic Information
+              </h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={employeeFormData.name}
+                    onChange={handleEmployeeFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    placeholder="Enter employee name"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Position *
+                  </label>
+                  <input
+                    type="text"
+                    name="position"
+                    value={employeeFormData.position}
+                    onChange={handleEmployeeFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    placeholder="Job title"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Department
+                  </label>
+                  <input
+                    type="text"
+                    name="department"
+                    value={employeeFormData.department}
+                    onChange={handleEmployeeFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    placeholder="Department name"
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Hire Date *
+                  </label>
+                  <input
+                    title="Hire date"
+                    type="date"
+                    name="hireDate"
+                    value={employeeFormData.hireDate}
+                    onChange={handleEmployeeFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Contact Information Section */}
+            <div className="mb-5">
+              <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-3 flex items-center`}>
+                <FaAddressBook className="mr-2" size={14} />
+                Contact Information
+              </h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="text-gray-400 w-4 h-4" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={employeeFormData.email}
+                      onChange={handleEmployeeFormChange}
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaPhone className="text-gray-400 w-4 h-4" />
+                    </div>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={employeeFormData.phone}
+                      onChange={handleEmployeeFormChange}
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="+1 (555) 123-4567"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+                  Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FaMapMarkerAlt className="text-gray-400 w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    name="address"
+                    value={employeeFormData.address}
+                    onChange={handleEmployeeFormChange}
+                    className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    placeholder="123 Main St, City, Country"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Additional Notes */}
+            <div className="mb-5">
+              <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex items-center`}>
+                <FaStickyNote className="mr-2" size={14} />
+                Additional Notes
+              </label>
+              <textarea
+                name="notes"
+                value={employeeFormData.notes}
+                onChange={handleEmployeeFormChange}
+                className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                rows={3}
+                placeholder="Any additional information about this employee..."
+              />
+            </div>
+            
+            <div className={`flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-${currentTheme.border}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmployeeModal(false);
+                  setEditingEmployee(null);
+                }}
+                className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center justify-center text-sm w-full sm:w-auto`}
+              >
+                <FaUserPlus className="mr-2 h-4 w-4" />
+                {editingEmployee ? 'Update Employee' : 'Save Employee'}
+              </button>
+            </div>
+            
+            <div className="text-center text-xs text-gray-400 mt-4">
+              <p>Fields marked with * are required</p>
+            </div>
+          </form>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       {/* Add this animation for saved notification */}
       <AnimatePresence>
