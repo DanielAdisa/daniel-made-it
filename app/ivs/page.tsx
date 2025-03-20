@@ -492,11 +492,23 @@ interface BudgetHookReturn {
 }
 
 export default function BookKeepingSystem() {
-  // Update the activeTab state to include customers
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices"|"payrolls">("dashboard");
+  // Update the activeTab state to initialize from localStorage
+  const [activeTab, setActiveTab] = useState<"dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices"|"payrolls">(() => {
+    // Check if we're in a browser environment (to avoid issues during SSR)
+    if (typeof window !== 'undefined') {
+      const savedTab = localStorage.getItem('bookkeep-active-tab');
+      return (savedTab as "dashboard" | "inventory" | "transactions" | "receipts" | "budgets" | "categories" | "customers" | "invoices"|"payrolls") || "dashboard";
+    }
+    return "dashboard";
+  });
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Add effect to save activeTab to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('bookkeep-active-tab', activeTab);
+  }, [activeTab]);
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
   // Add business information state
   const [showBusinessOnboarding, setShowBusinessOnboarding] = useState(false);
@@ -510,7 +522,7 @@ export default function BookKeepingSystem() {
     established?: string;
     baseCurrency?: string;
   }>({
-    name: "My Business",
+    name: "Rename Me Please",
     type: "Retail",
     address: "",
     phone: "",
