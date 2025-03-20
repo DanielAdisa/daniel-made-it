@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { FaVolumeUp, FaVolumeMute } from "react-icons/fa";
 import { FaBomb } from "react-icons/fa";
+import { GiSpiralLollipop, GiCandyCanes, GiDonut, GiStrawberry } from "react-icons/gi";
 
 const GRID_ROWS = 8;
 const GRID_COLS = 8;
@@ -30,6 +31,7 @@ interface BrickType {
   isBomb?: boolean;
   positionKey?: string; // Used for tracking position during animations
   fallDistance?: number; // Distance the brick will fall (for animation)
+  candyType?: number; // Type of candy icon to display (0-3)
 }
 
 const BrickPop = () => {
@@ -137,7 +139,8 @@ const BrickPop = () => {
       color: levelColors[Math.floor(Math.random() * levelColors.length)],
       matched: false,
       positionKey: `pos-${rowIndex}-${colIndex}`,
-      fallDistance: rowIndex + 1 // Add fall distance property
+      fallDistance: rowIndex + 1, // Add fall distance property
+      candyType: Math.floor(Math.random() * 4) // Random candy type (0-3)
     };
   }, [level]);
   
@@ -675,17 +678,130 @@ const BrickPop = () => {
     // This creates the illusion of gravity affecting the bricks
     return baseDelay + (fallDistance ? Math.sqrt(fallDistance) * 0.03 : 0);
   };
+  
+  // Candy decorative elements
+  const candyDecorations = [
+    { Icon: GiSpiralLollipop, top: "5%", left: "5%", size: "3rem", rotate: "15deg", color: "#FF6B95", delay: 0 },
+    { Icon: GiCandyCanes, top: "10%", right: "8%", size: "2.5rem", rotate: "-10deg", color: "#FF914D", delay: 0.2 },
+    { Icon: GiDonut, bottom: "15%", left: "7%", size: "2.8rem", rotate: "5deg", color: "#FFC837", delay: 0.4 },
+    { Icon: GiStrawberry, bottom: "8%", right: "5%", size: "2.2rem", rotate: "-5deg", color: "#66E0A3", delay: 0.6 }
+  ];
+
+  // Get candy icon based on type
+  const getCandyIcon = (type: number) => {
+    switch(type) {
+      case 0: return <GiSpiralLollipop className="w-3/4 h-3/4" />;
+      case 1: return <GiCandyCanes className="w-3/4 h-3/4" />;
+      case 2: return <GiDonut className="w-3/4 h-3/4" />;
+      case 3: return <GiStrawberry className="w-3/4 h-3/4" />;
+      default: return <GiSpiralLollipop className="w-3/4 h-3/4" />;
+    }
+  };
+
+  // Add sparkle effect when matching
+  const addSparkleEffect = (row: number, col: number, color: string) => {
+    const brickElements = document.querySelectorAll('.brick');
+    const index = row * GRID_COLS + col;
+    const brickElement = brickElements[index];
+    
+    if (brickElement) {
+      const rect = brickElement.getBoundingClientRect();
+      const x = (rect.left + rect.right) / 2;
+      const y = (rect.top + rect.bottom) / 2;
+      
+      // Create mini confetti at the brick position
+      confetti({
+        particleCount: 8,
+        startVelocity: 15,
+        spread: 360,
+        origin: {
+          x: x / window.innerWidth,
+          y: y / window.innerHeight
+        },
+        colors: [color, '#FFFFFF'],
+        shapes: ['circle'],
+        scalar: 0.6,
+        gravity: 0.3,
+      });
+    }
+  };
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-pink-600 via-violet-600 to-indigo-700 p-4 overflow-hidden">
+      {/* Decorative candy elements */}
+      {candyDecorations.map((item, index) => (
+        <motion.div
+          key={`candy-decor-${index}`}
+          className="absolute z-10 pointer-events-none opacity-60"
+          style={{ 
+            top: item.top || 'auto', 
+            left: item.left || 'auto',
+            right: item.right || 'auto',
+            bottom: item.bottom || 'auto',
+            color: item.color,
+            fontSize: item.size,
+            transform: `rotate(${item.rotate})`
+          }}
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ 
+            opacity: 0.6, 
+            scale: 1,
+            rotate: [item.rotate, `calc(${item.rotate} + 5deg)`, `calc(${item.rotate} - 5deg)`, item.rotate],
+            y: [0, -5, 5, 0]
+          }}
+          transition={{ 
+            delay: item.delay,
+            duration: 3,
+            repeat: Infinity,
+            repeatType: "reverse"
+          }}
+        >
+          <item.Icon />
+          <div className="absolute inset-0 blur-sm -z-10" style={{ backgroundColor: item.color, opacity: 0.2 }}></div>
+        </motion.div>
+      ))}
+
       {/* Audio elements loading message - hidden */}
       <div className="sr-only">
         Loading game sounds...
       </div>
       
+      {/* Sugar particles floating animation */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute rounded-full bg-white/30"
+            style={{
+              width: `${Math.random() * 8 + 3}px`,
+              height: `${Math.random() * 8 + 3}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              y: [0, -300],
+              x: [0, Math.random() * 100 - 50],
+              opacity: [0, 0.7, 0]
+            }}
+            transition={{
+              duration: Math.random() * 10 + 15,
+              repeat: Infinity,
+              delay: Math.random() * 20
+            }}
+          />
+        ))}
+      </div>
+      
       <div className="text-center mb-6">
-        <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-300 mb-2">Candy Pop</h1>
-        <p className="text-lg text-pink-100 font-light tracking-wide">Match 3 or more candies to pop them!</p>
+        <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-300 mb-2 drop-shadow-lg">Candy Pop</h1>
+        <motion.p 
+          className="text-lg text-pink-100 font-light tracking-wide"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          Match 3 or more candies to pop them!
+        </motion.p>
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between mb-6 px-4 gap-3 max-w-4xl mx-auto">
@@ -694,6 +810,7 @@ const BrickPop = () => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.03, boxShadow: "0 8px 20px rgba(255,100,150,0.3)" }}
         >
           <span className="text-2xl text-white font-bold">Score: {score}</span>
         </motion.div>
@@ -702,6 +819,7 @@ const BrickPop = () => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
+          whileHover={{ scale: 1.03, boxShadow: "0 8px 20px rgba(255,100,150,0.3)" }}
         >
           <span className="text-2xl text-white font-bold">Level: {level}</span>
         </motion.div>
@@ -710,23 +828,46 @@ const BrickPop = () => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
+          whileHover={{ scale: 1.03, boxShadow: "0 8px 20px rgba(255,100,150,0.3)" }}
         >
           <span className="text-2xl text-white font-bold">Moves: {movesLeft}</span>
         </motion.div>
       </div>
 
       <div className="mb-6 px-4 max-w-4xl mx-auto">
-        <div className="w-full bg-violet-900/50 h-6 rounded-full overflow-hidden shadow-inner border border-pink-300/20">
+        <div className="w-full bg-violet-900/50 h-8 rounded-full overflow-hidden shadow-inner border border-pink-300/20">
           <motion.div
-            className="h-full bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400"
+            className="h-full bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400 relative"
             initial={{ width: "0%" }}
             animate={{ width: `${getProgressPercentage()}%` }}
             transition={{ duration: 0.5 }}
-          />
+          >
+            {/* Sparkles in progress bar */}
+            <div className="absolute inset-0 overflow-hidden">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <motion.div
+                  key={`sparkle-${i}`}
+                  className="absolute w-1 h-8 bg-white/60"
+                  style={{ left: `${i * 20}%` }}
+                  animate={{ 
+                    opacity: [0, 1, 0],
+                    width: ["1px", "3px", "1px"],
+                    left: [`${i * 20}%`, `${i * 20 + 80}%`]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    delay: i * 0.4,
+                    ease: "linear"
+                  }}
+                />
+              ))}
+            </div>
+          </motion.div>
         </div>
         <div className="flex justify-between text-sm text-pink-100/90 mt-1 px-1">
           <span>0</span>
-          <span>Target: {getLevelTarget()}</span>
+          <span className="font-semibold">Target: {getLevelTarget()}</span>
         </div>
       </div>
 
@@ -734,8 +875,8 @@ const BrickPop = () => {
       <motion.button
         onClick={toggleMute}
         className="absolute top-4 right-4 bg-pink-500/30 p-3 rounded-full backdrop-blur-sm shadow-lg border border-pink-300/30 hover:bg-pink-400/40 transition-all z-10"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.1, rotate: 10 }}
+        whileTap={{ scale: 0.9, rotate: -10 }}
       >
         {isMuted ? 
           <FaVolumeMute className="text-white text-xl" /> : 
@@ -747,13 +888,19 @@ const BrickPop = () => {
       <AnimatePresence>
         {isShuffling && (
           <motion.div 
-            className="absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-pink-600/90 px-8 py-4 rounded-2xl text-white font-bold text-2xl shadow-lg border border-pink-400/30"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.3 }}
+            className="absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-pink-600/90 to-purple-600/90 px-8 py-4 rounded-2xl text-white font-bold text-2xl shadow-lg border-2 border-pink-400/50"
+            initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            exit={{ opacity: 0, scale: 0.8, rotate: 5 }}
+            transition={{ duration: 0.4 }}
           >
-            Shuffling...
+            <motion.span
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+              className="inline-block"
+            >
+              Shuffling...
+            </motion.span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -781,18 +928,25 @@ const BrickPop = () => {
                         initial={{ 
                           opacity: 1, 
                           y: brick.fallDistance ? -100 - (brick.fallDistance * 10) : 0,
-                          scale: 1
+                          scale: 1,
+                          rotate: brick.fallDistance ? Math.random() * 20 - 10 : 0
                         }}
                         animate={{ 
                           opacity: brick.matched ? 0.5 : 1, 
                           y: 0,
-                          scale: brick.matched ? 0.8 : 1
+                          // Fix: Changed from [1, 1.2, 0.5] to just 0.8 for matched bricks
+                          // Spring animations only support two keyframes (start and end)
+                          scale: brick.matched ? 0.8 : 1,
+                          // Fix: Changed from [0, 15, -15, 0] to just 15 for matched bricks
+                          // Spring animations only support two keyframes (start and end)
+                          rotate: brick.matched ? 15 : 0
                         }}
                         exit={{ 
                           opacity: 0, 
                           scale: 0.8,
+                          y: 20,
                           transition: { 
-                            duration: 0.2 
+                            duration: 0.3
                           }
                         }}
                         transition={{ 
@@ -808,22 +962,71 @@ const BrickPop = () => {
                             brick.fallDistance || 0
                           )
                         }}
-                        className={`w-full h-full aspect-square cursor-pointer relative rounded-full shadow-md brick ${
-                          brick.matched ? "opacity-50 scale-90" : "hover:scale-105 active:scale-95"
-                        } ${brick.isBomb ? "overflow-hidden" : ""}`}
+                        onClick={() => { 
+                          handleBrickTap(rowIndex, colIndex);
+                          if (!brick.matched && !brick.isBomb) {
+                            addSparkleEffect(rowIndex, colIndex, brick.color);
+                          }
+                        }}
+                        className={`w-full h-full aspect-square cursor-pointer relative rounded-full shadow-md brick 
+                          ${brick.matched ? "opacity-50" : "hover:scale-105 active:scale-95"} 
+                          ${brick.isBomb ? "overflow-hidden" : ""}`}
                         style={{ 
                           backgroundColor: brick.color,
                           boxShadow: brick.matched ? 'none' : 'inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.15)'
                         }}
-                        onClick={() => handleBrickTap(rowIndex, colIndex)}
                       >
                         <div className="absolute inset-0 rounded-full bg-white/30 opacity-0 hover:opacity-20 transition-opacity"></div>
+                        
+                        {/* Candy icon inside the brick */}
+                        {!brick.isBomb && (
+                          <motion.div 
+                            className="absolute inset-0 flex items-center justify-center text-white/80 pointer-events-none drop-shadow-md"
+                            style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.3))" }}
+                            animate={brick.matched ? { 
+                              rotate: [0, 45, -45, 0],
+                              // Fix: Changed from [1, 1.2, 0.8] to just use 1.2
+                              scale: 1.2
+                            } : { 
+                              rotate: [0, 2, -2, 0],
+                              y: [0, -1, 1, 0]
+                            }}
+                            transition={brick.matched ? {
+                              duration: 0.4
+                            } : {
+                              duration: 2,
+                              repeat: Infinity,
+                              repeatType: "reverse"
+                            }}
+                          >
+                            {getCandyIcon(brick.candyType || 0)}
+                          </motion.div>
+                        )}
+                        
+                        {/* Pulse animation for candy */}
+                        {!brick.matched && !brick.isBomb && (
+                          <motion.div 
+                            className="absolute inset-0 rounded-full bg-white/20 pointer-events-none"
+                            animate={{ 
+                              scale: [1, 1.1, 1],
+                              opacity: [0, 0.3, 0]
+                            }}
+                            transition={{
+                              duration: 2,
+                              repeat: Infinity,
+                              repeatDelay: Math.random() * 3
+                            }}
+                          />
+                        )}
                         
                         {brick.isBomb && (
                           <motion.div 
                             className="absolute inset-0 flex items-center justify-center"
                             initial={{ scale: 0 }}
-                            animate={{ scale: 1, rotate: [0, 5, -5, 0] }}
+                            animate={{ 
+                              scale: 1, 
+                              rotate: [0, 5, -5, 0]
+                            }}
                             transition={{ 
                               scale: { duration: 0.3 },
                               rotate: { 
@@ -837,11 +1040,43 @@ const BrickPop = () => {
                             <FaBomb className="text-black text-3xl z-10 drop-shadow-md" />
                             <motion.div 
                               className="absolute inset-0 bg-white/30 rounded-full"
-                              animate={{ opacity: [0.1, 0.3, 0.1] }}
+                              animate={{ 
+                                opacity: [0.1, 0.3, 0.1],
+                                scale: [0.8, 1, 0.8]
+                              }}
                               transition={{ 
-                                duration: 1.5, 
+                                duration: 1, 
                                 repeat: Infinity,
                                 ease: "easeInOut" 
+                              }}
+                            />
+                            
+                            {/* Animated fuse on the bomb */}
+                            <motion.div
+                              className="absolute w-1 h-4 bg-orange-400 rounded-full -top-3 left-1/2 -translate-x-1/2 origin-bottom"
+                              animate={{
+                                scaleY: [1, 0.7, 1],
+                                rotate: [-10, 10, -10]
+                              }}
+                              transition={{
+                                duration: 0.6,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }}
+                            />
+                            
+                            {/* Bomb sparks */}
+                            <motion.div
+                              className="absolute w-2 h-2 bg-yellow-300 rounded-full -top-4 left-1/2 -translate-x-1/2"
+                              animate={{
+                                opacity: [0, 1, 0],
+                                y: [-4, -8],
+                                scale: [0.8, 0, 0.8]
+                              }}
+                              transition={{
+                                duration: 0.8,
+                                repeat: Infinity,
+                                ease: "easeOut"
                               }}
                             />
                           </motion.div>
@@ -870,13 +1105,14 @@ const BrickPop = () => {
                         variants={{
                           initial: { opacity: 1 },
                           animate: { 
-                            opacity: 1,
+                            opacity: [1, 0.8, 1],
                             rotate: [0, 360],
-                            scale: [1, 0.8, 1],
+                            scale: [1, 0.8, 1.1, 1],
+                            y: [0, -20, 0],
                             transition: {
                               duration: 0.7,
                               ease: "easeInOut",
-                              times: [0, 0.5, 1],
+                              times: [0, 0.5, 0.8, 1],
                               delay: (rowIndex * 0.03) + (colIndex * 0.02)
                             }
                           },
@@ -887,7 +1123,12 @@ const BrickPop = () => {
                           backgroundColor: brick.color,
                           boxShadow: 'inset 0 -4px 0 rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.15)'
                         }}
-                      />
+                      >
+                        {/* Candy icon inside the shuffling brick */}
+                        <div className="absolute inset-0 flex items-center justify-center text-white/80">
+                          {getCandyIcon(brick.candyType || 0)}
+                        </div>
+                      </motion.div>
                     ))
                   )}
                 </motion.div>
@@ -1007,7 +1248,7 @@ const BrickPop = () => {
         <motion.button
           onClick={resetGame}
           className="bg-gradient-to-r from-pink-500 to-pink-700 hover:from-pink-600 hover:to-pink-800 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
-          whileHover={{ scale: 1.05 }}
+          whileHover={{ scale: 1.05, boxShadow: "0 8px 20px rgba(255,100,150,0.3)" }}
           whileTap={{ scale: 0.95 }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1019,7 +1260,7 @@ const BrickPop = () => {
         <motion.button
           onClick={() => !isShuffling && gameStatus === "playing" && shuffleGrid()}
           className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          whileHover={{ scale: isShuffling || gameStatus !== "playing" ? 1 : 1.05 }}
+          whileHover={{ scale: isShuffling || gameStatus !== "playing" ? 1 : 1.05, boxShadow: "0 8px 20px rgba(146,100,255,0.3)" }}
           whileTap={{ scale: isShuffling || gameStatus !== "playing" ? 1 : 0.95 }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
