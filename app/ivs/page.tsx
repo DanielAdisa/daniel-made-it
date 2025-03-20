@@ -7,7 +7,8 @@ import { FaBook, FaBoxOpen, FaBriefcase, FaChartLine, FaChartPie, FaHome, FaPlus
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
   FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
   FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown, FaMoneyCheckAlt, FaCalendarCheck ,FaArrowRight,FaExternalLinkAlt,FaCalendarDay,
-  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase,FaFolder,FaExclamationCircle} from "react-icons/fa";
+  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase,FaFolder,FaExclamationCircle,FaShieldAlt,
+  FaUserLock,FaUserShield,FaBuilding,FaDesktop,FaDatabase} from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -11930,180 +11931,321 @@ const generateBudgetReport = async (budget: Budget) => {
   )}
 </AnimatePresence>
 
-      {/* Business Onboarding Modal */}
-      <AnimatePresence>
-        {showBusinessOnboarding && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-md border border-${currentTheme.border}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className={`flex justify-between items-center px-6 py-4 border-b border-${currentTheme.border}`}>
-                <h3 className={`text-xl font-bold text-${currentTheme.text} flex items-center`}>
-                  <FaStore className={`mr-2 text-${currentTheme.accent}`} />
-                  {businessInfo.name ? 'Update Business Info' : 'Welcome to BookKeep Pro!'}
-                </h3>
-                {businessInfo.name && (
-                  <button 
-                    onClick={() => setShowBusinessOnboarding(false)}
-                    className={`text-gray-400 hover:text-${currentTheme.text} transition-colors duration-200 p-1 rounded-full hover:bg-${currentTheme.background}`}
-                  >
-                    <FaTimes />
-                  </button>
-                )}
+      {/* Business Onboarding Modal - Enhanced Design */}
+<AnimatePresence>
+  {showBusinessOnboarding && (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-5"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 10 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className={`bg-${currentTheme.cardBackground} p-0 rounded-xl shadow-2xl w-full max-w-lg border border-${currentTheme.border}/50 overflow-hidden flex flex-col max-h-[90vh]`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Sticky header with gradient */}
+        <div className={`sticky top-0 z-10 border-b border-${currentTheme.border}/70 bg-gradient-to-r from-${currentTheme.primary}/90 to-${currentTheme.accent}/90 px-6 py-5 backdrop-blur-sm`}>
+          <div className="flex justify-between items-center">
+            <h3 className={`text-xl font-bold text-${currentTheme.buttonText} flex items-center`}>
+              <div className="p-2 rounded-full bg-white/20 mr-3 flex items-center justify-center">
+                <FaStore className={`text-${currentTheme.buttonText}`} size={18} />
+              </div>
+              {businessInfo.name ? 'Update Business Info' : 'Welcome to BookKeep Pro!'}
+            </h3>
+            {businessInfo.name && (
+              <button 
+                onClick={() => setShowBusinessOnboarding(false)}
+                className={`text-${currentTheme.buttonText}/80 hover:text-${currentTheme.buttonText} transition-colors duration-200 p-2 rounded-full hover:bg-black/10`}
+                aria-label="Close modal"
+              >
+                <FaTimes />
+              </button>
+            )}
+          </div>
+          {!businessInfo.name && (
+            <p className={`mt-1 text-sm text-${currentTheme.buttonText}/80 ml-12`}>
+              Setup your business profile to get started
+            </p>
+          )}
+        </div>
+        
+        {/* Scrollable content area */}
+        <div className="overflow-y-auto flex-grow px-6 py-5">
+          {/* Privacy notice banner - At the top for visibility */}
+          <div className="mb-6 p-0 overflow-hidden rounded-xl border border-amber-300/30 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/10">
+            <div className="bg-amber-200/30 dark:bg-amber-700/20 px-4 py-2.5 border-b border-amber-300/30 flex items-center">
+              <div className="p-1.5 rounded-full bg-amber-400/20 mr-2">
+                <FaShieldAlt className="text-amber-600 dark:text-amber-400" size={14} />
+              </div>
+              <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Your Data Privacy & Security</h3>
+            </div>
+            
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs text-amber-700 dark:text-amber-300 flex items-start">
+                <FaInfoCircle className="mr-1.5 mt-0.5 flex-shrink-0" size={12} />
+                <span>BookKeep Pro operates <strong>entirely on your device</strong> - this app has <strong>zero access</strong> to your data</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-start text-amber-700 dark:text-amber-300">
+                  <FaUserShield className="mr-1.5 mt-0.5 flex-shrink-0" size={12} />
+                  <span>No accounts created</span>
+                </div>
+                <div className="flex items-start text-amber-700 dark:text-amber-300">
+                  <FaLock className="mr-1.5 mt-0.5 flex-shrink-0" size={12} />
+                  <span>AES-256 encryption</span>
+                </div>
+                <div className="flex items-start text-amber-700 dark:text-amber-300">
+                  <FaDesktop className="mr-1.5 mt-0.5 flex-shrink-0" size={12} />
+                  <span>Stored locally only</span>
+                </div>
+                <div className="flex items-start text-amber-700 dark:text-amber-300">
+                  <FaDatabase className="mr-1.5 mt-0.5 flex-shrink-0" size={12} />
+                  <span>No cloud storage</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Important notice with danger signal */}
+            <div className="bg-red-500/10 border-t border-red-400/20 px-4 py-2.5 flex items-start">
+              <div className="p-1 rounded-full bg-red-500/20 mr-2 mt-0.5">
+                <FaExclamationTriangle className="text-red-600 dark:text-red-400" size={10} />
+              </div>
+              <p className="text-2xs text-red-700 dark:text-red-300">
+                By using BookKeep Pro, you acknowledge that we cannot access your data and are not liable for how you use this application or who you share your exported data with.
+              </p>
+            </div>
+          </div>
+          
+          <form onSubmit={(e) => { 
+            e.preventDefault(); 
+            completeBusinessOnboarding();
+          }}>
+            {/* Basic Information Section */}
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <div className={`p-1.5 rounded-full bg-${currentTheme.primary}/10 mr-2`}>
+                  <FaBuilding className={`text-${currentTheme.primary}`} size={14} />
+                </div>
+                <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Basic Information</h4>
               </div>
               
-              <div className="px-6 py-4">
-                {!businessInfo.name && (
-                  <p className={`mb-4 text-${currentTheme.text}`}>
-                    Let's personalize your bookkeeping system. Please provide information about your business:
-                  </p>
-                )}
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex items-center justify-between`}>
+                    <span>Business Name</span>
+                    <span className="text-xs text-red-500 font-medium">Required</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="name"
+                    value={businessFormData.name}
+                    onChange={handleBusinessFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                    required
+                    placeholder="Enter your business name"
+                  />
+                </div>
                 
-                <form onSubmit={(e) => { 
-                  e.preventDefault(); 
-                  completeBusinessOnboarding();
-                }}>
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Name *</label>
-                    <input 
-                      type="text" 
-                      name="name"
-                      value={businessFormData.name}
-                      onChange={handleBusinessFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                      placeholder="Enter your business name"
-                    />
-                  </div>
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex items-center justify-between`}>
+                    <span>Business Type</span>
+                    <span className="text-xs text-red-500 font-medium">Required</span>
+                  </label>
                   
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Type *</label>
+                  <div className="relative">
                     <select 
                       name="type"
                       title="Business Type"
                       value={businessFormData.type}
                       onChange={handleBusinessFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
                       required
                     >
                       {businessTypes.map(type => (
                         <option key={type} value={type}>{type}</option>
                       ))}
                     </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <FaChevronDown className={`h-3.5 w-3.5 text-${currentTheme.text}/50`} />
+                    </div>
                   </div>
-                  
-                  {/* Currency Selection */}
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                      Base Currency *
-                      <span className="ml-1 text-xs text-gray-400">(Your primary currency for bookkeeping)</span>
-                    </label>
-                    <select 
-                      name="baseCurrency"
-                      title="Base Currency"
-                      value={businessFormData.baseCurrency || ""}
-                      onChange={handleBusinessFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      required
-                    >
-                      <option value="" disabled>Select your base currency</option>
-                      {currencies.map(currency => (
-                        <option key={currency.code} value={currency.code}>
-                          {currency.symbol} {currency.code} - {currency.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-400">
-                      This will be your default currency. All reports and calculations will use this as the base.
-                    </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Currency Section */}
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <div className={`p-1.5 rounded-full bg-${currentTheme.accent}/10 mr-2`}>
+                  <FaMoneyBillWave className={`text-${currentTheme.accent}`} size={14} />
+                </div>
+                <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Currency Settings</h4>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex items-center justify-between`}>
+                  <span>Base Currency</span>
+                  <span className="text-xs text-red-500 font-medium">Required</span>
+                </label>
+                
+                <div className="relative">
+                  <select 
+                    name="baseCurrency"
+                    title="Base Currency"
+                    value={businessFormData.baseCurrency || ""}
+                    onChange={handleBusinessFormChange}
+                    className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm appearance-none`}
+                    required
+                  >
+                    <option value="" disabled>Select your base currency</option>
+                    {currencies.map(currency => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.symbol} {currency.code} - {currency.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <FaChevronDown className={`h-3.5 w-3.5 text-${currentTheme.text}/50`} />
                   </div>
-                  
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Address</label>
+                </div>
+                
+                <p className="mt-1.5 text-xs text-gray-500 flex items-start">
+                  <FaInfoCircle className="mr-1.5 mt-0.5 flex-shrink-0" size={10} />
+                  <span>This will be your default currency for all transactions, reports and calculations</span>
+                </p>
+              </div>
+            </div>
+            
+            {/* Contact Information Section */}
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <div className={`p-1.5 rounded-full bg-${currentTheme.success}/10 mr-2`}>
+                  <FaAddressCard className={`text-${currentTheme.success}`} size={14} />
+                </div>
+                <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Contact Information (Optional)</h4>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Business Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="text-gray-400" size={14} />
+                    </div>
                     <input 
                       type="text" 
                       name="address"
                       value={businessFormData.address}
                       onChange={handleBusinessFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      placeholder="Optional: Enter your business address"
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="Enter your business address"
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="mb-4">
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Phone Number</label>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Phone Number</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <FaPhone className="text-gray-400" size={14} />
+                      </div>
                       <input 
                         type="tel" 
                         name="phone"
                         value={businessFormData.phone}
                         onChange={handleBusinessFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        placeholder="Optional: Phone number"
+                        className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        placeholder="Phone number"
                       />
                     </div>
-                    
-                    <div className="mb-4">
-                      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Email Address</label>
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Email Address</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <FaEnvelope className="text-gray-400" size={14} />
+                      </div>
                       <input 
                         type="email" 
                         name="email"
                         value={businessFormData.email}
                         onChange={handleBusinessFormChange}
-                        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                        placeholder="Optional: Email address"
+                        className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                        placeholder="Email address"
                       />
                     </div>
                   </div>
-                  
-                  <div className="mb-4">
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Year Established</label>
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>Year Established</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaCalendarAlt className="text-gray-400" size={14} />
+                    </div>
                     <input 
                       type="text" 
                       name="established"
                       value={businessFormData.established}
                       onChange={handleBusinessFormChange}
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                      placeholder="Optional: Year established"
+                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+                      placeholder="Year established (e.g., 2023)"
                       pattern="[0-9]*"
                     />
                   </div>
-                  
-                  <div className={`flex justify-end space-x-3 mt-8 pt-4 border-t border-${currentTheme.border}`}>
-                    {businessInfo.name && (
-                      <button 
-                        type="button"
-                        onClick={() => setShowBusinessOnboarding(false)}
-                        className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm`}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <button 
-                      type="submit"
-                      className={`px-5 py-2.5 bg-${currentTheme.primary} hover:bg-${currentTheme.primary}/80 text-${currentTheme.buttonText} rounded-lg shadow-sm font-medium transition-all duration-200 flex items-center text-sm`}
-                    >
-                      <FaSave className="mr-2 h-4 w-4" /> 
-                      {businessInfo.name ? 'Update Business Info' : 'Get Started'}
-                    </button>
-                  </div>
-                </form>
+                </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+            
+            {/* Data security reminder - Condensed version */}
+            <div className={`mb-3 p-3 rounded-lg border border-${currentTheme.border} bg-${currentTheme.background}`}>
+              <div className="flex items-start">
+                <div className={`p-1 rounded-full bg-${currentTheme.primary}/10 mr-2 mt-0.5`}>
+                  <FaDownload className={`text-${currentTheme.primary}`} size={12} />
+                </div>
+                <p className="text-xs text-gray-500">
+                  We recommend regularly <strong>exporting your data</strong> as a backup. Your data is stored locally and encrypted, but device failures or browser cleanups can result in data loss.
+                </p>
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        {/* Sticky action footer */}
+        <div className={`sticky bottom-0 z-10 border-t border-${currentTheme.border}/70 bg-${currentTheme.cardBackground}/90 backdrop-blur-sm p-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3`}>
+          {businessInfo.name && (
+            <button 
+              type="button"
+              onClick={() => setShowBusinessOnboarding(false)}
+              className={`px-4 py-2.5 bg-${currentTheme.background} hover:bg-${currentTheme.background}/80 text-${currentTheme.text} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${currentTheme.border} text-sm w-full sm:w-auto`}
+            >
+              Cancel
+            </button>
+          )}
+          <button 
+            type="submit"
+            onClick={(e) => { 
+              e.preventDefault(); 
+              completeBusinessOnboarding();
+            }}
+            className={`px-5 py-2.5 bg-gradient-to-r from-${currentTheme.primary} to-${currentTheme.accent} hover:from-${currentTheme.accent} hover:to-${currentTheme.primary} text-${currentTheme.buttonText} rounded-lg shadow-md font-medium transition-all duration-300 flex items-center justify-center space-x-2 text-sm w-full sm:w-auto`}
+          >
+            <FaSave className="h-4 w-4" />
+            <span>{businessInfo.name ? 'Update Business Info' : 'Get Started'}</span>
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
     </div>
   );
 }
