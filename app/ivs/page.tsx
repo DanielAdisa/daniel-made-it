@@ -7,7 +7,7 @@ import { FaBook, FaBoxOpen, FaBriefcase, FaChartLine, FaChartPie, FaHome, FaPlus
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
   FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
   FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown, FaMoneyCheckAlt, FaCalendarCheck ,FaArrowRight,FaExternalLinkAlt,FaCalendarDay,
-  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase,FaFolder} from "react-icons/fa";
+  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase,FaFolder,FaExclamationCircle} from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -508,6 +508,25 @@ interface BudgetFormData {
   notes?: string;
 }
 
+// Add this interface or update your existing one
+interface PayrollFormData {
+  id?: string;
+  employeeId?: string; // Add this missing property
+  employeeName: string;
+  position: string;
+  payPeriodStart: Date;
+  payPeriodEnd: Date;
+  baseSalary: number;
+  overtime?: number;
+  deductions?: number;
+  status?: 'paid' | 'pending';
+  paymentDate?: Date;
+  employeePhone: string;
+  employeeEmail: string;
+  employeeAddress: string;
+  notes?: string;
+}
+
 // Hook states and functions related to Budget management
 interface BudgetHookReturn {
   filteredBudgets: Budget[];
@@ -706,6 +725,7 @@ export default function BookKeepingSystem() {
 
 // Payroll form handling
 const [payrollFormData, setPayrollFormData] = useState({
+  employeeId: '', // Add this line
   employeeName: '',
   position: '',
   payPeriodStart: new Date(),
@@ -726,9 +746,9 @@ const handlePayrollFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 const handlePayrollSubmit = (e: React.FormEvent) => {
   e.preventDefault();
   const newPayroll: Payroll = {
-    id: `payroll-${Date.now()}`,
-    employeeId: 'emp-' + Date.now(), // Add a placeholder employeeId
     ...payrollFormData,
+    id: `payroll-${Date.now()}`,
+    employeeId: payrollFormData.employeeId || 'emp-' + Date.now(), // Use existing or generate new ID
     netPay: payrollFormData.baseSalary + payrollFormData.overtime - payrollFormData.deductions,
     status: 'pending'
   };
@@ -2546,6 +2566,7 @@ const validateInventoryTransaction = () => {
     });
   };
 
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState<string>('');
   
 
   // New functions for receipts
@@ -9097,105 +9118,205 @@ const generateBudgetReport = async (budget: Budget) => {
           <form onSubmit={handlePayrollSubmit}>
             {/* Form sections with subtle separators */}
             <div className="space-y-6">
-              {/* Employee Information Section */}
-              <div>
-                <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-4 flex items-center`}>
-                  <FaUser className="mr-2" size={14} />
-                  Employee Details
-                </h4>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
-                  <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                      Employee Name*
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Full name"
-                      value={payrollFormData.employeeName}
-                      onChange={handlePayrollFormChange}
-                      name="employeeName"
-                      required
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                      Position*
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Job title"
-                      value={payrollFormData.position}
-                      onChange={handlePayrollFormChange}
-                      name="position"
-                      required
-                      className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    />
-                  </div>
-                </div>
+              {/* Employee Selection with Search */}
+<div className="mb-5">
+  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex justify-between items-center`}>
+    <span>Select Employee</span>
+    <span className="text-xs text-gray-400">(Required)</span>
+  </label>
 
-                {/* Contact Fields */}
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                    Phone Number*
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaPhone className="text-gray-400" size={14} />
-                    </div>
-                    <input
-                      type="tel"
-                      placeholder="Employee contact number"
-                      value={payrollFormData.employeePhone}
-                      onChange={handlePayrollFormChange}
-                      name="employeePhone"
-                      required
-                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    />
-                  </div>
-                </div>
+  <div className="space-y-4">
+    {/* Search input */}
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <FaSearch className={`text-${currentTheme.accent} h-4 w-4 opacity-70`} />
+      </div>
+      <input
+        type="text"
+        placeholder="Search employees by name or position..."
+        value={employeeSearchQuery || ''}
+        onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+        className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+      />
+    </div>
 
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaEnvelope className="text-gray-400" size={14} />
-                    </div>
-                    <input
-                      type="email"
-                      placeholder="employee@example.com"
-                      value={payrollFormData.employeeEmail}
-                      onChange={handlePayrollFormChange}
-                      name="employeeEmail"
-                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    />
-                  </div>
-                </div>
+    {/* Filtered Dropdown */}
+    <div className="relative">
+      <select
+        title="Select employee"
+        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg appearance-none focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm ${!payrollFormData.employeeId ? 'text-gray-400' : ''}`}
+        value={payrollFormData.employeeId || ''}
+        onChange={(e) => {
+          const employeeId = e.target.value;
+          if (employeeId) {
+            // Find the selected employee
+            const selectedEmployee = employees.find(emp => emp.id === employeeId);
+            if (selectedEmployee) {
+              // Populate the form with employee data
+              setPayrollFormData({
+                ...payrollFormData,
+                employeeId: selectedEmployee.id,
+                employeeName: selectedEmployee.name,
+                position: selectedEmployee.position,
+                employeePhone: selectedEmployee.phone || '',
+                employeeEmail: selectedEmployee.email || '',
+                employeeAddress: selectedEmployee.address || ''
+              });
+              // Clear search query after selection
+              setEmployeeSearchQuery('');
+            }
+          }
+        }}
+        required
+      >
+        <option value="" disabled>-- Select an employee --</option>
+        {employees
+          .filter(emp => 
+            !employeeSearchQuery || 
+            emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
+            emp.position.toLowerCase().includes(employeeSearchQuery.toLowerCase())
+          )
+          .map(employee => (
+            <option key={employee.id} value={employee.id}>
+              {employee.name} - {employee.position}
+            </option>
+          ))
+        }
+      </select>
+      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+        <FaChevronDown className={`h-4 w-4 text-${currentTheme.text}/50`} />
+      </div>
+    </div>
+    
+    {employees.length > 0 ? (
+      <p className="text-xs text-gray-400 ml-1">
+        {payrollFormData.employeeId ? 
+          'Employee details automatically populated below' :
+          `Select from ${employees.length} available employees`}
+      </p>
+    ) : (
+      <p className="text-xs text-amber-500 ml-1 flex items-center">
+        <FaExclamationCircle className="mr-1" size={12} />
+        No employees found. Please add employees first to continue.
+      </p>
+    )}
+  </div>
+</div>
 
-                <div>
-                  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-                    Physical Address*
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 pt-3 pointer-events-none">
-                      <FaMapMarkerAlt className="text-gray-400" size={14} />
-                    </div>
-                    <textarea
-                      placeholder="Street address, city, state, zip code"
-                      value={payrollFormData.employeeAddress}
-                      onChange={(e) => setPayrollFormData({...payrollFormData, employeeAddress: e.target.value})}
-                      name="employeeAddress"
-                      required
-                      rows={2}
-                      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
-                    />
-                  </div>
-                </div>
-              </div>
+{/* Employee Information Section - Now disabled once populated */}
+<div className="mt-6">
+  <h4 className={`text-sm uppercase tracking-wider text-${currentTheme.accent} font-medium mb-4 flex items-center`}>
+    <FaUser className="mr-2" size={14} />
+    Employee Details
+  </h4>
+  
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+    <div>
+      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+        Employee Name*
+      </label>
+      <input
+        type="text"
+        placeholder="Employee name will appear here"
+        value={payrollFormData.employeeName}
+        onChange={handlePayrollFormChange}
+        name="employeeName"
+        readOnly={true}
+        disabled={true}
+        required
+        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${payrollFormData.employeeId ? currentTheme.text : 'gray-400'} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+      />
+    </div>
+    
+    <div>
+      <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+        Position*
+      </label>
+      <input
+        type="text"
+        placeholder="Position will appear here"
+        value={payrollFormData.position}
+        onChange={handlePayrollFormChange}
+        name="position"
+        readOnly={true}
+        disabled={true}
+        required
+        className={`w-full p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${payrollFormData.employeeId ? currentTheme.text : 'gray-400'} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+      />
+    </div>
+  </div>
+
+  {/* Contact Fields */}
+  <div className="mb-4">
+    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+      Phone Number
+    </label>
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <FaPhone className="text-gray-400" size={14} />
+      </div>
+      <input
+        type="tel"
+        placeholder="Phone number will appear here"
+        value={payrollFormData.employeePhone}
+        onChange={handlePayrollFormChange}
+        name="employeePhone"
+        readOnly={true}
+        disabled={true}
+        className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${payrollFormData.employeeId ? currentTheme.text : 'gray-400'} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+      />
+    </div>
+  </div>
+
+  <div className="mb-4">
+    <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+      Email Address
+    </label>
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <FaEnvelope className="text-gray-400" size={14} />
+      </div>
+      <input
+        type="email"
+        placeholder="Email will appear here"
+        value={payrollFormData.employeeEmail}
+        onChange={handlePayrollFormChange}
+        name="employeeEmail"
+        readOnly={true}
+        disabled={true}
+        className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${payrollFormData.employeeId ? currentTheme.text : 'gray-400'} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+      />
+    </div>
+  </div>
+
+  <div>
+  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
+    Physical Address
+  </label>
+  <div className="relative">
+    <div className="absolute inset-y-0 left-0 pl-3 pt-3 pointer-events-none">
+      <FaMapMarkerAlt className="text-gray-400" size={14} />
+    </div>
+    <textarea
+      placeholder="Address will appear here"
+      value={payrollFormData.employeeAddress}
+      onChange={(e) => setPayrollFormData({...payrollFormData, employeeAddress: e.target.value})}
+      name="employeeAddress"
+      readOnly={true}
+      disabled={true}
+      rows={2}
+      className={`w-full pl-10 p-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${payrollFormData.employeeId ? currentTheme.text : 'gray-400'} rounded-lg focus:ring-2 focus:ring-${currentTheme.primary} focus:border-${currentTheme.primary} transition-all duration-200 text-sm`}
+    />
+  </div>
+</div>
+  
+  {!payrollFormData.employeeId && (
+    <div className={`mt-4 flex items-center p-3 bg-amber-100 text-amber-700 rounded-lg border border-amber-200`}>
+      <FaInfoCircle className="flex-shrink-0 mr-2" />
+      <p className="text-sm">Please select an employee above to proceed with payroll processing</p>
+    </div>
+  )}
+</div>
 
               {/* Divider */}
               <div className={`h-0.5 w-full bg-gradient-to-r from-transparent via-${currentTheme.border} to-transparent opacity-30`}></div>
