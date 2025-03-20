@@ -163,14 +163,14 @@ const TetrisGame = () => {
 
   // Get drop time based on level and selected game speed
   const calculateDropTime = useCallback(() => {
-    const baseSpeed = 1000; // Base speed in ms
+    const baseSpeed = 750; // Reduced from 1000 to make game faster
     const speedMultipliers = {
-      slow: 1.5,
-      medium: 1.0,
-      fast: 0.6
+      slow: 1.2,    // Faster than before (was 1.5)
+      medium: 0.8,  // Faster than before (was 1.0)
+      fast: 0.4     // Faster than before (was 0.6)
     };
     
-    return (baseSpeed / (level)) * speedMultipliers[gameSpeed] + 200;
+    return (baseSpeed / (level)) * speedMultipliers[gameSpeed] + 150; // Reduced from 200
   }, [level, gameSpeed]);
 
   // Toggle pause state
@@ -604,7 +604,7 @@ const TetrisGame = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 py-6 px-3 overflow-hidden">
+    <div className="flex flex-col items-center justify-start min-h-screen bg-black py-4 px-3 overflow-hidden bg-[url('/retro-grid-bg.png')] bg-repeat">
       {/* Audio elements */}
       <audio ref={backgroundMusicRef} loop preload="auto">
         <source src="/audio/tetris-theme.mp3" type="audio/mpeg" />
@@ -619,146 +619,160 @@ const TetrisGame = () => {
         <source src="/audio/game-over.mp3" type="audio/mpeg" />
       </audio>
       
-      <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white text-center drop-shadow-lg">
-        <span className="text-red-500">T</span>
-        <span className="text-blue-500">e</span>
-        <span className="text-green-500">t</span>
-        <span className="text-yellow-500">r</span>
-        <span className="text-purple-500">i</span>
-        <span className="text-red-500">s</span>
+      {/* Retro Header */}
+      <h1 className="text-4xl md:text-5xl font-bold mb-2 text-center tracking-widest uppercase">
+        <span className="text-red-500 animate-pulse inline-block">T</span>
+        <span className="text-blue-500 inline-block">E</span>
+        <span className="text-green-500 inline-block">T</span>
+        <span className="text-yellow-500 inline-block">R</span>
+        <span className="text-purple-500 inline-block">I</span>
+        <span className="text-red-500 animate-pulse inline-block">S</span>
       </h1>
-
-      <div className="flex flex-col md:flex-row items-center md:items-start justify-center w-full max-w-6xl gap-6">
-        {/* Game Controls Panel */}
-        <div className="w-full md:w-1/3 bg-gray-800/90 p-5 rounded-xl shadow-2xl mb-4 md:mb-0 order-2 md:order-1 backdrop-blur-sm border border-gray-700">
-          <div className="grid grid-cols-3 gap-3 text-center text-white mb-5">
-            <div className="bg-gradient-to-br from-gray-700 to-gray-800 p-3 rounded-lg shadow-inner">
-              <div className="text-sm font-medium opacity-80">Score</div>
-              <div className="text-2xl font-bold">{score}</div>
+      
+      {/* Quick controls tip banner */}
+      <div className="w-full max-w-3xl mb-4 bg-red-600 text-white text-center py-1 px-2 text-sm border-t-2 border-b-2 border-yellow-400 shadow-lg">
+        <p>⬅️➡️: Move | ⬆️: Rotate | ⬇️: Drop | Space: Pause | Swipe/Tap to control on mobile</p>
+      </div>
+      
+      {/* Main Game Layout */}
+      <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-6xl gap-4">
+        {/* Game Panel & Controls - Now Positioned Before Game Area */}
+        <div className="w-full md:w-1/3 bg-gray-900 p-4 rounded-lg order-1 border-4 border-cyan-500 shadow-[0_0_10px_#0ff]">
+          {/* Game Status Panel */}
+          <div className="grid grid-cols-3 gap-3 text-center mb-4">
+            <div className="bg-black p-3 rounded border-2 border-green-500">
+              <div className="text-sm font-bold text-green-300">SCORE</div>
+              <div className="text-2xl font-mono text-green-400">{score}</div>
             </div>
-            <div className="bg-gradient-to-br from-gray-700 to-gray-800 p-3 rounded-lg shadow-inner">
-              <div className="text-sm font-medium opacity-80">Level</div>
-              <div className="text-2xl font-bold">{level}</div>
+            <div className="bg-black p-3 rounded border-2 border-yellow-500">
+              <div className="text-sm font-bold text-yellow-300">LEVEL</div>
+              <div className="text-2xl font-mono text-yellow-400">{level}</div>
             </div>
-            <div className="bg-gradient-to-br from-gray-700 to-gray-800 p-3 rounded-lg shadow-inner">
-              <div className="text-sm font-medium opacity-80">Rows</div>
-              <div className="text-2xl font-bold">{rows}</div>
+            <div className="bg-black p-3 rounded border-2 border-blue-500">
+              <div className="text-sm font-bold text-blue-300">ROWS</div>
+              <div className="text-2xl font-mono text-blue-400">{rows}</div>
             </div>
           </div>
-          
+
+          {/* Game Over Message */}
           {gameOver && (
-            <div className="bg-gradient-to-r from-red-900 to-red-800 text-white p-4 rounded-lg mb-5 text-center shadow-lg border border-red-700">
-              <h2 className="font-bold text-2xl mb-1">Game Over!</h2>
-              <p className="text-lg">Final Score: {score}</p>
+            <div className="bg-red-900 text-white p-4 rounded mb-4 text-center border-2 border-red-600 animate-pulse">
+              <h2 className="font-bold text-2xl mb-1 text-red-100">GAME OVER!</h2>
+              <p className="text-lg font-mono">Final Score: {score}</p>
             </div>
           )}
           
           {/* Game Speed Selection */}
-          <div className="mb-5">
-            <label className="block text-white text-sm font-medium mb-2">Game Speed:</label>
-            <div className="flex gap-3">
+          <div className="mb-3">
+            <label className="block text-white font-bold mb-2 text-shadow-md">GAME SPEED:</label>
+            <div className="flex gap-2">
               <button 
-                className={`flex-1 py-2 px-3 rounded-md text-white text-sm font-medium transition-all ${gameSpeed === 'slow' ? 'bg-green-600 shadow-md scale-105' : 'bg-gray-600 hover:bg-gray-500'}`}
+                className={`flex-1 py-2 px-3 rounded font-bold text-white transition-all ${gameSpeed === 'slow' ? 'bg-green-600 border-2 border-white' : 'bg-green-900 hover:bg-green-700'}`}
                 onClick={() => setGameSpeed('slow')}
               >
-                Slow
+                SLOW
               </button>
               <button 
-                className={`flex-1 py-2 px-3 rounded-md text-white text-sm font-medium transition-all ${gameSpeed === 'medium' ? 'bg-blue-600 shadow-md scale-105' : 'bg-gray-600 hover:bg-gray-500'}`}
+                className={`flex-1 py-2 px-3 rounded font-bold text-white transition-all ${gameSpeed === 'medium' ? 'bg-blue-600 border-2 border-white' : 'bg-blue-900 hover:bg-blue-700'}`}
                 onClick={() => setGameSpeed('medium')}
               >
-                Medium
+                MEDIUM
               </button>
               <button 
-                className={`flex-1 py-2 px-3 rounded-md text-white text-sm font-medium transition-all ${gameSpeed === 'fast' ? 'bg-red-600 shadow-md scale-105' : 'bg-gray-600 hover:bg-gray-500'}`}
+                className={`flex-1 py-2 px-3 rounded font-bold text-white transition-all ${gameSpeed === 'fast' ? 'bg-red-600 border-2 border-white' : 'bg-red-900 hover:bg-red-700'}`}
                 onClick={() => setGameSpeed('fast')}
               >
-                Fast
+                FAST
               </button>
             </div>
           </div>
           
-          <div className="flex gap-3 mb-4">
+          {/* Game Control Buttons */}
+          <div className="flex gap-2 mb-3">
             <button 
-              className="flex-1 bg-gradient-to-br from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white py-3 px-4 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none transition-all shadow-lg font-medium"
+              className="flex-1 bg-purple-700 hover:bg-purple-600 text-white py-3 px-4 rounded border-b-4 border-r-4 border-purple-900 hover:border-purple-800 font-bold transition-all active:translate-y-1"
               onClick={startGame}
             >
-              {gameOver ? 'Restart Game' : 'Start Game'}
+              {gameOver ? 'RESTART' : 'START'}
             </button>
             
             <button 
-              className={`flex-1 text-white py-3 px-4 rounded-lg focus:ring-2 focus:outline-none transition-all shadow-lg font-medium
+              className={`flex-1 text-white py-3 px-4 rounded border-b-4 border-r-4 font-bold transition-all active:translate-y-1
                 ${isPaused 
-                ? 'bg-gradient-to-br from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 focus:ring-green-400' 
-                : 'bg-gradient-to-br from-yellow-600 to-yellow-700 hover:from-yellow-500 hover:to-yellow-600 focus:ring-yellow-400'}`}
+                ? 'bg-green-700 hover:bg-green-600 border-green-900' 
+                : 'bg-yellow-700 hover:bg-yellow-600 border-yellow-900'}`}
               onClick={togglePause}
               disabled={gameOver || dropTime === null}
             >
-              {isPaused ? 'Resume' : 'Pause'}
+              {isPaused ? 'RESUME' : 'PAUSE'}
             </button>
           </div>
           
-          <button 
-            className="w-full bg-gradient-to-br from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white py-2 px-3 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none transition-all mb-4 shadow-md font-medium"
-            onClick={toggleControls}
-          >
-            {showControls ? 'Hide Controls' : 'Show Controls'}
-          </button>
-          
-          {/* Restore rotation warning since we're re-enabling rotation */}
-          {rotationDegree === 180 && (
-            <div className="mt-3 bg-yellow-800 text-yellow-100 p-2 rounded text-center text-sm">
-              <p>⚠️ Controls have reversed due to rotation</p>
-            </div>
-          )}
-          
-          {showControls && (
-            <div className="mt-4 bg-gradient-to-br from-gray-700 to-gray-800 p-4 rounded-lg text-white text-sm shadow-inner border border-gray-600">
-              <h3 className="font-bold mb-3 text-base">Controls:</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner">←→</span>
-                  <span className="text-gray-200">Move</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner">↑</span>
-                  <span className="text-gray-200">Rotate</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner">↓</span>
-                  <span className="text-gray-200">Drop</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner">Space</span>
-                  <span className="text-gray-200">Pause</span>
-                </div>
-                
-                <h4 className="font-bold mt-4 mb-2 border-t border-gray-600 pt-3 text-base">Mobile:</h4>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner text-xs">Swipe Left/Right</span>
-                  <span className="text-gray-200">Move</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner text-xs">Swipe Up</span>
-                  <span className="text-gray-200">Rotate</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner text-xs">Swipe Down</span>
-                  <span className="text-gray-200">Drop</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="bg-gray-600 px-3 py-1 rounded-md shadow-inner text-xs">Tap</span>
-                  <span className="text-gray-200">Rotate</span>
+          {/* Controls Section - Now Always Visible */}
+          <div className="bg-gray-800 p-3 rounded text-white text-sm border-2 border-gray-600">
+            <h3 className="font-bold mb-2 text-center text-yellow-300 text-shadow-md border-b border-yellow-500 pb-1">HOW TO PLAY</h3>
+            
+            <div className="grid grid-cols-2 gap-2">
+              {/* Keyboard controls */}
+              <div>
+                <h4 className="font-bold text-center text-cyan-400 mb-1">KEYBOARD</h4>
+                <div className="space-y-1 text-center">
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">←→</span>
+                    <span>Move</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">↑</span>
+                    <span>Rotate</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">↓</span>
+                    <span>Drop</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">Space</span>
+                    <span>Pause</span>
+                  </div>
                 </div>
               </div>
+              
+              {/* Mobile controls */}
+              <div>
+                <h4 className="font-bold text-center text-pink-400 mb-1">MOBILE</h4>
+                <div className="space-y-1 text-center">
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">←Swipe→</span>
+                    <span>Move</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Swipe↑</span>
+                    <span>Rotate</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Swipe↓</span>
+                    <span>Drop</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Tap</span>
+                    <span>Rotate</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Rotation warning */}
+          {rotationDegree === 180 && (
+            <div className="mt-3 bg-yellow-800 text-yellow-100 p-2 rounded text-center text-sm border border-yellow-600">
+              <p>⚠️ Controls have reversed due to rotation!</p>
             </div>
           )}
         </div>
 
-        {/* Game Area - Fixed sizing for better visibility */}
+        {/* Game Area - With retro styling */}
         <motion.div 
           ref={gameAreaRef}
-          className="relative border-4 border-gray-700 bg-black/70 order-1 md:order-2 transition-transform w-[280px] sm:w-[320px] md:w-[300px] lg:w-[380px] h-[560px] sm:h-[640px] md:h-[600px] lg:h-[760px] rounded-lg shadow-2xl"
+          className="relative order-2 md:order-2 w-[280px] sm:w-[320px] md:w-[300px] lg:w-[380px] h-[560px] sm:h-[640px] md:h-[600px] lg:h-[760px] border-8 border-gray-800 bg-black rounded shadow-[0_0_15px_rgba(255,255,255,0.2)] overflow-hidden"
           variants={shakeVariants}
           animate={isShaking ? "shaking" : {
             rotate: rotationDegree,
@@ -772,6 +786,9 @@ const TetrisGame = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
+          {/* Scanline effect overlay for CRT look */}
+          <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(0,0,0,0.1)_1px,transparent_1px)] bg-[size:100%_2px] opacity-20 z-10"></div>
+          
           <div className="grid grid-rows-20 h-full w-full">
             {stage.map((row, y) => (
               <div key={y} className="flex h-full">
@@ -786,20 +803,17 @@ const TetrisGame = () => {
                       className={`
                         aspect-square h-full
                         ${isFilled 
-                          ? `${colorClass} border border-white/10 relative group`
-                          : 'border border-gray-700/20'}
+                          ? `${colorClass} border border-white/20 shadow-[inset_0_0_4px_rgba(255,255,255,0.6)] relative`
+                          : 'border border-gray-900 bg-gray-950/75'}
                       `}
                     >
-                      {/* 3D effect with Tailwind only */}
+                      {/* Enhanced 3D effect with Tailwind */}
                       {isFilled && (
                         <>
-                          {/* Top highlight */}
-                          <div className="absolute inset-0 bg-white/50 rounded-sm w-full h-[35%] top-0 left-0"></div>
-                          {/* Bottom shadow */}
-                          <div className="absolute inset-0 bg-black/30 rounded-sm w-full h-[25%] bottom-0 right-0"></div>
-                          {/* Side shadow for 3D depth */}
-                          <div className="absolute right-0 top-0 h-full w-[15%] bg-black/20"></div>
-                          <div className="absolute bottom-0 left-0 w-full h-[15%] bg-black/20"></div>
+                          <div className="absolute inset-0 bg-white/50 rounded-sm w-full h-[40%] top-0 left-0"></div>
+                          <div className="absolute inset-0 bg-black/40 rounded-sm w-full h-[30%] bottom-0 right-0"></div>
+                          <div className="absolute right-0 top-0 h-full w-[15%] bg-black/30"></div>
+                          <div className="absolute bottom-0 left-0 w-full h-[15%] bg-black/30"></div>
                         </>
                       )}
                     </div>
@@ -809,17 +823,17 @@ const TetrisGame = () => {
             ))}
           </div>
 
-          {/* Pause Overlay */}
+          {/* Pause Overlay - Retro styled */}
           {isPaused && (
-            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center rounded-lg">
-              <div className="text-white text-center bg-gray-800/50 p-6 rounded-xl border border-gray-700 shadow-2xl">
-                <h2 className="text-3xl font-bold mb-3">PAUSED</h2>
-                <p className="mb-5 text-gray-300">Press Space or tap Resume to continue</p>
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center">
+              <div className="text-white text-center bg-blue-900/90 p-6 rounded border-4 border-yellow-500 shadow-[0_0_20px_rgba(255,255,0,0.5)]">
+                <h2 className="text-3xl font-bold mb-3 text-yellow-300 animate-pulse">PAUSED</h2>
+                <p className="mb-5 text-cyan-300">Press Space or tap Resume to continue</p>
                 <button
-                  className="bg-gradient-to-br from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white py-2 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition-all font-medium"
+                  className="bg-green-600 hover:bg-green-500 text-white py-2 px-6 rounded font-bold border-b-4 border-r-4 border-green-900 active:translate-y-1 transition-transform"
                   onClick={togglePause}
                 >
-                  Resume Game
+                  RESUME
                 </button>
               </div>
             </div>
@@ -827,17 +841,17 @@ const TetrisGame = () => {
         </motion.div>
       </div>
       
-      {/* Add a small preview of available tetrominos with their colors */}
-      <div className="mt-6 bg-gray-800/80 p-3 rounded-lg shadow-lg border border-gray-700 backdrop-blur-sm">
-        <h3 className="text-white text-center font-medium mb-2">Tetromino Colors</h3>
-        <div className="flex gap-2 justify-center">
+      {/* Tetromino preview with retro styling */}
+      <div className="mt-4 bg-gray-900 p-3 rounded shadow-lg border-2 border-pink-500">
+        <h3 className="text-white text-center font-bold mb-2 text-shadow-md">TETROMINO GUIDE</h3>
+        <div className="flex gap-3 justify-center">
           {Object.keys(TETROMINOS).filter(key => key !== '0').map((key) => (
             <div key={key} className="w-8 h-8 relative">
-              <div className={`w-full h-full ${TETROMINOS[key as TetrominoKey].bgClass} rounded shadow-md relative`}>
+              <div className={`w-full h-full ${TETROMINOS[key as TetrominoKey].bgClass} rounded shadow-inner border border-white/30 relative`}>
                 <div className="absolute inset-0 bg-white/40 rounded-sm w-full h-1/3 top-0 left-0"></div>
-                <div className="absolute inset-0 bg-black/20 rounded-sm w-full h-1/4 bottom-0 right-0"></div>
+                <div className="absolute inset-0 bg-black/30 rounded-sm w-full h-1/4 bottom-0 right-0"></div>
               </div>
-              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-bold text-white text-xs">{key}</span>
+              <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-bold text-white text-sm">{key}</span>
             </div>
           ))}
         </div>
