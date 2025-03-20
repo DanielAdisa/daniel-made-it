@@ -7,7 +7,7 @@ import { FaBook, FaBoxOpen, FaBriefcase, FaChartLine, FaChartPie, FaHome, FaPlus
   FaArrowUp, FaArrowDown, FaCalendarAlt, FaPaperclip, FaFileInvoice, FaBox, FaTag, FaUtensils, FaCar, FaFilm, 
   FaMedkit, FaShoppingBag, FaFileInvoiceDollar, FaTags, FaShare, FaFileAlt, FaShoppingCart, FaExclamationTriangle,
   FaMoneyBillWave, FaCheckCircle, FaClock, FaFilter, FaSortAmountDown, FaMoneyCheckAlt, FaCalendarCheck ,FaArrowRight,FaExternalLinkAlt,FaCalendarDay,
-  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase} from "react-icons/fa";
+  FaAddressCard,FaEquals,FaSpinner,FaMoneyBill,FaPen,FaUserTie,FaIdCard,FaStickyNote,FaAddressBook,FaSuitcase,FaFolder} from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from 'uuid'; 
 import { toPng, toJpeg } from 'html-to-image';
@@ -207,6 +207,13 @@ interface EmployeeFormData {
   notes: string;
 }
 
+// Update your TempBudgetCategory interface
+interface TempBudgetCategory {
+  name: string;
+  allocated: number;
+  customName?: string; // For new category name input
+  color?: string; // For color selection of new category
+}
 
 // Add interface for app data
 interface AppData {
@@ -584,9 +591,11 @@ export default function BookKeepingSystem() {
     notes: ''
   });
 
-  const [tempBudgetCategory, setTempBudgetCategory] = useState({
-    name: "",
-    allocated: 0
+  const [tempBudgetCategory, setTempBudgetCategory] = useState<TempBudgetCategory>({
+    name: '',
+    allocated: 0,
+    customName: '',
+    color: ''
   });
 
   // Format date utility function
@@ -8679,128 +8688,305 @@ const generateBudgetReport = async (budget: Budget) => {
           </div>
         </div>
         
-        {/* Categories */}
-        <div>
-          <label className={`block text-sm font-medium text-${currentTheme.text} mb-1`}>
-            Budget Categories
-          </label>
+        {/* Categories - Enhanced Version */}
+<div>
+  <label className={`block text-sm font-medium text-${currentTheme.text} mb-1 flex justify-between items-center`}>
+    <span>Budget Categories</span>
+    <span className="text-xs text-gray-400">
+      {budgetFormData.categories.length} {budgetFormData.categories.length === 1 ? 'category' : 'categories'} added
+    </span>
+  </label>
+  
+  <div className={`mb-4 p-5 border border-${currentTheme.border} rounded-lg space-y-4 bg-${currentTheme.background}/30`}>
+    {/* Add Category Form with enhanced dropdown */}
+    <div>
+      {tempBudgetCategory.name === "new" ? (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-3 p-3 border border-dashed border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-800/30"
+        >
+          <div className="flex items-center mb-2">
+            <FaTags className={`mr-2 text-${currentTheme.accent}`} size={14} />
+            <h4 className={`text-sm font-medium text-${currentTheme.text}`}>Create New Category</h4>
+          </div>
           
-          <div className={`mb-4 p-4 border border-${currentTheme.border} rounded-md space-y-4`}>
-            {/* Add Category Form with Dropdown */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2">
-                <select
-                  name="name"
-                  title="Budget category"
-                  value={tempBudgetCategory.name === "new" ? "" : tempBudgetCategory.name}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === "new") {
-                      // Show a modal or inline form to create a new category
-                      // For simplicity, we'll just prompt for a name
-                      const newCategoryName = prompt("Enter new category name:");
-                      if (newCategoryName && newCategoryName.trim()) {
-                        setTempBudgetCategory({
-                          ...tempBudgetCategory,
-                          name: newCategoryName.trim()
-                        });
-                      }
-                    } else {
-                      setTempBudgetCategory({
-                        ...tempBudgetCategory,
-                        name: value
-                      });
-                    }
-                  }}
-                  className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm`}
-                >
-                  <option value="">Select a category</option>
-                  {/* Filter to show only transaction-related categories */}
-                  {categories
-                    .filter(cat => cat.type === "transaction" || cat.type === "both")
-                    .map(category => (
-                      <option key={category.id} value={category.name}>
-                        {category.name}
-                      </option>
-                    ))}
-                  <option value="new" className={`text-${currentTheme.accent}`}>+ Create new category</option>
-                </select>
-              </div>
-              <div className="relative">
-                <span className={`absolute left-3 top-2 text-${currentTheme.text} text-sm`}>
-                  {selectedCurrency.symbol}
-                </span>
-                <input
-                  type="number"
-                  name="allocated"
-                  value={tempBudgetCategory.allocated}
-                  onChange={handleTempCategoryChange}
-                  placeholder="Amount"
-                  min="0"
-                  step="0.01"
-                  className={`w-full pl-7 pr-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm`}
-                />
+          <div className="grid grid-cols-1 gap-2">
+            <div>
+              <input
+                type="text"
+                placeholder="Category name"
+                value={tempBudgetCategory.customName || ''}
+                onChange={(e) => setTempBudgetCategory({
+                  ...tempBudgetCategory,
+                  customName: e.target.value
+                })}
+                className={`w-full px-3 py-2 bg-${currentTheme.background} border border-${currentTheme.border} rounded-md text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm`}
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex items-center">
+              <span className="mr-2 text-xs text-gray-500">Color:</span>
+              <div className="flex space-x-1">
+                {['red', 'blue', 'green', 'purple', 'amber', 'emerald', 'fuchsia', 'indigo'].map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setTempBudgetCategory({
+                      ...tempBudgetCategory,
+                      color: color
+                    })}
+                    className={`w-5 h-5 rounded-full bg-${color}-500 ${
+                      tempBudgetCategory.color === color 
+                        ? `ring-2 ring-${currentTheme.accent} ring-offset-1` 
+                        : ''
+                    }`}
+                    aria-label={`Select ${color} color`}
+                  />
+                ))}
               </div>
             </div>
             
-            <button
-              type="button"
-              onClick={() => {
-                if (!tempBudgetCategory.name || tempBudgetCategory.allocated <= 0) {
-                  toast.error("Please enter a valid category name and amount");
-                  return;
-                }
-                
-                // Check if it's a new category we need to add to the main categories
-                const existingCategory = categories.find(
-                  cat => cat.name.toLowerCase() === tempBudgetCategory.name.toLowerCase()
-                );
-                
-                if (!existingCategory) {
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => setTempBudgetCategory({
+                  ...tempBudgetCategory,
+                  name: '',
+                  customName: '',
+                  color: ''
+                })}
+                className={`py-1.5 px-3 bg-${currentTheme.background} border border-${currentTheme.border} text-${currentTheme.text} rounded-md text-xs`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!tempBudgetCategory.customName?.trim()) {
+                    toast.error("Please enter a category name");
+                    return;
+                  }
+                  
                   // Create a new category in the main category list
                   const newCategory = {
                     id: uuidv4(),
-                    name: tempBudgetCategory.name,
-                    type: "transaction" as "inventory" | "transaction" | "both", // Explicitly cast to union type
-                    description: `Budget category created from ${budgetFormData.name} budget`,
-                    color: "zinc-500" // Default color or generate randomly
+                    name: tempBudgetCategory.customName.trim(),
+                    type: "transaction" as "inventory" | "transaction" | "both",
+                    description: `Budget category created from ${budgetFormData.name || 'budget'}`,
+                    color: tempBudgetCategory.color || "zinc-500"
                   };
                   
                   // Add to categories list
                   setCategories(prev => [...prev, newCategory]);
-                  toast.success(`Added new category: ${tempBudgetCategory.name}`);
-                }
-                
-                // Add to budget form categories
-                addCategoryToForm();
-              }}
-              className={`w-full py-2 bg-${currentTheme.accent}/10 text-${currentTheme.accent} hover:bg-${currentTheme.accent}/20 rounded-md transition-colors text-sm flex items-center justify-center`}
-            >
-              <FaPlus className="mr-1" size={12} /> Add Category
-            </button>
-            
-            {/* Category List */}
-            <div className={`space-y-2 ${budgetFormData.categories.length > 0 ? `pt-4 border-t border-${currentTheme.border}` : ''}`}>
-              {budgetFormData.categories.map((category, index) => (
-                <div key={category.id || index} className="flex justify-between items-center">
-                  <span className={`text-${currentTheme.text} text-sm`}>{category.name}</span>
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-${currentTheme.accent} text-sm`}>
-                      {selectedCurrency.symbol}{category.allocated.toFixed(2)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeCategoryFromForm(category.id)}
-                      className={`text-${currentTheme.danger} hover:text-${currentTheme.danger}/80 p-1`}
-                    >
-                      <FaTrash size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  
+                  // Update tempBudgetCategory to use the new category
+                  setTempBudgetCategory({
+                    ...tempBudgetCategory,
+                    name: newCategory.name,
+                    customName: ''
+                  });
+                  
+                  toast.success(`Added new category: ${newCategory.name}`);
+                }}
+                className={`py-1.5 px-3 bg-${currentTheme.primary} text-${currentTheme.buttonText} rounded-md text-xs flex items-center justify-center`}
+              >
+                <FaSave className="mr-1" size={10} /> Save Category
+              </button>
             </div>
           </div>
+        </motion.div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2">
+            <div className="relative">
+              <select
+                name="name"
+                title="Budget category"
+                value={tempBudgetCategory.name === "new" ? "" : tempBudgetCategory.name}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTempBudgetCategory({
+                    ...tempBudgetCategory,
+                    name: value,
+                    color: value === "new" ? (tempBudgetCategory.color || "zinc-500") : ""
+                  });
+                }}
+                className={`w-full px-3 py-2.5 appearance-none bg-${currentTheme.background} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm pr-9`}
+              >
+                <option value="">Select a category</option>
+                {categories
+                  .filter(cat => cat.type === "transaction" || cat.type === "both")
+                  .map(category => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                <option value="new" className={`text-${currentTheme.accent} font-medium`}>+ Create new category</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <FaChevronDown className={`h-3.5 w-3.5 text-${currentTheme.text}/50`} />
+              </div>
+            </div>
+          </div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <span className={`text-${currentTheme.text}/70 text-sm font-medium`}>{selectedCurrency.symbol}</span>
+            </div>
+            <input
+              type="number"
+              name="allocated"
+              value={tempBudgetCategory.allocated || ''}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                setTempBudgetCategory({
+                  ...tempBudgetCategory,
+                  allocated: isNaN(value) ? 0 : value
+                });
+              }}
+              placeholder="Amount"
+              min="0"
+              step="0.01"
+              className={`w-full pl-7 pr-3 py-2.5 bg-${currentTheme.background} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} focus:outline-none focus:ring-2 focus:ring-${currentTheme.primary} text-sm`}
+            />
+          </div>
         </div>
+      )}
+    </div>
+    
+    {/* Add button - only show when not creating a new category */}
+    {tempBudgetCategory.name !== "new" && (
+      <button
+        type="button"
+        disabled={!tempBudgetCategory.name || tempBudgetCategory.allocated <= 0}
+        onClick={() => {
+          if (!tempBudgetCategory.name || tempBudgetCategory.allocated <= 0) {
+            toast.error("Please enter a valid category name and amount");
+            return;
+          }
+          
+          // Find the existing category to get its ID and color
+          const existingCategory = categories.find(
+            cat => cat.name.toLowerCase() === tempBudgetCategory.name.toLowerCase()
+          );
+          
+          if (!existingCategory) {
+            toast.error("Please select a valid category");
+            return;
+          }
+          
+          // Add to budget form categories
+          addCategoryToForm();
+        }}
+        className={`w-full py-2.5 bg-${currentTheme.accent}/10 text-${currentTheme.accent} hover:bg-${currentTheme.accent}/20 rounded-lg transition-colors text-sm flex items-center justify-center ${
+          !tempBudgetCategory.name || tempBudgetCategory.allocated <= 0
+            ? 'opacity-50 cursor-not-allowed'
+            : ''
+        }`}
+      >
+        <FaPlus className="mr-1.5" size={12} /> Add Category to Budget
+      </button>
+    )}
+    
+    {/* Category List with improved visuals */}
+    {budgetFormData.categories.length > 0 && (
+      <div className={`mt-4 pt-4 border-t border-${currentTheme.border}`}>
+        <div className="flex justify-between text-xs text-gray-500 mb-2 px-1">
+          <span>Category</span>
+          <span>Allocated Amount</span>
+        </div>
+        
+        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+          {budgetFormData.categories.map((category, index) => {
+            // Find the category in categories list to get its color
+            const categoryInfo = categories.find(cat => cat.name === category.name);
+            const categoryColor = categoryInfo?.color || "zinc";
+            
+            return (
+              <motion.div
+                key={category.id || index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className={`flex justify-between items-center p-2 rounded-lg border border-${currentTheme.border} bg-${currentTheme.background} group hover:bg-${currentTheme.background}/80`}
+              >
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full bg-${categoryColor}-500`}></div>
+                  <span className={`text-${currentTheme.text} text-sm font-medium`}>{category.name}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className={`text-${currentTheme.accent} text-sm font-mono`}>
+                    {selectedCurrency.symbol}{category.allocated.toFixed(2)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeCategoryFromForm(category.id)}
+                    className={`text-${currentTheme.danger}/0 group-hover:text-${currentTheme.danger}/80 hover:text-${currentTheme.danger} p-1 transition-colors`}
+                    aria-label="Remove category"
+                  >
+                    <FaTrash size={12} />
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+        
+        {/* Total allocated display */}
+        <div className={`flex justify-between items-center mt-3 pt-3 border-t border-${currentTheme.border} text-sm`}>
+          <span className={`font-medium text-${currentTheme.text}`}>Total Allocated:</span>
+          <span className={`font-bold text-${currentTheme.accent}`}>
+            {selectedCurrency.symbol}
+            {budgetFormData.categories.reduce((total, cat) => total + cat.allocated, 0).toFixed(2)}
+          </span>
+        </div>
+        
+        {/* Budget remaining indicator */}
+        {budgetFormData.targetAmount > 0 && (
+          <div className="mt-3">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-gray-500">
+                Budget remaining:
+              </span>
+              <span className={`${
+                budgetFormData.targetAmount - budgetFormData.categories.reduce((total, cat) => total + cat.allocated, 0) < 0
+                ? `text-${currentTheme.danger}` : `text-${currentTheme.success}`
+              } font-medium`}>
+                {selectedCurrency.symbol}
+                {(budgetFormData.targetAmount - budgetFormData.categories.reduce((total, cat) => total + cat.allocated, 0)).toFixed(2)}
+              </span>
+            </div>
+            <div className="relative h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className={`absolute h-full ${
+                  budgetFormData.categories.reduce((total, cat) => total + cat.allocated, 0) > budgetFormData.targetAmount
+                  ? `bg-${currentTheme.danger}`
+                  : `bg-${currentTheme.success}`
+                }`}
+                style={{
+                  width: `${Math.min(
+                    100,
+                    (budgetFormData.categories.reduce((total, cat) => total + cat.allocated, 0) / budgetFormData.targetAmount) * 100
+                  )}%`
+                }}
+              ></div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+    
+    {/* Empty state when no categories added */}
+    {budgetFormData.categories.length === 0 && (
+      <div className={`text-center py-3 text-sm text-gray-400 border border-dashed border-${currentTheme.border} rounded-lg mt-2`}>
+        <FaFolder className="mx-auto mb-1 opacity-50" />
+        No categories added yet
+      </div>
+    )}
+  </div>
+</div>
         
         {/* Notes */}
         <div>
