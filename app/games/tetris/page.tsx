@@ -144,6 +144,7 @@ const TetrisGame = () => {
   const [isShaking, setIsShaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [savedDropTime, setSavedDropTime] = useState<number | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
   
   // Audio refs
   const backgroundMusicRef = useRef<HTMLAudioElement>(null);
@@ -708,53 +709,67 @@ const TetrisGame = () => {
             </button>
           </div>
           
-          {/* Controls Section - Now Always Visible */}
+          {/* Controls Section - Now a Dropdown */}
           <div className="bg-gray-800 p-3 rounded text-white text-sm border-2 border-gray-600">
-            <h3 className="font-bold mb-2 text-center text-yellow-300 text-shadow-md border-b border-yellow-500 pb-1">HOW TO PLAY</h3>
+            <button 
+              onClick={() => setShowInstructions(!showInstructions)}
+              className="w-full flex justify-between items-center font-bold text-center text-yellow-300 text-shadow-md border-b border-yellow-500 pb-1 focus:outline-none"
+            >
+              <span>HOW TO PLAY</span>
+              <span className="transition-transform duration-300" style={{ transform: showInstructions ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                ▼
+              </span>
+            </button>
             
-            <div className="grid grid-cols-2 gap-2">
-              {/* Keyboard controls */}
-              <div>
-                <h4 className="font-bold text-center text-cyan-400 mb-1">KEYBOARD</h4>
-                <div className="space-y-1 text-center">
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">←→</span>
-                    <span>Move</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">↑</span>
-                    <span>Rotate</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">↓</span>
-                    <span>Drop</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">Space</span>
-                    <span>Pause</span>
+            <div 
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                showInstructions ? 'max-h-[300px] opacity-100 mt-2' : 'max-h-0 opacity-0'
+              }`}
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {/* Keyboard controls */}
+                <div>
+                  <h4 className="font-bold text-center text-cyan-400 mb-1">KEYBOARD</h4>
+                  <div className="space-y-1 text-center">
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">←→</span>
+                      <span>Move</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">↑</span>
+                      <span>Rotate</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">↓</span>
+                      <span>Drop</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded inline-block min-w-[40px] border border-gray-500">Space</span>
+                      <span>Pause</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              {/* Mobile controls */}
-              <div>
-                <h4 className="font-bold text-center text-pink-400 mb-1">MOBILE</h4>
-                <div className="space-y-1 text-center">
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">←Swipe→</span>
-                    <span>Move</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Swipe↑</span>
-                    <span>Rotate</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Swipe↓</span>
-                    <span>Drop</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Tap</span>
-                    <span>Rotate</span>
+                
+                {/* Mobile controls */}
+                <div>
+                  <h4 className="font-bold text-center text-pink-400 mb-1">MOBILE</h4>
+                  <div className="space-y-1 text-center">
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">←Swipe→</span>
+                      <span>Move</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Swipe↑</span>
+                      <span>Rotate</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Swipe↓</span>
+                      <span>Drop</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="bg-gray-700 px-2 py-1 rounded text-xs border border-gray-500">Tap</span>
+                      <span>Rotate</span>
+                    </div>
                   </div>
                 </div>
               </div>
