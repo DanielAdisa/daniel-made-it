@@ -899,7 +899,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           <div className="flex items-center justify-between mb-6">
             <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-stone-800'} flex items-center`}>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.primary}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
               Administrator Verification
             </h3>
@@ -1425,85 +1425,189 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             {/* Help text */}
             <div className="flex items-start mt-4 text-sm text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
               </svg>
               <span>Search for your name from the dropdown and select the appropriate action, or use the buttons below if you already know your employee ID.</span>
             </div>
           </div>
         </div>
         
-        {/* Today's Clock-ins */}
-        <div className={`bg-${theme.background} p-6 rounded-lg shadow-md border border-${theme.border} transition-colors duration-200`}>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <h2 className="flex items-center text-xl font-semibold text-gray-300">
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-              </svg>
-              Today's Activity
-            </h2>
-            <div className="flex gap-2">
-              <div className="relative" ref={recordsDropdownRef}>
-                <button
-                 onClick={() => setRecordsExportOpen(!recordsExportOpen)}
-                 className={`bg-${theme.primary} text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300 shadow-sm`}>
-                  Export
-                </button>
-                {recordsExportOpen && (
-                  <div className="absolute right-0 z-10 w-48 mt-2 bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
-                    <div className="py-1">
-                      <button 
-                        onClick={() => {
-                          exportRecords('csv');
-                          setRecordsExportOpen(false);
-                        }}
-                        className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        Export as CSV
-                      </button>
-                      <button 
-                        onClick={() => {
-                          exportRecords('json');
-                          setRecordsExportOpen(false);
-                        }}
-                        className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        Export as JSON
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+        {/* Weekly Activity View */}
+<div className={`bg-${theme.background} p-6 rounded-lg shadow-md border border-${theme.border} transition-colors duration-200`}>
+  <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <h2 className="flex items-center text-xl font-semibold text-gray-300">
+      <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+      </svg>
+      {new Date().toLocaleDateString('en-US', { weekday: 'long' })}'s Activity
+      <span className="ml-2 text-sm font-normal text-gray-400">(Weekly View)</span>
+    </h2>
+    <div className="flex gap-2">
+      <div className="relative" ref={recordsDropdownRef}>
+        
+        <button
+          onClick={() => {
+            if (passwordVerified) {
+              // User is already verified, simply toggle the dropdown
+              setRecordsExportOpen(!recordsExportOpen);
+            } else {
+              // User needs to verify first
+              setShowPasswordModal(true);
+              setPasswordInput("");
+              setPasswordError("");
+              // Don't toggle the dropdown yet - this will happen after verification
+            }
+          }}
+          className={`bg-${theme.primary} text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300 shadow-sm`}
+        >
+          Export
+        </button>
+
+
+        {recordsExportOpen && (
+          <div className="absolute right-0 z-10 w-48 mt-2 bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
+            <div className="py-1">
+              <button 
+                onClick={() => {
+                  exportRecords('csv');
+                  setRecordsExportOpen(false);
+                }}
+                className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Export as CSV
+              </button>
+              <button 
+                onClick={() => {
+                  exportRecords('json');
+                  setRecordsExportOpen(false);
+                }}
+                className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Export as JSON
+              </button>
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+  
+  {/* Add search input for activity records */}
+  <div className="mb-5">
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <input
+        type="text"
+        className={`w-full pl-10 pr-4 py-2.5 text-gray-300 transition-all duration-200 
+                    border border-gray-700 rounded-lg bg-gray-800/50 
+                    focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500`}
+        placeholder="Search by employee name or department..."
+        value={activitySearchQuery}
+        onChange={(e) => setActivitySearchQuery(e.target.value)}
+      />
+    </div>
+  </div>
+
+  {/* Days of week tabs */}
+  <div className="mb-4 border-b border-gray-700">
+    <div className="flex flex-wrap -mb-px">
+      {daysOfWeek.map((dayName) => {
+        const isWorkDay = (businessInfo.workDays || []).includes(dayName);
+        const isToday = dayName === new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        return (
+          <button
+            key={dayName}
+            className={`inline-flex items-center px-4 py-2 text-sm font-medium border-b-2 rounded-t-lg ${
+              isWorkDay 
+                ? isToday
+                  ? `text-${theme.accent} border-${theme.accent}`
+                  : 'text-gray-400 hover:text-gray-300 border-transparent hover:border-gray-600'
+                : 'text-gray-500 cursor-not-allowed border-transparent'
+            }`}
+            onClick={() => isWorkDay && setDepartmentFilter(dayName)} // Using departmentFilter state to track selected day
+            disabled={!isWorkDay}
+            aria-current={isToday ? 'page' : undefined}
+          >
+            <span className={`mr-2 ${isToday ? 'text-' + theme.accent : ''}`}>
+              {dayName.substring(0, 3)}
+            </span>
+            {isToday && (
+              <span className={`bg-${theme.accent}/20 text-${theme.accent} text-xs font-medium px-2 py-0.5 rounded-full`}>
+                Today
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+
+  {/* Weekly records */}
+  <div className="space-y-6">
+    {daysOfWeek.map((dayName) => {
+      const isWorkDay = (businessInfo.workDays || []).includes(dayName);
+      const isSelected = departmentFilter === dayName || (!departmentFilter && dayName === new Date().toLocaleDateString('en-US', { weekday: 'long' }));
+      const isToday = dayName === new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      
+      // Only show selected day or today if none selected
+      if (!isSelected) return null;
+      
+      // Get records for the current day in the current week
+      const currentDate = new Date();
+      const todayDay = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const targetDay = daysOfWeek.indexOf(dayName); // 0 = Monday in our array
+      
+      // Calculate how many days to go forward/backward to get to target day
+      const daysToTargetDay = ((targetDay + 1) % 7) - ((todayDay || 7) % 7);
+      const targetDate = new Date(currentDate);
+      targetDate.setDate(currentDate.getDate() + daysToTargetDay);
+      
+      const dateString = targetDate.toISOString().split('T')[0];
+      
+      // Get records for this particular day
+      const dayRecords = records
+        .filter(record => record.date === dateString)
+        .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
+        .filter(record => {
+          if (!activitySearchQuery) return true;
+          
+          const employee = employees.find(emp => emp.id === record.employeeId);
+          const employeeName = employee ? employee.name.toLowerCase() : '';
+          const department = employee ? employee.department.toLowerCase() : '';
+          const searchLower = activitySearchQuery.toLowerCase();
+          
+          return employeeName.includes(searchLower) || department.includes(searchLower);
+        });
+      
+      return (
+        <div key={dayName} className="animate-fadeIn">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <h3 className={`text-lg font-medium ${isToday ? 'text-' + theme.accent : 'text-gray-300'}`}>
+                {dayName}
+              </h3>
+              <span className="ml-3 text-sm text-gray-500">
+                {targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+            {isToday && (
+              <span className={`bg-${theme.accent}/10 border border-${theme.accent}/20 text-${theme.accent} text-xs font-medium px-2.5 py-1 rounded-full`}>
+                Today
+              </span>
+            )}
           </div>
           
-          {/* Add search input for activity records */}
-          <div className="mb-5">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                className={`w-full pl-10 pr-4 py-2.5 text-gray-300 transition-all duration-200 
-                            border border-gray-700 rounded-lg bg-gray-800/50 
-                            focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500`}
-                placeholder="Search by employee name or department..."
-                value={activitySearchQuery}
-                onChange={(e) => setActivitySearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Today's records table */}
-          {records.filter(record => record.date === currentDate).length > 0 ? (
+          {dayRecords.length > 0 ? (
             <div className="overflow-x-auto border border-gray-700 rounded-lg">
               <table className="min-w-full overflow-hidden bg-gray-800 rounded-lg">
                 <thead>
@@ -1518,21 +1622,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   </tr>
                 </thead>
                 <tbody>
-                  {records
-                    .filter(record => record.date === currentDate)
-                    .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
-                    // Filter records based on activity search query
-                    .filter(record => {
-                      if (!activitySearchQuery) return true;
-                      
-                      const employee = employees.find(emp => emp.id === record.employeeId);
-                      const employeeName = employee ? employee.name.toLowerCase() : '';
-                      const department = employee ? employee.department.toLowerCase() : '';
-                      const searchLower = activitySearchQuery.toLowerCase();
-                      
-                      return employeeName.includes(searchLower) || department.includes(searchLower);
-                    })
-                    .map((record, index) => {
+                  {dayRecords.map((record, index) => {
                     const clockIn = new Date(record.clockInTime);
                     const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
                     
@@ -1601,18 +1691,38 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 </tbody>
               </table>
             </div>
+          ) : !isWorkDay ? (
+            <div className="p-6 text-center border border-gray-700 border-dashed rounded-lg">
+              <p className="text-sm text-gray-500">Non-working day</p>
+            </div>
           ) : (
-            <div className="py-12 text-center">
-              <div className="mb-4 text-indigo-400">
+            <div className="py-12 text-center border border-gray-700 border-dashed rounded-lg">
+              <div className="mb-4 text-gray-500">
                 <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-14 w-14 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-lg text-gray-300">No clock-ins recorded today</p>
-              <p className="mt-1 text-sm text-gray-400">Time records will appear here when employees clock in</p>
+              <p className="text-gray-400">No clock-ins recorded for {dayName}</p>
+              <p className="mt-1 text-sm text-gray-500">{targetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</p>
             </div>
           )}
         </div>
+      );
+    })}
+  </div>
+  
+  {/* Add animation style */}
+  <style jsx>{`
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+  `}</style>
+</div>
+
       </>
     );
   };
@@ -1640,11 +1750,23 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             <h2 className="text-xl font-semibold text-gray-700">Registered Employees</h2>
             <div className="flex gap-2">
               <div className="relative" ref={employeesDropdownRef}>
-                <button 
-                  onClick={() => setEmployeesExportOpen(!employeesExportOpen)}
-                  className="px-4 py-2 mr-2 text-white transition duration-300 bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">
+              <button 
+                  onClick={() => {
+                    if (passwordVerified) {
+                      // User is already verified, simply toggle the dropdown
+                      setEmployeesExportOpen(!employeesExportOpen);
+                    } else {
+                      // User needs to verify first
+                      setShowPasswordModal(true);
+                      setPasswordInput("");
+                      setPasswordError("");
+                      // Don't toggle the dropdown yet - this will happen after verification
+                    }
+                  }}
+                  className="px-4 py-2 mr-2 text-white transition duration-300 bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700"
+                >
                   Export
-                </button>
+              </button>
                 {employeesExportOpen && (
                   <div className="absolute right-0 z-10 w-48 mt-2 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
                     <div className="py-1">
