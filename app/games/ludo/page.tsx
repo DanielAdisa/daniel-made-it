@@ -11,8 +11,8 @@ const FlappyBird = () => {
   const [birdPosition, setBirdPosition] = useState(250);
   const [birdRotation, setBirdRotation] = useState(0);
   const [birdVelocity, setBirdVelocity] = useState(0);
-  const [restartCountdown, setRestartCountdown] = useState(0);
   const [hasTouch, setHasTouch] = useState(false);
+  const [lastScore, setLastScore] = useState(0);
   interface Pipe {
     x: number;
     opening: number;
@@ -66,7 +66,6 @@ const FlappyBird = () => {
     setGameStarted(true);
     setGameOver(false);
     setScore(0);
-    setRestartCountdown(0);
     
     // Reset bird state in both state and ref
     setBirdPosition(250);
@@ -84,12 +83,7 @@ const FlappyBird = () => {
     // Reset frame time to current time to avoid large first delta
     frameTimeRef.current = performance.now();
     
-    // Small hop on start (using both state and ref)
-    setTimeout(() => {
-      const hopVelocity = JUMP_FORCE / 2;
-      setBirdVelocity(hopVelocity);
-      birdRef.current.velocity = hopVelocity;
-    }, 100);
+    // Remove the auto-hop - bird should start stationary
     
     startGameLoop();
     startPipeGenerator();
@@ -118,9 +112,22 @@ const FlappyBird = () => {
       
       setBirdRotation(-30); // More pronounced upward rotation
       birdRef.current.rotation = -30;
-    } else if (restartCountdown === 0) {
-      // Only manual restart if auto-restart isn't in progress
-      initGame();
+    } else {
+      // Reset the game state but don't automatically start
+      setGameStarted(false);
+      setGameOver(false);
+      // Store the last score for display on the start screen
+      setLastScore(score);
+      
+      // Reset bird position for the start screen
+      setBirdPosition(250);
+      setBirdRotation(0);
+      setBirdVelocity(0);
+      birdRef.current = {
+        position: 250,
+        velocity: 0,
+        rotation: 0
+      };
     }
   };
 
@@ -182,10 +189,7 @@ const FlappyBird = () => {
     if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
     
     const updateGameState = (timestamp: number) => {
-      if (gameOver && restartCountdown > 0) {
-        // If in auto-restart countdown, don't do game physics
-        return;
-      }
+      if (gameOver) return; // Exit early if game is over
       
       // Initialize frameTimeRef if it's the first frame
       if (frameTimeRef.current === 0) {
@@ -287,7 +291,7 @@ const FlappyBird = () => {
     gameLoopRef.current = requestAnimationFrame(updateGameState);
   };
 
-  // End game with auto-restart
+  // End game without auto-restart
   const endGame = () => {
     setGameOver(true);
     
@@ -299,22 +303,14 @@ const FlappyBird = () => {
       localStorage.setItem('flappyBirdHighScore', score.toString());
     }
     
-    // Start auto-restart countdown
-    setRestartCountdown(3);
-    
-    // Set auto-restart timer
-    const autoRestartTimer = setTimeout(() => {
-      initGame();
-    }, AUTO_RESTART_DELAY);
+    // Store the current score to display on the start screen
+    setLastScore(score);
     
     // Clear game loops
     if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
     if (pipeGeneratorRef.current) clearInterval(pipeGeneratorRef.current);
     
     // Don't stop wing animation - let it continue during game over animation
-    
-    // Clean up auto restart timer on component unmount
-    return () => clearTimeout(autoRestartTimer);
   };
 
   // Detect device capabilities
@@ -511,37 +507,52 @@ const FlappyBird = () => {
           {/* Bird */}
           <Bird />
           
-          {/* Start message */}
-          {!gameStarted && (
+          {/* Start message (shown on initial start and after game over) */}
+          {(!gameStarted || gameOver) && (
             <g>
-              <rect x="60" y="200" width="240" height="100" rx="10" fill="rgba(255,255,255,0.8)" />
-              <text x="180" y="240" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#333">
-                Tap to Start!
+              <rect x="60" y="180" width="240" height="140" rx="10" fill="rgba(255,255,255,0.8)" />
+              
+              {/* Game over text only shown when gameOver is true */}
+              {gameOver && (
+                <text x="180" y="210" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#E53935">
+                  Game Over!
+                </text>
+              )}
+              
+              {/* Show score and best score after game over */}
+              {gameOver && (
+                <>
+                  <text x="180" y="240" textAnchor="middle" fontSize="18" fill="#333">
+                    Score: {score}
+                  </text>
+                  <text x="180" y="265" textAnchor="middle" fontSize="16" fill="#333">
+                    Best: {Math.max(score, highScore)}
+                  </text>
+                </>
+              )}
+              
+              {/* Tap to start/restart text */}
+              <text 
+                x="180" 
+                y={gameOver ? "295" : "240"} 
+                textAnchor="middle" 
+                fontSize="20" 
+                fontWeight="bold" 
+                fill="#333"
+              >
+                {gameOver ? (hasTouch ? "Tap to Restart" : "Click to Restart") : "Tap to Start!"}
               </text>
-              <text x="180" y="270" textAnchor="middle" fontSize="14" fill="#555">
-                Press Space or click to jump
-              </text>
+              
+              {/* Instructions shown only on first start */}
+              {!gameOver && (
+                <text x="180" y="270" textAnchor="middle" fontSize="14" fill="#555">
+                  {hasTouch ? "Tap to jump" : "Press Space or click to jump"}
+                </text>
+              )}
             </g>
           )}
           
-          {/* Game over message with auto-restart countdown */}
-          {gameOver && (
-            <g>
-              <rect x="60" y="180" width="240" height="140" rx="10" fill="rgba(255,255,255,0.8)" />
-              <text x="180" y="220" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#E53935">
-                Game Over!
-              </text>
-              <text x="180" y="255" textAnchor="middle" fontSize="18" fill="#333">
-                Score: {score}
-              </text>
-              <text x="180" y="285" textAnchor="middle" fontSize="16" fill="#333">
-                Best: {Math.max(score, highScore)}
-              </text>
-              <text x="180" y="310" textAnchor="middle" fontSize="14" fill="#555">
-                Restarting in {Math.ceil(AUTO_RESTART_DELAY/1000)}...
-              </text>
-            </g>
-          )}
+          {/* Remove separate game over message - now combined with start screen */}
           
           {/* Debug visualization - uncomment to debug */}
           {debugDisplay && (
@@ -561,7 +572,7 @@ const FlappyBird = () => {
         </svg>
       </div>
       
-      {/* Score display with better visibility */}
+      {/* Score display with better visibility - show during active game */}
       <div className={`mt-4 text-2xl font-bold ${score > highScore ? 'text-green-600' : 'text-purple-600'}`}>
         {gameStarted && !gameOver && `Score: ${score}`}
       </div>
@@ -579,12 +590,12 @@ const FlappyBird = () => {
       
       {/* Controls for mobile and keyboard - simplified */}
       <div className="mt-4">
-        {!gameStarted && (
+        {(!gameStarted || gameOver) && (
           <button
             className="px-6 py-2 text-xl font-bold text-white bg-yellow-400 rounded-full hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-300"
             onClick={jump}
           >
-            Start Game
+            {gameOver ? "Play Again" : "Start Game"}
           </button>
         )}
       </div>
