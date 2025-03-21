@@ -122,6 +122,7 @@ const calculateLateness = (clockInTime: string): number => {
     
     // Calculate lateness (if negative, employee was early)
     const latenessMinutes = clockInMinutes - startTimeMinutes;
+
     
     return Math.max(0, latenessMinutes); // Only return positive values (actual lateness)
   };
@@ -734,6 +735,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       }
     }
   }, []);
+
+  const passwordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Handle password verification
   const verifyPassword = () => {
@@ -741,6 +744,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       setPasswordVerified(true);
       setShowPasswordModal(false);
       setPasswordInput("");
+      if (passwordTimeoutRef.current) {
+            clearTimeout(passwordTimeoutRef.current);
+          }
       
       // Perform the protected action
       if (protectedAction === 'addEmployee') {
@@ -753,6 +759,10 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       setPasswordError("Incorrect password. Please try again.");
       setTimeout(() => setPasswordError(""), 3000);
     }
+    setPasswordVerified(true);
+        passwordTimeoutRef.current = setTimeout(() => {
+        setPasswordVerified(false);
+            }, 3000); // 3 seconds [[2]][[3]][[6]]
   };
   
   // Save password during onboarding
@@ -812,9 +822,12 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             
             <button 
               onClick={() => {
-                setShowPasswordModal(false);
-                setPasswordInput("");
-                setPasswordError("");
+                if (!passwordVerified) {
+                    setShowPasswordModal(true);
+                    setShowPasswordModal(false);
+                    setPasswordInput("");
+                    setPasswordError("");
+                }
               }}
               className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
             >
@@ -873,9 +886,12 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={() => {
-                setShowPasswordModal(false);
-                setPasswordInput("");
-                setPasswordError("");
+                if (!passwordVerified) {
+                    setShowPasswordModal(true);
+                    setShowPasswordModal(false);
+                    setPasswordInput("");
+                    setPasswordError("");
+                }
               }}
               className={`px-4 py-2.5 rounded-lg border ${
                 darkMode 
@@ -2047,6 +2063,14 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         setBusinessFormData(parsedInfo);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+     if (passwordTimeoutRef.current) {
+       clearTimeout(passwordTimeoutRef.current);
+     }
+    };
   }, []);
   
   // Handle business form changes
