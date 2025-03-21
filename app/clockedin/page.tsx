@@ -1562,32 +1562,81 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       // Only show selected day or today if none selected
       if (!isSelected) return null;
       
-      // Get records for the current day in the current week
+      // Get the day number for the selected day (0 = Sunday, 1 = Monday, etc.)
+      const dayNumber = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(dayName);
+      
+      // Get the current week's date for this day
       const currentDate = new Date();
       const todayDay = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const targetDay = daysOfWeek.indexOf(dayName); // 0 = Monday in our array
-      
-      // Calculate how many days to go forward/backward to get to target day
-      const daysToTargetDay = ((targetDay + 1) % 7) - ((todayDay || 7) % 7);
+      const daysToTargetDay = (dayNumber - todayDay + 7) % 7;
       const targetDate = new Date(currentDate);
       targetDate.setDate(currentDate.getDate() + daysToTargetDay);
+      const currentWeekDateString = targetDate.toISOString().split('T')[0];
       
-      const dateString = targetDate.toISOString().split('T')[0];
+      // Filter all records for this day of week
+      const allDayRecords = records.filter(record => {
+        const recordDate = new Date(record.date);
+        return recordDate.getDay() === dayNumber;
+      });
       
-      // Get records for this particular day
-      const dayRecords = records
-        .filter(record => record.date === dateString)
-        .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
-        .filter(record => {
-          if (!activitySearchQuery) return true;
-          
-          const employee = employees.find(emp => emp.id === record.employeeId);
-          const employeeName = employee ? employee.name.toLowerCase() : '';
-          const department = employee ? employee.department.toLowerCase() : '';
-          const searchLower = activitySearchQuery.toLowerCase();
-          
-          return employeeName.includes(searchLower) || department.includes(searchLower);
-        });
+      // Group records by date
+      const recordsByDate = allDayRecords.reduce((acc, record) => {
+        if (!acc[record.date]) {
+          acc[record.date] = [];
+        }
+        acc[record.date].push(record);
+        return acc;
+      }, {} as Record<string, TimeRecord[]>);
+      
+      // Sort dates from newest to oldest
+      const sortedDates = Object.keys(recordsByDate).sort((a, b) => 
+        new Date(b).getTime() - new Date(a).getTime()
+      );
+      
+      // Apply search filtering across all dates
+      sortedDates.forEach(date => {
+        recordsByDate[date] = recordsByDate[date]
+          .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
+          .filter(record => {
+            if (!activitySearchQuery) return true;
+            
+            const employee = employees.find(emp => emp.id === record.employeeId);
+            const employeeName = employee ? employee.name.toLowerCase() : '';
+            const department = employee ? employee.department.toLowerCase() : '';
+            const searchLower = activitySearchQuery.toLowerCase();
+            
+            return employeeName.includes(searchLower) || department.includes(searchLower);
+          });
+      });
+      
+      // If no records found after filtering
+      if (sortedDates.length === 0 || sortedDates.every(date => recordsByDate[date].length === 0)) {
+        return (
+          <div key={dayName} className="animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <h3 className={`text-lg font-medium ${isToday ? 'text-' + theme.accent : 'text-gray-300'}`}>
+                  {dayName}
+                </h3>
+              </div>
+              {isToday && (
+                <span className={`bg-${theme.accent}/10 border border-${theme.accent}/20 text-${theme.accent} text-xs font-medium px-2.5 py-1 rounded-full`}>
+                  Today
+                </span>
+              )}
+            </div>
+            
+            <div className="py-12 text-center border border-gray-700 border-dashed rounded-lg">
+              <div className="mb-4 text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-14 w-14 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-400">No clock-ins recorded for any {dayName}</p>
+            </div>
+          </div>
+        );
+      }
       
       return (
         <div key={dayName} className="animate-fadeIn">
@@ -1596,9 +1645,6 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               <h3 className={`text-lg font-medium ${isToday ? 'text-' + theme.accent : 'text-gray-300'}`}>
                 {dayName}
               </h3>
-              <span className="ml-3 text-sm text-gray-500">
-                {targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
             </div>
             {isToday && (
               <span className={`bg-${theme.accent}/10 border border-${theme.accent}/20 text-${theme.accent} text-xs font-medium px-2.5 py-1 rounded-full`}>
@@ -1607,105 +1653,118 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             )}
           </div>
           
-          {dayRecords.length > 0 ? (
-            <div className="overflow-x-auto border border-gray-700 rounded-lg">
-              <table className="min-w-full overflow-hidden bg-gray-800 rounded-lg">
-                <thead>
-                  <tr className="text-gray-400 bg-gray-700/30">
-                    <th className="px-4 py-3 font-semibold text-left">Employee</th>
-                    <th className="px-4 py-3 font-semibold text-left">Department</th>
-                    <th className="px-4 py-3 font-semibold text-left">Clock In</th>
-                    <th className="px-4 py-3 font-semibold text-left">Clock Out</th>
-                    <th className="px-4 py-3 font-semibold text-left">Duration</th>
-                    <th className="px-4 py-3 font-semibold text-left">Lateness</th>
-                    <th className="px-4 py-3 font-semibold text-left">Overtime</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dayRecords.map((record, index) => {
-                    const clockIn = new Date(record.clockInTime);
-                    const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
-                    
-                    const duration = clockOut
-                      ? ((clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60)).toFixed(2)
-                      : 'In progress';
-                    
-                    // Calculate lateness and overtime
-                    const latenessMinutes = calculateLateness(record.clockInTime);
-                    const overtimeMinutes = calculateOvertime(record.clockOutTime);
-                    
-                    // Find employee name
-                    const employee = employees.find(emp => emp.id === record.employeeId);
-                    const employeeName = employee ? employee.name : 'Unknown';
-                    const department = employee ? employee.department : 'Unknown';
-                    
-                    return (
-                      <tr key={index} className="transition-colors duration-150 border-t border-gray-700 hover:bg-gray-700/30">
-                        <td className="px-4 py-3 font-medium text-gray-300">{employeeName}</td>
-                        <td className="px-4 py-3 text-gray-300">{department}</td>
-                        <td className="px-4 py-3 text-gray-300">
-                          {clockIn.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </td>
-                        <td className="px-4 py-3 text-gray-300">
-                          {clockOut ? clockOut.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {duration === 'In progress' ? 
-                            <span className="px-2 py-1 text-xs font-medium text-blue-400 rounded-full bg-blue-500/20">
-                              {duration}
-                            </span> : 
-                            <span className="px-2 py-1 text-xs font-medium text-green-400 rounded-full bg-green-500/20">
-                              {duration} hrs
-                            </span>
-                          }
-                        </td>
-                        <td className="px-4 py-3">
-                          {latenessMinutes > 0 ? (
-                            <span className="px-2 py-1 text-xs font-medium rounded-full text-amber-400 bg-amber-500/20">
-                              {formatMinutes(latenessMinutes)}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs font-medium text-green-400 rounded-full bg-green-500/20">
-                              On time
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {record.clockOutTime ? (
-                            overtimeMinutes > 0 ? (
-                              <span className="px-2 py-1 text-xs font-medium text-purple-400 rounded-full bg-purple-500/20">
-                                {formatMinutes(overtimeMinutes)}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 text-xs font-medium text-gray-400 rounded-full bg-gray-500/20">
-                                None
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-gray-500">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : !isWorkDay ? (
-            <div className="p-6 text-center border border-gray-700 border-dashed rounded-lg">
-              <p className="text-sm text-gray-500">Non-working day</p>
-            </div>
-          ) : (
-            <div className="py-12 text-center border border-gray-700 border-dashed rounded-lg">
-              <div className="mb-4 text-gray-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-14 w-14 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-gray-400">No clock-ins recorded for {dayName}</p>
-              <p className="mt-1 text-sm text-gray-500">{targetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</p>
-            </div>
-          )}
+          {/* Render records grouped by date */}
+          <div className="space-y-6">
+            {sortedDates.map((dateString, dateIndex) => {
+              const recordsForDate = recordsByDate[dateString];
+              if (recordsForDate.length === 0) return null;
+              
+              const displayDate = new Date(dateString);
+              const isCurrentWeek = dateString === currentWeekDateString;
+              
+              return (
+                <div 
+                  key={dateString} 
+                  className={`${isCurrentWeek ? 'border-l-4 border-' + theme.accent + ' pl-4' : ''} transition-all duration-200`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <span className={`text-base font-medium ${isCurrentWeek ? 'text-' + theme.accent : 'text-gray-400'}`}>
+                        {displayDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </span>
+                      {isCurrentWeek && (
+                        <span className={`ml-3 text-xs font-medium bg-${theme.accent}/20 text-${theme.accent} px-2 py-0.5 rounded-full`}>
+                          This week
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto border border-gray-700 rounded-lg">
+                    <table className="min-w-full overflow-hidden bg-gray-800 rounded-lg">
+                      <thead>
+                        <tr className="text-gray-400 bg-gray-700/30">
+                          <th className="px-4 py-3 font-semibold text-left">Employee</th>
+                          <th className="px-4 py-3 font-semibold text-left">Department</th>
+                          <th className="px-4 py-3 font-semibold text-left">Clock In</th>
+                          <th className="px-4 py-3 font-semibold text-left">Clock Out</th>
+                          <th className="px-4 py-3 font-semibold text-left">Duration</th>
+                          <th className="px-4 py-3 font-semibold text-left">Lateness</th>
+                          <th className="px-4 py-3 font-semibold text-left">Overtime</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recordsForDate.map((record, index) => {
+                          const clockIn = new Date(record.clockInTime);
+                          const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
+                          
+                          const duration = clockOut
+                            ? ((clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60)).toFixed(2)
+                            : 'In progress';
+                          
+                          const latenessMinutes = calculateLateness(record.clockInTime);
+                          const overtimeMinutes = calculateOvertime(record.clockOutTime);
+                          
+                          const employee = employees.find(emp => emp.id === record.employeeId);
+                          const employeeName = employee ? employee.name : 'Unknown';
+                          const department = employee ? employee.department : 'Unknown';
+                          
+                          return (
+                            <tr key={index} className="transition-colors duration-150 border-t border-gray-700 hover:bg-gray-700/30">
+                              <td className="px-4 py-3 font-medium text-gray-300">{employeeName}</td>
+                              <td className="px-4 py-3 text-gray-300">{department}</td>
+                              <td className="px-4 py-3 text-gray-300">
+                                {clockIn.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </td>
+                              <td className="px-4 py-3 text-gray-300">
+                                {clockOut ? clockOut.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                {duration === 'In progress' ? 
+                                  <span className="px-2 py-1 text-xs font-medium text-blue-400 rounded-full bg-blue-500/20">
+                                    {duration}
+                                  </span> : 
+                                  <span className="px-2 py-1 text-xs font-medium text-green-400 rounded-full bg-green-500/20">
+                                    {duration} hrs
+                                  </span>
+                                }
+                              </td>
+                              <td className="px-4 py-3">
+                                {latenessMinutes > 0 ? (
+                                  <span className="px-2 py-1 text-xs font-medium rounded-full text-amber-400 bg-amber-500/20">
+                                    {formatMinutes(latenessMinutes)}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-1 text-xs font-medium text-green-400 rounded-full bg-green-500/20">
+                                    On time
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {record.clockOutTime ? (
+                                  overtimeMinutes > 0 ? (
+                                    <span className="px-2 py-1 text-xs font-medium text-purple-400 rounded-full bg-purple-500/20">
+                                      {formatMinutes(overtimeMinutes)}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-1 text-xs font-medium text-gray-400 rounded-full bg-gray-500/20">
+                                      None
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-gray-500">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     })}
@@ -2432,7 +2491,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     <div className="grid grid-cols-1 gap-2">
                       <div className="flex items-start">
                         <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 106 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                         </svg>
                         <div>
                           <p className="font-medium text-purple-700 dark:text-purple-300">Adding New Employees</p>
@@ -2561,15 +2620,15 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     </div>
                     <div className="flex items-start text-amber-700 dark:text-amber-300">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
+                        <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z" />
+                        <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z" />
+                        <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z" />
                       </svg>
                       <span>Stored locally only</span>
                     </div>
                     <div className="flex items-start text-amber-700 dark:text-amber-300">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z" />
-                        <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z" />
-                        <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z" />
+                        <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
                       </svg>
                       <span>No cloud storage</span>
                     </div>
