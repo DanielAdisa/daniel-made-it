@@ -102,6 +102,60 @@ export default function PunchClockSystem() {
   const recordsDropdownRef = useRef<HTMLDivElement>(null);
   const employeesDropdownRef = useRef<HTMLDivElement>(null);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
+
+   // Helper utility functions with TypeScript fixes
+const calculateLateness = (clockInTime: string): number => {
+    if (!businessInfo.workStartTime) return 0;
+    
+    // Parse clock-in time
+    const clockIn = new Date(clockInTime);
+    const clockInHour = clockIn.getHours();
+    const clockInMinute = clockIn.getMinutes();
+    
+    // Parse company start time (with type assertion to avoid potential undefined)
+    const [startHour, startMinute] = businessInfo.workStartTime.split(':').map(Number);
+    
+    // Convert both to minutes since midnight
+    const clockInMinutes = clockInHour * 60 + clockInMinute;
+    const startTimeMinutes = startHour * 60 + startMinute;
+    
+    // Calculate lateness (if negative, employee was early)
+    const latenessMinutes = clockInMinutes - startTimeMinutes;
+    
+    return Math.max(0, latenessMinutes); // Only return positive values (actual lateness)
+  };
+  
+  // Calculate overtime in minutes based on clock-out time and company end time
+  const calculateOvertime = (clockOutTime: string | null): number => {
+    if (!clockOutTime || !businessInfo.workEndTime) return 0;
+    
+    // Parse clock-out time
+    const clockOut = new Date(clockOutTime);
+    const clockOutHour = clockOut.getHours();
+    const clockOutMinute = clockOut.getMinutes();
+    
+    // Parse company end time (with non-null assertion since we checked above)
+    const [endHour, startMinute] = businessInfo.workEndTime!.split(':').map(Number);
+    
+    // Convert both to minutes since midnight
+    const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
+    const endTimeMinutes = endHour * 60 + startMinute;
+    
+    // Calculate overtime (if negative, employee left early)
+    const overtimeMinutes = clockOutMinutes - endTimeMinutes;
+    
+    return Math.max(0, overtimeMinutes); // Only return positive values (actual overtime)
+  };
+  
+  // Format minutes to hours and minutes display
+  const formatMinutes = (minutes: number): string => {
+    if (minutes === 0) return '0m';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  };
   
   // Check for dark mode preference on mount
   useEffect(() => {
@@ -1139,6 +1193,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
           </div>
           
+         
+
           {/* Today's records table */}
           {records.filter(record => record.date === currentDate).length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-gray-700">
@@ -1150,6 +1206,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     <th className="py-3 px-4 text-left font-semibold">Clock In</th>
                     <th className="py-3 px-4 text-left font-semibold">Clock Out</th>
                     <th className="py-3 px-4 text-left font-semibold">Duration</th>
+                    <th className="py-3 px-4 text-left font-semibold">Lateness</th>
+                    <th className="py-3 px-4 text-left font-semibold">Overtime</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1162,6 +1220,10 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     const duration = clockOut
                       ? ((clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60)).toFixed(2)
                       : 'In progress';
+                    
+                    // Calculate lateness and overtime
+                    const latenessMinutes = calculateLateness(record.clockInTime);
+                    const overtimeMinutes = calculateOvertime(record.clockOutTime);
                     
                     // Find employee name
                     const employee = employees.find(emp => emp.id === record.employeeId);
@@ -1187,6 +1249,32 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                               {duration} hrs
                             </span>
                           }
+                        </td>
+                        <td className="py-3 px-4">
+                          {latenessMinutes > 0 ? (
+                            <span className="text-amber-400 bg-amber-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                              {formatMinutes(latenessMinutes)}
+                            </span>
+                          ) : (
+                            <span className="text-green-400 bg-green-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                              On time
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {record.clockOutTime ? (
+                            overtimeMinutes > 0 ? (
+                              <span className="text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                                {formatMinutes(overtimeMinutes)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 bg-gray-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                                None
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1439,209 +1527,310 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
 
   // Employee registration/edit modal with dark mode
   const renderModal = () => (
-    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 ${showModal ? 'visible' : 'invisible'}`}>
-      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 w-full max-w-lg transition-colors duration-200`}>
-        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-800'} transition-colors duration-200`}>{editingEmployee ? 'Edit Employee' : 'Register New Employee'}</h3>
+    <div className={`fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 ${showModal ? 'visible' : 'invisible'} transition-all duration-300`}>
+  <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl overflow-hidden w-full max-w-lg transition-colors duration-200`}>
+    {/* Header with gradient accent */}
+    <div className="h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+    
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-stone-800'}`}>
+          {editingEmployee ? 'Edit Employee' : 'Register New Employee'}
+        </h3>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1 flex items-center">
-              Full Name 
-              <span className="text-red-500 ml-1">*</span>
-              {formErrors.name && (
-                <span className="ml-2 text-xs text-red-500">{formErrors.name}</span>
-              )}
-            </label>
-            <input
-              type="text"
-              className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-                formErrors.name ? 'border-red-500 bg-red-50' : 'focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
-              }`}
-              value={newEmployee.name}
-              onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
-              aria-required="true"
-              aria-invalid={Boolean(formErrors.name)}
-              aria-describedby={formErrors.name ? "name-error" : undefined}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1 flex items-center">
-              Department 
-              <span className="text-red-500 ml-1">*</span>
-              {formErrors.department && (
-                <span className="ml-2 text-xs text-red-500">{formErrors.department}</span>
-              )}
-            </label>
-            <input
-              type="text"
-              className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-                formErrors.department ? 'border-red-500 bg-red-50' : 'focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
-              }`}
-              value={newEmployee.department}
-              onChange={(e) => setNewEmployee({...newEmployee, department: e.target.value})}
-              aria-required="true"
-              aria-invalid={Boolean(formErrors.department)}
-              aria-describedby={formErrors.department ? "department-error" : undefined}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">Position</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              value={newEmployee.position}
-              onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1 flex items-center">
-              Email
-              {formErrors.email && (
-                <span className="ml-2 text-xs text-red-500">{formErrors.email}</span>
-              )}
-            </label>
-            <input
-              type="email"
-              className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-                formErrors.email ? 'border-red-500 bg-red-50' : 'focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
-              }`}
-              value={newEmployee.email || ''}
-              onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
-              aria-invalid={Boolean(formErrors.email)}
-              aria-describedby={formErrors.email ? "email-error" : undefined}
-              placeholder="example@company.com"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1 flex items-center">
-              Phone
-              {formErrors.phone && (
-                <span className="ml-2 text-xs text-red-500">{formErrors.phone}</span>
-              )}
-            </label>
-            <input
-              type="tel"
-              className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-                formErrors.phone ? 'border-red-500 bg-red-50' : 'focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
-              }`}
-              value={newEmployee.phone || ''}
-              onChange={(e) => setNewEmployee({...newEmployee, phone: e.target.value})}
-              aria-invalid={Boolean(formErrors.phone)}
-              aria-describedby={formErrors.phone ? "phone-error" : undefined}
-              placeholder="(555) 123-4567"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">Hire Date</label>
-            <input
-              type="date"
-              className="w-full px-3 py-2 border rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              value={newEmployee.hireDate || ''}
-              onChange={(e) => setNewEmployee({...newEmployee, hireDate: e.target.value})}
-            />
-          </div>
-          
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium mb-1">Address</label>
-            <textarea
-              className="w-full px-3 py-2 border rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              value={newEmployee.address || ''}
-              onChange={(e) => setNewEmployee({...newEmployee, address: e.target.value})}
-              rows={3}
-              placeholder="Employee's address"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={() => {
-              setShowModal(false);
-              setFormErrors({});
-              setFormSubmitted(false);
-            }}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleRegisterEmployee}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-            type="button"
-          >
-            {editingEmployee ? (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
-                Save Changes
-              </>
-            ) : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Register Employee
-              </>
+        <button 
+          onClick={() => {
+            setShowModal(false);
+            setFormErrors({});
+            setFormSubmitted(false);
+          }}
+          className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
+            Full Name 
+            <span className="text-red-500 ml-1">*</span>
+            {formErrors.name && (
+              <span className="ml-2 text-xs text-red-500">{formErrors.name}</span>
             )}
-          </button>
+          </label>
+          <input
+            type="text"
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              formErrors.name 
+                ? 'border-red-500 bg-red-50' 
+                : darkMode 
+                  ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500' 
+                  : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.name}
+            onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
+            aria-required="true"
+            aria-invalid={Boolean(formErrors.name)}
+            aria-describedby={formErrors.name ? "name-error" : undefined}
+            placeholder="John Doe"
+          />
         </div>
         
-        <div className="mt-4 text-xs text-gray-500">
-          <span className="text-red-500">*</span> Required fields
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
+            Department 
+            <span className="text-red-500 ml-1">*</span>
+            {formErrors.department && (
+              <span className="ml-2 text-xs text-red-500">{formErrors.department}</span>
+            )}
+          </label>
+          <input
+            type="text"
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              formErrors.department 
+                ? 'border-red-500 bg-red-50' 
+                : darkMode 
+                  ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.department}
+            onChange={(e) => setNewEmployee({...newEmployee, department: e.target.value})}
+            aria-required="true"
+            aria-invalid={Boolean(formErrors.department)}
+            aria-describedby={formErrors.department ? "department-error" : undefined}
+            placeholder="Engineering"
+          />
+        </div>
+        
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            Position
+          </label>
+          <input
+            type="text"
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              darkMode 
+                ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.position}
+            onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
+            placeholder="Software Engineer"
+          />
+        </div>
+        
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
+            Email
+            {formErrors.email && (
+              <span className="ml-2 text-xs text-red-500">{formErrors.email}</span>
+            )}
+          </label>
+          <input
+            type="email"
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              formErrors.email 
+                ? 'border-red-500 bg-red-50' 
+                : darkMode
+                  ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.email || ''}
+            onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
+            aria-invalid={Boolean(formErrors.email)}
+            aria-describedby={formErrors.email ? "email-error" : undefined}
+            placeholder="john.doe@company.com"
+          />
+        </div>
+        
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
+            Phone
+            {formErrors.phone && (
+              <span className="ml-2 text-xs text-red-500">{formErrors.phone}</span>
+            )}
+          </label>
+          <input
+            type="tel"
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              formErrors.phone 
+                ? 'border-red-500 bg-red-50' 
+                : darkMode
+                  ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.phone || ''}
+            onChange={(e) => setNewEmployee({...newEmployee, phone: e.target.value})}
+            aria-invalid={Boolean(formErrors.phone)}
+            aria-describedby={formErrors.phone ? "phone-error" : undefined}
+            placeholder="(555) 123-4567"
+          />
+        </div>
+        
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            Hire Date
+          </label>
+          <input
+            type="date"
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              darkMode
+                ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.hireDate || ''}
+            onChange={(e) => setNewEmployee({...newEmployee, hireDate: e.target.value})}
+          />
+        </div>
+        
+        <div className="sm:col-span-2">
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            Address
+          </label>
+          <textarea
+            className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+              darkMode
+                ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+            }`}
+            value={newEmployee.address || ''}
+            onChange={(e) => setNewEmployee({...newEmployee, address: e.target.value})}
+            rows={3}
+            placeholder="123 Main St, City, State, ZIP"
+          />
         </div>
       </div>
+
+      <div className="mt-8 flex justify-end gap-3">
+        <button
+          onClick={() => {
+            setShowModal(false);
+            setFormErrors({});
+            setFormSubmitted(false);
+          }}
+          className={`px-4 py-2.5 rounded-lg border ${
+            darkMode 
+              ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+          } transition-colors`}
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleRegisterEmployee}
+          className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-sm flex items-center gap-2"
+          type="button"
+        >
+          {editingEmployee ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+              </svg>
+              Save Changes
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Register Employee
+            </>
+          )}
+        </button>
+      </div>
+      
+      <div className="mt-4 text-xs text-gray-500 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+        <span>Fields marked with <span className="text-red-500">*</span> are required</span>
+      </div>
     </div>
+  </div>
+</div>
   );
 
   // Verification modal with dark mode
   const renderVerificationModal = () => (
-    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 ${showVerificationModal ? 'visible' : 'invisible'}`}>
-      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 w-full max-w-md transition-colors duration-200`}>
-        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-700'} transition-colors duration-200`}>Employee Verification</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border rounded-lg bg-gray-100"
-              value={selectedEmployeeName}
-              readOnly
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border rounded-lg"
-              placeholder="Enter your employee ID"
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={() => setShowVerificationModal(false)}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleVerification}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            Verify and Continue
-          </button>
+    <div className={`fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 ${showVerificationModal ? 'visible' : 'invisible'} transition-all duration-300`}>
+  <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl w-full max-w-md transition-colors duration-200 overflow-hidden`}>
+    {/* Modal header with colored accent */}
+    <div className={`px-6 py-4 border-b ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+      <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'} flex items-center`}>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+        </svg>
+        Employee Verification
+      </h3>
+    </div>
+
+    {/* Modal body */}
+    <div className="p-6 space-y-4">
+      <div>
+        <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Employee Name</label>
+        <div className={`flex items-center w-full px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-stone-950'}`}>
+          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
+          <span className="font-medium">{selectedEmployeeName}</span>
         </div>
       </div>
+      
+      <div>
+        <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1 flex items-center justify-between`}>
+          <span>Employee ID</span>
+          <span className="text-xs text-red-500">Required</span>
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            className={`w-full pl-10 pr-4 py-2.5 border ${
+              darkMode 
+                ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                : 'bg-white border-gray-300 text-stone-950'
+            } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
+            placeholder="Enter your employee ID"
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+          />
+        </div>
+        <p className="mt-1 text-xs text-gray-500">Enter the ID exactly as assigned to you</p>
+      </div>
     </div>
+
+    {/* Modal footer */}
+    <div className={`px-6 py-4 bg-${darkMode ? 'gray-800' : 'gray-50'} border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-end gap-3`}>
+      <button
+        onClick={() => setShowVerificationModal(false)}
+        className={`px-4 py-2 rounded-md border ${
+          darkMode 
+            ? 'border-gray-600 text-gray-400 hover:text-gray-200 hover:bg-gray-700' 
+            : 'border-gray-300 text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+        } transition-colors duration-200`}
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handleVerification}
+        className={`px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-md hover:from-indigo-700 hover:to-indigo-800 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 flex items-center`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+        Verify and Continue
+      </button>
+    </div>
+  </div>
+</div>
   );
 
   // Add onboarding state
@@ -1799,7 +1988,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     </div>
                     <div className="flex items-start text-amber-700 dark:text-amber-300">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                       <span>Secure local storage</span>
                     </div>
@@ -1914,6 +2103,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           <span className="text-xs text-red-500 font-medium">Required</span>
                         </label>
                         <input 
+                        title='Start Time'
                           type="time" 
                           name="workStartTime"
                           value={businessFormData.workStartTime}
@@ -1928,6 +2118,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           <span className="text-xs text-red-500 font-medium">Required</span>
                         </label>
                         <input 
+                        title='End Time'
                           type="time" 
                           name="workEndTime"
                           value={businessFormData.workEndTime}
