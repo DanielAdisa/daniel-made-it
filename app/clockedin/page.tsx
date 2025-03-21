@@ -37,6 +37,7 @@ interface BusinessInfo {
   workEndTime?: string;
   workDays?: string[];
   established?: string;
+  industry?: string; // Added industry field
 }
 
 export default function PunchClockSystem() {
@@ -236,6 +237,18 @@ export default function PunchClockSystem() {
     link.click();
     document.body.removeChild(link);
   };
+
+  // Format time from 24h to 12h format
+  const formatTime = (time: string) => {
+    if (!time) return '';
+    
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const formattedHour = hour % 12 || 12;
+    
+    return `${formattedHour}:${minutes} ${ampm}`;
+  };
   
   const exportAsJSON = (data: any[], filename: string) => {
     const jsonContent = JSON.stringify(data, null, 2);
@@ -423,6 +436,32 @@ export default function PunchClockSystem() {
       timerProgressBar: true,
       showConfirmButton: false
     });
+  };
+
+  // Helper function to check if business is currently open
+const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
+    const now = new Date();
+    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+    
+    // Check if today is a working day
+    if (!businessInfo.workDays || !businessInfo.workDays.includes(dayOfWeek)) {
+      return false;
+    }
+    
+    // Get current time in hours and minutes
+    const currentHour: number = now.getHours();
+    const currentMinute: number = now.getMinutes();
+    const currentTimeInMinutes: number = currentHour * 60 + currentMinute;
+    
+    // Parse work hours
+    const [startHour, startMinute]: number[] = businessInfo.workStartTime!.split(':').map(Number);
+    const [endHour, endMinute]: number[] = businessInfo.workEndTime!.split(':').map(Number);
+    
+    const startTimeInMinutes: number = startHour * 60 + startMinute;
+    const endTimeInMinutes: number = endHour * 60 + endMinute;
+    
+    // Check if current time is within work hours
+    return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
   };
   
   const handleClockOut = () => {
@@ -631,62 +670,168 @@ export default function PunchClockSystem() {
     
     return (
       <>
-        {/* Company Info Card */}
-        <div className={`bg-${theme.background} rounded-lg shadow-md p-4 sm:p-6 border border-${theme.border} mb-6 transition-colors duration-200`}>
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
-            <div className="w-full">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full mb-2">
-                <h3 className={`text-base sm:text-lg font-semibold text-${theme.text} transition-colors duration-200`}>{businessInfo.name}</h3>
-                <button
-                  onClick={() => setShowOnboarding(true)}
-                  className={`text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-${theme.primary}/10 text-${theme.primary} hover:bg-${theme.primary}/20 transition-colors duration-200 mt-1 sm:mt-0`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                  </svg>
-                  Edit Details
-                </button>
-              </div>
-              
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} transition-colors duration-200`}>Employee Time Management System</p>
-              
-              {businessInfo.address && (
-                <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} mt-2 flex items-start transition-colors duration-200`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="break-words">{businessInfo.address}</span>
-                </p>
-              )}
-              
-              <div className="flex flex-col sm:flex-row mt-2 sm:space-x-4 space-y-2 sm:space-y-0">
-                {businessInfo.phone && (
-                  <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center transition-colors duration-200`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                    </svg>
-                    <span className="break-words">{businessInfo.phone}</span>
-                  </p>
-                )}
-                
-                {businessInfo.email && (
-                  <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center transition-colors duration-200`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                    </svg>
-                    <span className="break-words">{businessInfo.email}</span>
-                  </p>
-                )}
-              </div>
+        {/* Company Info Card - Sleek Modern Design */}
+<div className={`bg-${theme.background} rounded-xl shadow-lg overflow-hidden border border-${theme.border} mb-6 transition-all duration-300 hover:shadow-xl`}>
+  {/* Card Header with gradient accent */}
+  <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400"></div>
+  
+  <div className="p-5 sm:p-6">
+    {/* Company Name and Edit Button */}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full mb-5">
+      <div>
+        <h3 className={`text-xl sm:text-2xl font-bold text-${theme.text} transition-colors duration-200 flex items-center`}>
+          {businessInfo.name}
+          {businessInfo.established && (
+            <span className="text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full ml-2 font-medium">
+              Est. {businessInfo.established}
+            </span>
+          )}
+        </h3>
+        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} transition-colors duration-200 mt-0.5`}>Employee Time Management System</p>
+      </div>
+      
+      <button
+        onClick={() => setShowOnboarding(true)}
+        className={`text-xs flex items-center gap-1 px-3 py-2 rounded-md bg-${theme.primary}/10 text-${theme.primary} hover:bg-${theme.primary}/20 transition-colors duration-200 mt-3 sm:mt-0`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+        </svg>
+        Edit Details
+      </button>
+    </div>
+    
+    {/* Main Content Grid */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Left column - Address & Contact Info with Sleek Design */}
+      <div className="space-y-3">
+        {businessInfo.address && (
+          <div className={`rounded-lg p-3 ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50'} transition-all duration-200`}>
+            <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-start`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+              </svg>
+              <span className="break-words">{businessInfo.address}</span>
+            </p>
+          </div>
+        )}
+        
+        <div className="grid grid-cols-2 gap-3">
+          {businessInfo.phone && (
+            <div className={`rounded-lg p-3 ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50'} transition-all duration-200`}>
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                </svg>
+                <span className="truncate">{businessInfo.phone}</span>
+              </p>
             </div>
-            
-            <div className="sm:text-right text-xs mt-2 sm:mt-0 text-gray-400 dark:text-gray-500 transition-colors duration-200">
-              <div className="font-medium">Today's Date</div>
-              <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'} transition-colors duration-200`}>{new Date().toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})}</div>
+          )}
+          
+          {businessInfo.email && (
+            <div className={`rounded-lg p-3 ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50'} transition-all duration-200`}>
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                </svg>
+                <span className="truncate">{businessInfo.email}</span>
+              </p>
+            </div>
+          )}
+        </div>
+        
+        {/* Today's Date Card */}
+        <div className={`rounded-lg p-3 ${darkMode ? 'bg-indigo-900/20' : 'bg-indigo-50'} transition-all duration-200`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Today's Date</span>
+            </div>
+            <div className={`text-sm font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>
+              {new Date().toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}
             </div>
           </div>
         </div>
+      </div>
+      
+      {/* Right column - Modern Business Hours Display */}
+      {businessInfo.workStartTime && businessInfo.workEndTime && (
+        <div className={`rounded-xl overflow-hidden shadow-sm ${darkMode ? 'bg-gray-800/50' : 'bg-white'} transition-all duration-300`}>
+          {/* Hours Header */}
+          <div className={`px-4 py-3 ${darkMode ? 'bg-indigo-600/20' : 'bg-indigo-50'} flex items-center justify-between`}>
+            <h4 className="text-xs font-medium text-indigo-600 dark:text-indigo-300 uppercase tracking-wider flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              Business Hours
+            </h4>
+          </div>
+          
+          {/* Modern Hours Display */}
+          <div className="p-5">
+            {/* Hours Banner */}
+            <div className={`flex items-center justify-center py-5 px-6 bg-gradient-to-r ${darkMode ? 'from-indigo-900/30 to-purple-900/30' : 'from-indigo-50 to-purple-50'} rounded-lg mb-5`}>
+              <div className={`text-center ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>
+                <div className="text-3xl font-bold">{formatTime(businessInfo.workStartTime)} - {formatTime(businessInfo.workEndTime)}</div>
+                <div className={`text-xs uppercase mt-1 tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Daily Operating Hours</div>
+              </div>
+            </div>
+            
+            {/* Working Days */}
+            <div>
+              <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-3 uppercase tracking-wider`}>Working Days</p>
+              <div className="grid grid-cols-7 gap-1">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => {
+                  const fullDay = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][index];
+                  const isWorkDay = (businessInfo.workDays || []).includes(fullDay);
+                  return (
+                    <div key={day} className="flex flex-col items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
+                        isWorkDay 
+                          ? `${darkMode ? 'bg-indigo-600/30 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`
+                          : `${darkMode ? 'bg-gray-800/70 text-gray-500' : 'bg-gray-100 text-gray-400'}`
+                      }`}>
+                        {day.charAt(0)}
+                      </div>
+                      <span className={`text-xs ${
+                        isWorkDay 
+                          ? `${darkMode ? 'text-gray-300' : 'text-gray-700'} font-medium`
+                          : `${darkMode ? 'text-gray-500' : 'text-gray-400'}`
+                      }`}>
+                        {day}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            {/* Business Status Indicator */}
+            <div className="mt-5 pt-4 flex justify-center border-t border-dashed border-gray-200 dark:border-gray-700">
+              {/* Logic to check if business is currently open based on time and day */}
+              <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${
+                isBusinessCurrentlyOpen(businessInfo) 
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+              }`}>
+                <div className={`w-2 h-2 rounded-full mr-2 ${
+                  isBusinessCurrentlyOpen(businessInfo) 
+                    ? 'bg-green-500 dark:bg-green-400'
+                    : 'bg-red-500 dark:bg-red-400'
+                }`}></div>
+                {isBusinessCurrentlyOpen(businessInfo) ? 'Currently Open' : 'Currently Closed'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+
         
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
