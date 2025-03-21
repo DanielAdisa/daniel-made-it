@@ -74,7 +74,7 @@ export default function PunchClockSystem() {
   
   // Company information
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
-    name: "TimeTrack Pro",
+    name: "ClockedIn",
     address: "123 Business Ave, Suite 200, San Francisco, CA 94107",
     phone: "(555) 123-4567",
     email: "info@timetrackpro.com",
@@ -320,20 +320,55 @@ const calculateLateness = (clockInTime: string): number => {
   };
   
   const exportRecords = (format: 'csv' | 'json') => {
-    // Prepare records data with employee names
+    // Prepare records data with employee names and all additional data
     const exportData = records.map(record => {
       const employee = employees.find(emp => emp.id === record.employeeId);
+      
+      // Calculate lateness
+      const latenessMinutes = calculateLateness(record.clockInTime);
+      const formattedLateness = latenessMinutes > 0 ? formatMinutes(latenessMinutes) : 'On time';
+      
+      // Calculate overtime
+      const overtimeMinutes = calculateOvertime(record.clockOutTime);
+      const formattedOvertime = record.clockOutTime 
+        ? (overtimeMinutes > 0 ? formatMinutes(overtimeMinutes) : 'None')
+        : 'Not applicable';
+      
+      // Calculate duration in minutes and hours
+      const durationInMinutes = record.clockOutTime 
+        ? (new Date(record.clockOutTime).getTime() - new Date(record.clockInTime).getTime()) / (1000 * 60)
+        : null;
+      
+      const durationInHours = durationInMinutes 
+        ? (durationInMinutes / 60).toFixed(2)
+        : null;
+      
       return {
         employeeId: record.employeeId,
         employeeName: employee ? employee.name : 'Unknown',
         department: employee ? employee.department : 'Unknown',
+        position: employee ? employee.position || 'Not specified' : 'Unknown',
+        date: record.date,
         clockInTime: new Date(record.clockInTime).toLocaleString(),
         clockOutTime: record.clockOutTime ? new Date(record.clockOutTime).toLocaleString() : 'Not clocked out',
-        date: record.date,
-        duration: record.clockOutTime ? 
-          `${((new Date(record.clockOutTime).getTime() - new Date(record.clockInTime).getTime()) / (1000 * 60 * 60)).toFixed(2)} hrs` : 
-          'In progress'
+        durationHours: durationInHours ? `${durationInHours} hrs` : 'In progress',
+        durationMinutes: durationInMinutes ? `${Math.round(durationInMinutes)} mins` : 'In progress',
+        lateness: formattedLateness,
+        latenessMinutes: latenessMinutes,
+        overtime: formattedOvertime,
+        overtimeMinutes: overtimeMinutes,
+        status: record.clockOutTime ? 'Completed' : 'In progress',
+        clockInTimeRaw: record.clockInTime,
+        clockOutTimeRaw: record.clockOutTime || ''
       };
+    });
+    
+    // Sort records by date and clock in time for better readability in exports
+    exportData.sort((a, b) => {
+      if (a.date !== b.date) {
+        return new Date(b.date).getTime() - new Date(a.date).getTime(); // Sort by date desc
+      }
+      return new Date(b.clockInTimeRaw).getTime() - new Date(a.clockInTimeRaw).getTime(); // Then by clock in time desc
     });
     
     if (exportData.length === 0) {
@@ -346,15 +381,18 @@ const calculateLateness = (clockInTime: string): number => {
       return;
     }
     
+    // Create a simplified version without raw data fields for CSV export
+    const csvExportData = exportData.map(({ clockInTimeRaw, clockOutTimeRaw, ...rest }) => rest);
+    
     if (format === 'csv') {
-      exportAsCSV(exportData, `time-records-${new Date().toISOString().split('T')[0]}`);
+      exportAsCSV(csvExportData, `time-records-${new Date().toISOString().split('T')[0]}`);
     } else {
       exportAsJSON(exportData, `time-records-${new Date().toISOString().split('T')[0]}`);
     }
     
     Swal.fire({
       title: 'Export Successful',
-      text: `Records have been exported as ${format.toUpperCase()}.`,
+      text: `Records have been exported as ${format.toUpperCase()} with all attendance data.`,
       icon: 'success',
       timer: 2000,
       timerProgressBar: true,
@@ -373,15 +411,60 @@ const calculateLateness = (clockInTime: string): number => {
       return;
     }
     
+    // Add additional employee analytics where available
+    const exportData = employees.map(employee => {
+      // Get all records for this employee
+      const employeeRecords = records.filter(record => record.employeeId === employee.id);
+      
+      // Calculate total hours worked
+      const totalHoursWorked = employeeRecords
+        .filter(record => record.clockOutTime !== null)
+        .reduce((total, record) => {
+          const clockIn = new Date(record.clockInTime).getTime();
+          const clockOut = new Date(record.clockOutTime!).getTime();
+          return total + ((clockOut - clockIn) / (1000 * 60 * 60));
+        }, 0);
+        
+      // Calculate average lateness
+      const latenessInstances = employeeRecords
+        .map(record => calculateLateness(record.clockInTime))
+        .filter(minutes => minutes > 0);
+      
+      const averageLateness = latenessInstances.length > 0
+        ? latenessInstances.reduce((sum, minutes) => sum + minutes, 0) / latenessInstances.length
+        : 0;
+        
+      // Calculate total overtime
+      const totalOvertime = employeeRecords
+        .filter(record => record.clockOutTime !== null)
+        .reduce((total, record) => total + calculateOvertime(record.clockOutTime), 0);
+      
+      // Count days worked
+      const daysWorked = new Set(employeeRecords.map(record => record.date)).size;
+      
+      return {
+        ...employee,
+        totalHoursWorked: totalHoursWorked.toFixed(2),
+        daysWorked,
+        averageLateness: formatMinutes(averageLateness),
+        averageLatenessMinutes: Math.round(averageLateness),
+        totalOvertimeWorked: formatMinutes(totalOvertime),
+        totalOvertimeMinutes: totalOvertime,
+        punctualityRate: latenessInstances.length > 0
+          ? `${Math.round(((employeeRecords.length - latenessInstances.length) / employeeRecords.length) * 100)}%`
+          : '100%'
+      };
+    });
+    
     if (format === 'csv') {
-      exportAsCSV(employees, `employees-${new Date().toISOString().split('T')[0]}`);
+      exportAsCSV(exportData, `employees-${new Date().toISOString().split('T')[0]}`);
     } else {
-      exportAsJSON(employees, `employees-${new Date().toISOString().split('T')[0]}`);
+      exportAsJSON(exportData, `employees-${new Date().toISOString().split('T')[0]}`);
     }
     
     Swal.fire({
       title: 'Export Successful',
-      text: `Employees have been exported as ${format.toUpperCase()}.`,
+      text: `Employees have been exported as ${format.toUpperCase()} with analytics data.`,
       icon: 'success',
       timer: 2000,
       timerProgressBar: true,
@@ -812,7 +895,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         <div className="h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
         
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center justify-between mb-6">
             <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-stone-800'} flex items-center`}>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.primary}`} viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
@@ -840,7 +923,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           <div className="space-y-4">
             <div className={`p-4 rounded-lg bg-${darkMode ? 'gray-700/50' : 'gray-50'} text-${darkMode ? 'gray-300' : 'gray-700'} text-sm flex items-start`}>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.accent} flex-shrink-0 mt-0.5`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-1 1v4a1 1 0 102 0V7a1 1 0 00-1-1zM9 12a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
               </svg>
               <p>
                 This action requires administrator verification. Please enter the employer password you set up during onboarding.
@@ -852,7 +935,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 Enter Employer Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                   <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
@@ -883,7 +966,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
           </div>
           
-          <div className="mt-6 flex justify-end gap-3">
+          <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={() => {
                 if (!passwordVerified) {
@@ -905,7 +988,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               onClick={verifyPassword}
               className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-sm flex items-center gap-2"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
               Verify Password
@@ -934,7 +1017,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
   
   <div className="p-5 sm:p-6">
     {/* Company Name and Edit Button */}
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full mb-5">
+    <div className="flex flex-col justify-between w-full mb-5 sm:flex-row sm:items-center">
       <div>
         <h3 className={`text-xl sm:text-2xl font-bold text-${theme.text} transition-colors duration-200 flex items-center`}>
           {businessInfo.name}
@@ -959,7 +1042,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     </div>
     
     {/* Main Content Grid */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* Left column - Address & Contact Info with Sleek Design */}
       <div className="space-y-3">
         {businessInfo.address && (
@@ -977,7 +1060,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           {businessInfo.phone && (
             <div className={`rounded-lg p-3 ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50'} transition-all duration-200`}>
               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                 </svg>
                 <span className="truncate">{businessInfo.phone}</span>
@@ -988,7 +1071,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           {businessInfo.email && (
             <div className={`rounded-lg p-3 ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50'} transition-all duration-200`}>
               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                   <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                 </svg>
@@ -1002,7 +1085,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         <div className={`rounded-lg p-3 ${darkMode ? 'bg-indigo-900/20' : 'bg-indigo-50'} transition-all duration-200`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
               </svg>
               <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Today's Date</span>
@@ -1019,7 +1102,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         <div className={`rounded-xl overflow-hidden shadow-sm ${darkMode ? 'bg-gray-800/50' : 'bg-white'} transition-all duration-300`}>
           {/* Hours Header */}
           <div className={`px-4 py-3 ${darkMode ? 'bg-indigo-600/20' : 'bg-indigo-50'} flex items-center justify-between`}>
-            <h4 className="text-xs font-medium text-indigo-600 dark:text-indigo-300 uppercase tracking-wider flex items-center">
+            <h4 className="flex items-center text-xs font-medium tracking-wider text-indigo-600 uppercase dark:text-indigo-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
               </svg>
@@ -1067,7 +1150,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
             
             {/* Business Status Indicator */}
-            <div className="mt-5 pt-4 flex justify-center border-t border-dashed border-gray-200 dark:border-gray-700">
+            <div className="flex justify-center pt-4 mt-5 border-t border-gray-200 border-dashed dark:border-gray-700">
               {/* Logic to check if business is currently open based on time and day */}
               <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${
                 isBusinessCurrentlyOpen(businessInfo) 
@@ -1091,15 +1174,15 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
 
         
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Clocked In Employees Card */}
           <div className={`bg-${theme.background} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
-            <div className="p-4 md:p-6 relative">
+            <div className="relative p-4 md:p-6">
               <div className={`absolute top-0 left-0 w-1.5 h-full bg-${theme.primary}`}></div>
               
               <div className="flex flex-col h-full ml-2">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Currently Clocked In</h3>
+                  <h3 className="text-xs font-medium text-gray-400 sm:text-sm">Currently Clocked In</h3>
                   <div className={`p-1 rounded-full bg-${theme.primary}/10`}>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.primary}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1111,7 +1194,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   {clockedInEmployees.length}
                 </p>
                 
-                <div className="text-xs text-gray-400 mt-2 flex items-center">
+                <div className="flex items-center mt-2 text-xs text-gray-400">
                   <span>Active employees right now</span>
                 </div>
               </div>
@@ -1120,12 +1203,12 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           
           {/* Working Today Card */}
           <div className={`bg-${theme.background} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
-            <div className="p-4 md:p-6 relative">
+            <div className="relative p-4 md:p-6">
               <div className={`absolute top-0 left-0 w-1.5 h-full bg-${theme.success}`}></div>
               
               <div className="flex flex-col h-full ml-2">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Working Today</h3>
+                  <h3 className="text-xs font-medium text-gray-400 sm:text-sm">Working Today</h3>
                   <div className={`p-1 rounded-full bg-${theme.success}/10`}>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.success}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1137,7 +1220,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   {employeesWorkingToday}
                 </p>
                 
-                <div className="text-xs text-gray-400 mt-2 flex items-center">
+                <div className="flex items-center mt-2 text-xs text-gray-400">
                   <span>Total employees today</span>
                 </div>
               </div>
@@ -1146,12 +1229,12 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           
           {/* Hours Worked Today Card */}
           <div className={`bg-${theme.background} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
-            <div className="p-4 md:p-6 relative">
+            <div className="relative p-4 md:p-6">
               <div className={`absolute top-0 left-0 w-1.5 h-full bg-${theme.accent}`}></div>
               
               <div className="flex flex-col h-full ml-2">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Hours Today</h3>
+                  <h3 className="text-xs font-medium text-gray-400 sm:text-sm">Hours Today</h3>
                   <div className={`p-1 rounded-full bg-${theme.accent}/10`}>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1163,7 +1246,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   {hoursWorkedToday.toFixed(1)}
                 </p>
                 
-                <div className="text-xs text-gray-400 mt-2 flex items-center">
+                <div className="flex items-center mt-2 text-xs text-gray-400">
                   <span>Total hours logged</span>
                 </div>
               </div>
@@ -1172,12 +1255,12 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           
           {/* Total Employees Card */}
           <div className={`bg-${theme.background} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
-            <div className="p-4 md:p-6 relative">
+            <div className="relative p-4 md:p-6">
               <div className={`absolute top-0 left-0 w-1.5 h-full bg-${theme.secondary}`}></div>
               
               <div className="flex flex-col h-full ml-2">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-xs sm:text-sm text-gray-400 font-medium">Total Employees</h3>
+                  <h3 className="text-xs font-medium text-gray-400 sm:text-sm">Total Employees</h3>
                   <div className={`p-1 rounded-full bg-${theme.secondary}/10`}>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.secondary}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1189,7 +1272,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   {employees.length}
                 </p>
                 
-                <div className="text-xs text-gray-400 mt-2 flex items-center">
+                <div className="flex items-center mt-2 text-xs text-gray-400">
                   <span>Registered in system</span>
                 </div>
               </div>
@@ -1199,7 +1282,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         
         {/* Clock In/Out Section */}
         <div className={`bg-${theme.background} p-6 rounded-lg shadow-md mb-8 border border-${theme.border} transition-colors duration-200`}>
-          <h2 className="text-xl font-semibold mb-6 text-gray-300 border-b border-gray-700 pb-2 flex items-center">
+          <h2 className="flex items-center pb-2 mb-6 text-xl font-semibold text-gray-300 border-b border-gray-700">
             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
             </svg>
@@ -1209,14 +1292,14 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           <div className="flex flex-col gap-4">
             {/* Employee Search Dropdown */}
             <div className="relative" ref={searchDropdownRef}>
-              <div className="flex items-center p-3 bg-gray-700/30 rounded-lg border border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 cursor-pointer"
+              <div className="flex items-center p-3 border border-gray-600 rounded-lg cursor-pointer bg-gray-700/30 focus-within:ring-2 focus-within:ring-indigo-500"
                 onClick={() => setShowDropdown(!showDropdown)}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                 </svg>
                 <input
                   type="text"
-                  className="bg-transparent border-none w-full text-gray-300 placeholder-gray-500 focus:outline-none"
+                  className="w-full text-gray-300 placeholder-gray-500 bg-transparent border-none focus:outline-none"
                   placeholder="Search for your name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1232,15 +1315,15 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               
               {/* Dropdown Results */}
               {showDropdown && (
-                <div className="absolute mt-1 w-full rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-10 max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 overflow-y-auto bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 max-h-60">
                   <div className="py-1">
                     {filteredEmployees.length > 0 ? (
                       filteredEmployees.map((employee) => (
                         <div key={employee.id} className="px-2 py-1">
-                          <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-700 transition-colors cursor-pointer">
+                          <div className="flex items-center justify-between p-2 transition-colors rounded-md cursor-pointer hover:bg-gray-700">
                             <div>
                               <div className="text-sm font-medium text-gray-200">{employee.name}</div>
-                              <div className="text-xs text-gray-400 flex items-center mt-1">
+                              <div className="flex items-center mt-1 text-xs text-gray-400">
                                 <span className="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded text-xs">
                                   {employee.department}
                                 </span>
@@ -1259,7 +1342,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                                 className="bg-green-500/20 hover:bg-green-500/30 text-green-400 p-1.5 rounded-md transition-colors"
                                 title="Clock In"
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clipRule="evenodd" />
                                 </svg>
                               </button>
@@ -1271,7 +1354,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                                 className="bg-red-500/20 hover:bg-red-500/30 text-red-400 p-1.5 rounded-md transition-colors"
                                 title="Clock Out"
                               >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                                 </svg>
                               </button>
@@ -1281,7 +1364,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       ))
                     ) : (
                       <div className="px-4 py-6 text-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
@@ -1289,14 +1372,14 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       </div>
                     )}
                     
-                    <div className="border-t border-gray-700 px-4 py-3 flex justify-center">
+                    <div className="flex justify-center px-4 py-3 border-t border-gray-700">
                       <button
                         onClick={() => {
                           setShowDropdown(false);
                           setEditingEmployee(null);
                           setShowModal(true);
                         }}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                        className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
@@ -1309,15 +1392,15 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               )}
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-4 mt-2">
+            <div className="flex flex-col gap-4 mt-2 sm:flex-row">
               <button
                 onClick={() => {
                   setIsClockingIn(true);
                   setShowVerificationModal(true);
                 }}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-md hover:from-green-600 hover:to-green-700 transition duration-300 shadow-sm flex items-center justify-center gap-2"
+                className="flex items-center justify-center gap-2 px-6 py-3 text-white transition duration-300 rounded-md shadow-sm bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clipRule="evenodd" />
                 </svg>
                 Clock In
@@ -1327,9 +1410,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   setIsClockingIn(false);
                   setShowVerificationModal(true);
                 }}
-                className="bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-6 rounded-md hover:from-red-600 hover:to-red-700 transition duration-300 shadow-sm flex items-center justify-center gap-2"
+                className="flex items-center justify-center gap-2 px-6 py-3 text-white transition duration-300 rounded-md shadow-sm bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                 </svg>
                 Clock Out
@@ -1337,8 +1420,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
             
             {/* Help text */}
-            <div className="mt-4 text-gray-400 text-sm flex items-start">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <div className="flex items-start mt-4 text-sm text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
               </svg>
               <span>Search for your name from the dropdown and select the appropriate action, or use the buttons below if you already know your employee ID.</span>
@@ -1348,8 +1431,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         
         {/* Today's Clock-ins */}
         <div className={`bg-${theme.background} p-6 rounded-lg shadow-md border border-${theme.border} transition-colors duration-200`}>
-          <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
-            <h2 className="text-xl font-semibold text-gray-300 flex items-center">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <h2 className="flex items-center text-xl font-semibold text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
               </svg>
@@ -1363,14 +1446,14 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   Export
                 </button>
                 {recordsExportOpen && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-10">
+                  <div className="absolute right-0 z-10 w-48 mt-2 bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
                     <div className="py-1">
                       <button 
                         onClick={() => {
                           exportRecords('csv');
                           setRecordsExportOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2"
+                        className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -1382,7 +1465,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           exportRecords('json');
                           setRecordsExportOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2"
+                        className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -1400,17 +1483,17 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
 
           {/* Today's records table */}
           {records.filter(record => record.date === currentDate).length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-gray-700">
-              <table className="min-w-full bg-gray-800 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto border border-gray-700 rounded-lg">
+              <table className="min-w-full overflow-hidden bg-gray-800 rounded-lg">
                 <thead>
-                  <tr className="bg-gray-700/30 text-gray-400">
-                    <th className="py-3 px-4 text-left font-semibold">Employee</th>
-                    <th className="py-3 px-4 text-left font-semibold">Department</th>
-                    <th className="py-3 px-4 text-left font-semibold">Clock In</th>
-                    <th className="py-3 px-4 text-left font-semibold">Clock Out</th>
-                    <th className="py-3 px-4 text-left font-semibold">Duration</th>
-                    <th className="py-3 px-4 text-left font-semibold">Lateness</th>
-                    <th className="py-3 px-4 text-left font-semibold">Overtime</th>
+                  <tr className="text-gray-400 bg-gray-700/30">
+                    <th className="px-4 py-3 font-semibold text-left">Employee</th>
+                    <th className="px-4 py-3 font-semibold text-left">Department</th>
+                    <th className="px-4 py-3 font-semibold text-left">Clock In</th>
+                    <th className="px-4 py-3 font-semibold text-left">Clock Out</th>
+                    <th className="px-4 py-3 font-semibold text-left">Duration</th>
+                    <th className="px-4 py-3 font-semibold text-left">Lateness</th>
+                    <th className="px-4 py-3 font-semibold text-left">Overtime</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1434,44 +1517,44 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     const department = employee ? employee.department : 'Unknown';
                     
                     return (
-                      <tr key={index} className="border-t border-gray-700 hover:bg-gray-700/30 transition-colors duration-150">
-                        <td className="py-3 px-4 text-gray-300 font-medium">{employeeName}</td>
-                        <td className="py-3 px-4 text-gray-300">{department}</td>
-                        <td className="py-3 px-4 text-gray-300">
+                      <tr key={index} className="transition-colors duration-150 border-t border-gray-700 hover:bg-gray-700/30">
+                        <td className="px-4 py-3 font-medium text-gray-300">{employeeName}</td>
+                        <td className="px-4 py-3 text-gray-300">{department}</td>
+                        <td className="px-4 py-3 text-gray-300">
                           {clockIn.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </td>
-                        <td className="py-3 px-4 text-gray-300">
+                        <td className="px-4 py-3 text-gray-300">
                           {clockOut ? clockOut.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '—'}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="px-4 py-3">
                           {duration === 'In progress' ? 
-                            <span className="text-blue-400 bg-blue-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                            <span className="px-2 py-1 text-xs font-medium text-blue-400 rounded-full bg-blue-500/20">
                               {duration}
                             </span> : 
-                            <span className="text-green-400 bg-green-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                            <span className="px-2 py-1 text-xs font-medium text-green-400 rounded-full bg-green-500/20">
                               {duration} hrs
                             </span>
                           }
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="px-4 py-3">
                           {latenessMinutes > 0 ? (
-                            <span className="text-amber-400 bg-amber-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                            <span className="px-2 py-1 text-xs font-medium rounded-full text-amber-400 bg-amber-500/20">
                               {formatMinutes(latenessMinutes)}
                             </span>
                           ) : (
-                            <span className="text-green-400 bg-green-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                            <span className="px-2 py-1 text-xs font-medium text-green-400 rounded-full bg-green-500/20">
                               On time
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="px-4 py-3">
                           {record.clockOutTime ? (
                             overtimeMinutes > 0 ? (
-                              <span className="text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                              <span className="px-2 py-1 text-xs font-medium text-purple-400 rounded-full bg-purple-500/20">
                                 {formatMinutes(overtimeMinutes)}
                               </span>
                             ) : (
-                              <span className="text-gray-400 bg-gray-500/20 px-2 py-1 rounded-full text-xs font-medium">
+                              <span className="px-2 py-1 text-xs font-medium text-gray-400 rounded-full bg-gray-500/20">
                                 None
                               </span>
                             )
@@ -1487,13 +1570,13 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
           ) : (
             <div className="py-12 text-center">
-              <div className="text-indigo-400 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-14 w-14 mx-auto opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="mb-4 text-indigo-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-14 w-14 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-gray-300 text-lg">No clock-ins recorded today</p>
-              <p className="text-gray-400 text-sm mt-1">Time records will appear here when employees clock in</p>
+              <p className="text-lg text-gray-300">No clock-ins recorded today</p>
+              <p className="mt-1 text-sm text-gray-400">Time records will appear here when employees clock in</p>
             </div>
           )}
         </div>
@@ -1520,26 +1603,26 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     return (
       <div className={`bg-${theme.background} p-6 rounded-lg shadow-md border border-${theme.border} transition-colors duration-200`}>
         <div className="mb-6">
-          <div className="flex justify-between items-center flex-wrap gap-3 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <h2 className="text-xl font-semibold text-gray-700">Registered Employees</h2>
             <div className="flex gap-2">
               <div className="relative" ref={employeesDropdownRef}>
                 <button 
                   onClick={() => setEmployeesExportOpen(!employeesExportOpen)}
-                  className="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300 shadow-sm mr-2">
+                  className="px-4 py-2 mr-2 text-white transition duration-300 bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">
                   Export
                 </button>
                 {employeesExportOpen && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                  <div className="absolute right-0 z-10 w-48 mt-2 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
                     <div className="py-1">
                       <button 
                         onClick={() => {
                           exportEmployees('csv');
                           setEmployeesExportOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-100 hover:text-indigo-900 flex items-center gap-2"
+                        className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-700 hover:bg-indigo-100 hover:text-indigo-900"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
                         Export as CSV
@@ -1549,9 +1632,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           exportEmployees('json');
                           setEmployeesExportOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-100 hover:text-indigo-900 flex items-center gap-2"
+                        className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-gray-700 hover:bg-indigo-100 hover:text-indigo-900"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
                         Export as JSON
@@ -1562,9 +1645,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               </div>
               <button
                 onClick={() => initiateProtectedAction('addEmployee')}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white py-2 px-4 rounded-md hover:from-green-600 hover:to-green-700 transition duration-300 shadow-sm flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 text-white transition duration-300 rounded-md shadow-sm bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
                 </svg>
                 Register New Employee
@@ -1573,28 +1656,28 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </div>
           
           {/* Search and Filter Interface */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="flex flex-col gap-3 mb-6 sm:flex-row">
             <div className="relative flex-grow">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                 </svg>
               </div>
               <input
                 type="text"
-                className="pl-10 pr-4 py-2 w-full rounded-lg bg-gray-50 border border-gray-200 text-gray-700 focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition-all duration-200"
+                className="w-full py-2 pl-10 pr-4 text-gray-700 transition-all duration-200 border border-gray-200 rounded-lg bg-gray-50 focus:ring-2 focus:ring-indigo-300 focus:border-transparent"
                 placeholder="Search employees by name or position..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             
-            <div className="flex items-center px-4 py-2 rounded-lg bg-gray-50 border border-gray-200 w-full sm:w-auto">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <div className="flex items-center w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 sm:w-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
               </svg>
               <select
-                className="bg-transparent text-gray-700 focus:outline-none w-full"
+                className="w-full text-gray-700 bg-transparent focus:outline-none"
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
               >
@@ -1608,26 +1691,26 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         </div>
         
         {filteredEmployees.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredEmployees.map((employee) => (
               <div 
                 key={employee.id} 
-                className="group bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
+                className="overflow-hidden transition-all duration-300 border border-gray-200 shadow-sm group bg-gradient-to-br from-white to-gray-50 rounded-xl hover:shadow-lg"
               >
                 {/* Card Header - Top Gradient */}
-                <div className="h-1 bg-gradient-to-r from-indigo-500 to-blue-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+                <div className="h-1 transition-transform duration-300 origin-left transform scale-x-0 bg-gradient-to-r from-indigo-500 to-blue-500 group-hover:scale-x-100"></div>
                 
                 <div className="flex p-5">
                   {/* Employee Avatar */}
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-100 to-blue-100 border border-gray-200 flex items-center justify-center text-indigo-600 font-bold text-lg mr-4">
+                  <div className="flex items-center justify-center w-16 h-16 mr-4 text-lg font-bold text-indigo-600 border border-gray-200 rounded-xl bg-gradient-to-br from-indigo-100 to-blue-100">
                     {employee.name.charAt(0).toUpperCase() + (employee.name.split(' ')[1]?.[0]?.toUpperCase() || '')}
                   </div>
                   
                   {/* Employee Info */}
                   <div className="flex-1">
-                    <div className="flex justify-between items-start">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition-colors duration-300">
+                        <h3 className="text-base font-semibold text-gray-800 transition-colors duration-300 group-hover:text-indigo-600">
                           {employee.name}
                         </h3>
                         {employee.position && (
@@ -1638,9 +1721,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       </div>
                       
                       {/* Quick Actions - Visible on Hover */}
-                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="flex space-x-1 transition-opacity duration-300 opacity-0 group-hover:opacity-100">
                         <button
-                          className="p-2 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 transition-colors"
+                          className="p-2 text-indigo-600 transition-colors rounded-full bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700"
                           onClick={() => handleEditEmployee(employee)}
                           title="Edit employee"
                         >
@@ -1649,7 +1732,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           </svg>
                         </button>
                         <button
-                          className="p-2 rounded-full bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 transition-colors"
+                          className="p-2 text-red-600 transition-colors rounded-full bg-red-50 hover:bg-red-100 hover:text-red-700"
                           onClick={() => handleDeleteEmployee(employee.id)}
                           title="Delete employee"
                         >
@@ -1661,7 +1744,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     </div>
                     
                     {/* Department Tag */}
-                    <div className="mt-2 flex items-center">
+                    <div className="flex items-center mt-2">
                       <span className="mr-2 text-indigo-300">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
@@ -1677,8 +1760,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <div className="p-4 border-t border-gray-100 space-y-2.5">
                   {employee.email && (
                     <div className="flex items-center text-sm">
-                      <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center mr-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                      <div className="flex items-center justify-center w-8 h-8 mr-3 rounded-full bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                           <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                         </svg>
@@ -1689,8 +1772,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   
                   {employee.phone && (
                     <div className="flex items-center text-sm">
-                      <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center mr-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                      <div className="flex items-center justify-center w-8 h-8 mr-3 rounded-full bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                         </svg>
                       </div>
@@ -1701,7 +1784,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   {employee.address && (
                     <div className="flex items-start text-sm">
                       <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center mr-3 mt-0.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -1714,11 +1797,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </div>
         ) : (
           <div className="py-12 text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-14 w-14 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-400 h-14 w-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
             <p className="text-gray-500">No employees found matching your criteria</p>
-            <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
+            <p className="mt-2 text-sm text-gray-400">Try adjusting your search or filters</p>
           </div>
         )}
       </div>
@@ -1733,7 +1816,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     <div className="h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
     
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex items-center justify-between mb-6">
         <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-stone-800'}`}>
           {editingEmployee ? 'Edit Employee' : 'Register New Employee'}
         </h3>
@@ -1752,11 +1835,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         </button>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
             Full Name 
-            <span className="text-red-500 ml-1">*</span>
+            <span className="ml-1 text-red-500">*</span>
             {formErrors.name && (
               <span className="ml-2 text-xs text-red-500">{formErrors.name}</span>
             )}
@@ -1782,7 +1865,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         <div>
           <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center`}>
             Department 
-            <span className="text-red-500 ml-1">*</span>
+            <span className="ml-1 text-red-500">*</span>
             {formErrors.department && (
               <span className="ml-2 text-xs text-red-500">{formErrors.department}</span>
             )}
@@ -1904,7 +1987,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         </div>
       </div>
 
-      <div className="mt-8 flex justify-end gap-3">
+      <div className="flex justify-end gap-3 mt-8">
         <button
           onClick={() => {
             setShowModal(false);
@@ -1927,14 +2010,14 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         >
           {editingEmployee ? (
             <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
               </svg>
               Save Changes
             </>
           ) : (
             <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
               </svg>
               Register Employee
@@ -1943,9 +2026,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         </button>
       </div>
       
-      <div className="mt-4 text-xs text-gray-500 flex items-center">
+      <div className="flex items-center mt-4 text-xs text-gray-500">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-1 1v4a1 1 0 102 0V7a1 1 0 00-1-1zM9 12a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
         </svg>
         <span>Fields marked with <span className="text-red-500">*</span> are required</span>
       </div>
@@ -2036,7 +2119,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
   // Add onboarding state
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
   const [businessFormData, setBusinessFormData] = useState<BusinessInfo>({
-    name: businessInfo.name || "TimeTrack Pro",
+    name: businessInfo.name || "ClockedIn",
     address: businessInfo.address || "123 Business Ave, Suite 200, San Francisco, CA 94107",
     phone: businessInfo.phone || "(555) 123-4567",
     email: businessInfo.email || "info@timetrackpro.com",
@@ -2110,7 +2193,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     // Show success notification
     Swal.fire({
       title: 'Setup Complete!',
-      text: 'Your TimeTrack Pro system is ready to use.',
+      text: 'Your ClockedIn system is ready to use.',
       icon: 'success',
       confirmButtonColor: '#4f46e5'
     });
@@ -2140,7 +2223,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-5"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black bg-opacity-75 backdrop-blur-md sm:p-5"
         >
           <motion.div 
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -2152,14 +2235,14 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           >
             {/* Sticky header with gradient */}
             <div className={`sticky top-0 z-10 border-b border-${darkMode ? 'gray-700' : 'gray-200'}/70 bg-gradient-to-r from-${theme.primary}/90 to-${theme.accent}/90 px-6 py-5 backdrop-blur-sm`}>
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <h3 className={`text-xl font-bold text-white flex items-center`}>
-                  <div className="p-2 rounded-full bg-white/20 mr-3 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <div className="flex items-center justify-center p-2 mr-3 rounded-full bg-white/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                     </svg>
                   </div>
-                  Welcome to TimeTrack Pro!
+                  Welcome to ClockedIn!
                 </h3>
               </div>
               <p className={`mt-1 text-sm text-white/80 ml-12`}>
@@ -2168,23 +2251,23 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
             
             {/* Scrollable content area */}
-            <div className="overflow-y-auto flex-grow px-6 py-5">
+            <div className="flex-grow px-6 py-5 overflow-y-auto">
               {/* Add Password Security Section first */}
               {!passwordSetupComplete && (
                 <div className="mb-8">
-                  <div className="p-4 rounded-xl border border-purple-300/30 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/10 shadow-sm mb-6">
-                    <h4 className="text-base font-semibold text-purple-800 dark:text-purple-300 mb-2 flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600 dark:text-purple-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  <div className="p-4 mb-6 border shadow-sm rounded-xl border-purple-300/30 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/10">
+                    <h4 className="flex items-center mb-2 text-base font-semibold text-purple-800 dark:text-purple-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                       Administrator Password Protection
                     </h4>
-                    <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
+                    <p className="mb-3 text-sm text-purple-700 dark:text-purple-300">
                       Set up a password to protect employer-only actions, including:
                     </p>
                     <div className="grid grid-cols-1 gap-2">
                       <div className="flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                         </svg>
                         <div>
@@ -2193,7 +2276,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         </div>
                       </div>
                       <div className="flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
                         </svg>
                         <div>
@@ -2208,12 +2291,12 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     <div>
                       <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center justify-between`}>
                         <span>Create Administrator Password</span>
-                        <span className="text-xs text-red-500 font-medium">Required</span>
+                        <span className="text-xs font-medium text-red-500">Required</span>
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                           </svg>
                         </div>
                         <input
@@ -2238,9 +2321,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         Confirm Password
                       </label>
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                           </svg>
                         </div>
                         <input
@@ -2261,16 +2344,16 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     </div>
                   
                     {passwordError && (
-                      <div className="p-3 rounded-lg bg-red-500/10 flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <div className="flex items-start p-3 rounded-lg bg-red-500/10">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
                         <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
                       </div>
                     )}
                   
-                    <div className="p-3 rounded-lg bg-yellow-500/10 flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <div className="flex items-start p-3 rounded-lg bg-yellow-500/10">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                       </svg>
                       <p className="text-sm text-yellow-600 dark:text-yellow-400">
@@ -2282,10 +2365,10 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               )}
               
               {/* Privacy notice banner */}
-              <div className="mb-6 p-0 overflow-hidden rounded-xl border border-amber-300/30 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/10">
+              <div className="p-0 mb-6 overflow-hidden border shadow-sm rounded-xl border-amber-300/30 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/10">
                 <div className="bg-amber-200/30 dark:bg-amber-700/20 px-4 py-2.5 border-b border-amber-300/30 flex items-center">
                   <div className="p-1.5 rounded-full bg-amber-400/20 mr-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                     </svg>
                   </div>
@@ -2293,11 +2376,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 </div>
                 
                 <div className="px-4 py-3 space-y-2">
-                  <p className="text-xs text-amber-700 dark:text-amber-300 flex items-start">
+                  <p className="flex items-start text-xs text-amber-700 dark:text-amber-300">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-1 1v4a1 1 0 102 0V7a1 1 0 00-1-1zM9 12a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
                     </svg>
-                    <span>TimeTrack Pro operates <strong>entirely on your device</strong> - this app has <strong>zero access</strong> to your data</span>
+                    <span>ClockedIn operates <strong>entirely on your device</strong> - this app has <strong>zero access</strong> to your data</span>
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-start text-amber-700 dark:text-amber-300">
@@ -2352,7 +2435,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     <div>
                       <label className={`block text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'} mb-1 flex items-center justify-between`}>
                         <span>Business Name</span>
-                        <span className="text-xs text-red-500 font-medium">Required</span>
+                        <span className="text-xs font-medium text-red-500">Required</span>
                       </label>
                       <input 
                         type="text" 
@@ -2368,7 +2451,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     <div>
                       <label className={`block text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'} mb-1 flex items-center justify-between`}>
                         <span>Industry Type</span>
-                        <span className="text-xs text-red-500 font-medium">Required</span>
+                        <span className="text-xs font-medium text-red-500">Required</span>
                       </label>
                       
                       <div className="relative">
@@ -2423,7 +2506,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       <div>
                         <label className={`block text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'} mb-1 flex items-center justify-between`}>
                           <span>Start Time</span>
-                          <span className="text-xs text-red-500 font-medium">Required</span>
+                          <span className="text-xs font-medium text-red-500">Required</span>
                         </label>
                         <input 
                         title='Start Time'
@@ -2438,7 +2521,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       <div>
                         <label className={`block text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'} mb-1 flex items-center justify-between`}>
                           <span>End Time</span>
-                          <span className="text-xs text-red-500 font-medium">Required</span>
+                          <span className="text-xs font-medium text-red-500">Required</span>
                         </label>
                         <input 
                         title='End Time'
@@ -2581,7 +2664,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 }}
                 className={`px-5 py-2.5 bg-gradient-to-r from-${theme.primary} to-${theme.accent} hover:from-${theme.accent} hover:to-${theme.primary} text-white rounded-lg shadow-md font-medium transition-all duration-300 flex items-center justify-center space-x-2 text-sm w-full sm:w-auto`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 <span>{passwordSetupComplete ? 'Complete Setup' : 'Create Password & Continue'}</span>
@@ -2598,11 +2681,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors duration-200`}>
       {/* Navigation */}
       <nav className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm transition-colors duration-200`}>
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
     <div className="flex justify-between h-16">
       <div className="flex items-center">
-        <div className="flex-shrink-0 flex items-center">
-          <span className="text-xl font-bold text-indigo-600">TimeTrack Pro</span>
+        <div className="flex items-center flex-shrink-0">
+          <span className="text-xl font-bold text-indigo-600">ClockedIn</span>
         </div>
         
         {/* Desktop Navigation - Hidden on mobile */}
@@ -2638,11 +2721,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
         >
           {darkMode ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
             </svg>
           )}
@@ -2651,7 +2734,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         {/* Mobile menu button */}
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="md:hidden p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+          className="p-2 rounded-md md:hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
           aria-expanded="false"
           aria-label="Toggle menu"
         >
@@ -2703,7 +2786,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
   </div>
 </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="px-4 py-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
         {activeTab === 'dashboard' ? renderDashboard() : renderEmployees()}
       </main>
 
