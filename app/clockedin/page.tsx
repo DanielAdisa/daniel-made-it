@@ -913,6 +913,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     setPasswordError("");
                 }
               }}
+              aria-label="Close dialog"
+              title="Close dialog"
               className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
@@ -1708,6 +1710,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
               </svg>
               <select
+                aria-label="Filter by department"
+                title="Department filter"
                 className="w-full text-gray-700 bg-transparent focus:outline-none"
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
@@ -1858,6 +1862,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             setFormErrors({});
             setFormSubmitted(false);
           }}
+          aria-label='Close modal'
+          title='Close modal'
           className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
@@ -1877,6 +1883,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </label>
           <input
             type="text"
+            title='Employee name'
             className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
               formErrors.name 
                 ? 'border-red-500 bg-red-50' 
@@ -1903,6 +1910,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </label>
           <input
             type="text"
+            title='Employee department'
             className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
               formErrors.department 
                 ? 'border-red-500 bg-red-50' 
@@ -1945,6 +1953,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </label>
           <input
             type="email"
+            title='Employee email'
             className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
               formErrors.email 
                 ? 'border-red-500 bg-red-50' 
@@ -1969,6 +1978,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </label>
           <input
             type="tel"
+            title='Employee phone number'
             className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
               formErrors.phone 
                 ? 'border-red-500 bg-red-50' 
@@ -1990,6 +2000,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </label>
           <input
             type="date"
+            title='Employee hire date'
             className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
               darkMode
                 ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
