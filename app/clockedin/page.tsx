@@ -2108,7 +2108,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             value={newEmployee.name}
             onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
             aria-required="true"
-            aria-invalid={Boolean(formErrors.name)}
+            aria-invalid={formErrors.name ? "true" : "false"}
             aria-describedby={formErrors.name ? "name-error" : undefined}
             placeholder="John Doe"
           />
@@ -2177,7 +2177,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             }`}
             value={newEmployee.email || ''}
             onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
-            aria-invalid={Boolean(formErrors.email)}
+            aria-invalid={formErrors.email ? "true" : "false"}
             aria-describedby={formErrors.email ? "email-error" : undefined}
             placeholder="john.doe@company.com"
           />
@@ -2202,7 +2202,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             }`}
             value={newEmployee.phone || ''}
             onChange={(e) => setNewEmployee({...newEmployee, phone: e.target.value})}
-            aria-invalid={Boolean(formErrors.phone)}
+            aria-invalid={formErrors.phone ? "true" : "false"}
             aria-describedby={formErrors.phone ? "phone-error" : undefined}
             placeholder="(555) 123-4567"
           />
@@ -2302,7 +2302,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
               }`}
               placeholder="0.00"
-              aria-invalid={Boolean(formErrors.renumeration)}
+              aria-invalid={formErrors.renumeration ? "true" : "false"}
               aria-describedby={formErrors.renumeration ? "renumeration-error" : undefined}
             />
           </div>
