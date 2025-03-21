@@ -22,6 +22,8 @@ interface Employee {
   position?: string;
   address?: string;
   hireDate?: string;
+  contractType?: 'hourly' | 'weekly' | 'monthly' | 'one-off'; // Added contract type
+  renumeration?: string | number; // Added payment amount
 }
 
 // Extended BusinessInfo interface
@@ -53,7 +55,9 @@ export default function PunchClockSystem() {
     phone: '',
     position: '',
     address: '',
-    hireDate: ''
+    hireDate: '',
+    contractType: 'hourly', // Default contract type
+    renumeration: '' // Default empty renumeration
   });
 
   // Add state for dropdowns
@@ -694,7 +698,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       phone: employee.phone || '',
       position: employee.position || '',
       address: employee.address || '',
-      hireDate: employee.hireDate || ''
+      hireDate: employee.hireDate || '',
+      contractType: employee.contractType || 'hourly',
+      renumeration: employee.renumeration || ''
     });
     setShowModal(true);
   };
@@ -726,6 +732,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     // Validate phone format if provided
     if (newEmployee.phone && !/^[0-9+\-() ]+$/.test(newEmployee.phone)) {
       errors.phone = 'Please enter a valid phone number';
+    }
+    
+    // Validate renumeration if provided
+    if (newEmployee.renumeration && isNaN(Number(newEmployee.renumeration))) {
+      errors.renumeration = 'Please enter a valid amount';
     }
     
     // If there are errors, don't submit
@@ -777,7 +788,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       phone: '',
       position: '',
       address: '',
-      hireDate: ''
+      hireDate: '',
+      contractType: 'hourly',
+      renumeration: ''
     });
     setFormSubmitted(false);
     setEditingEmployee(null);
@@ -918,7 +931,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 011.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
@@ -1312,7 +1325,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   }}
                 />
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-400 transform transition-transform ${showDropdown ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </div>
               
@@ -2007,6 +2020,26 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       <div className="text-gray-500">{employee.address}</div>
                     </div>
                   )}
+                  {employee.contractType && (
+                    <div className="flex items-center mt-2 text-sm">
+                      <div className="flex items-center justify-center w-8 h-8 mr-3 rounded-full bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Contract Type</div>
+                        <div className="text-gray-700">
+                          {employee.contractType === 'hourly' ? 'Hourly Pay' : 
+                          employee.contractType === 'weekly' ? 'Weekly Pay' :
+                          employee.contractType === 'monthly' ? 'Monthly Pay' : 'One-off Payment'}
+                          {employee.renumeration && (
+                            <span className="ml-1.5 text-green-600">${employee.renumeration}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -2048,7 +2081,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 011.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clipRule="evenodd" />
           </svg>
         </button>
       </div>
@@ -2207,6 +2240,72 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             rows={3}
             placeholder="123 Main St, City, State, ZIP"
           />
+        </div>
+        {/* Contract Type */}
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            Contract Type
+          </label>
+          <div className="relative">
+            <select
+              title='Contract Type'
+              value={newEmployee.contractType || 'hourly'}
+              onChange={(e) => setNewEmployee({...newEmployee, contractType: e.target.value as 'hourly' | 'weekly' | 'monthly' | 'one-off'})}
+              className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+                darkMode 
+                  ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+              }`}
+            >
+              <option value="hourly">Hourly Pay</option>
+              <option value="weekly">Weekly Pay</option>
+              <option value="monthly">Monthly Pay</option>
+              <option value="one-off">One-off Payment</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        
+        {/* Renumeration */}
+        <div>
+          <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center justify-between`}>
+            <span>
+              Renumeration 
+              <span className="ml-1 text-xs opacity-70">
+                {newEmployee.contractType === 'hourly' ? '(per hour)' : 
+                newEmployee.contractType === 'weekly' ? '(per week)' :
+                newEmployee.contractType === 'monthly' ? '(per month)' : '(one-time)'}
+              </span>
+            </span>
+            {formErrors.renumeration && (
+              <span className="ml-2 text-xs text-red-500">{formErrors.renumeration}</span>
+            )}
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <span className={`${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>$</span>
+            </div>
+            <input
+              type="text"
+              title='Renumeration amount'
+              value={newEmployee.renumeration || ''}
+              onChange={(e) => setNewEmployee({...newEmployee, renumeration: e.target.value})}
+              className={`w-full pl-7 px-3 py-2.5 border rounded-lg transition-colors ${
+                formErrors.renumeration 
+                  ? 'border-red-500 bg-red-50' 
+                  : darkMode 
+                    ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                    : 'border-gray-300 bg-white text-stone-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+              }`}
+              placeholder="0.00"
+              aria-invalid={Boolean(formErrors.renumeration)}
+              aria-describedby={formErrors.renumeration ? "renumeration-error" : undefined}
+            />
+          </div>
         </div>
       </div>
 
@@ -2693,7 +2792,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                           </svg>
                         </div>
                       </div>
