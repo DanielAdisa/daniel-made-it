@@ -102,6 +102,7 @@ export default function PunchClockSystem() {
   const recordsDropdownRef = useRef<HTMLDivElement>(null);
   const employeesDropdownRef = useRef<HTMLDivElement>(null);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
    // Helper utility functions with TypeScript fixes
 const calculateLateness = (clockInTime: string): number => {
@@ -713,6 +714,192 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
+  // Add password-related states
+  const [employerPassword, setEmployerPassword] = useState<string>("");
+  const [passwordInput, setPasswordInput] = useState<string>("");
+  const [passwordConfirm, setPasswordConfirm] = useState<string>("");
+  const [passwordError, setPasswordError] = useState<string>("");
+  const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+  const [passwordVerified, setPasswordVerified] = useState<boolean>(false);
+  const [protectedAction, setProtectedAction] = useState<'addEmployee' | 'editBusiness' | null>(null);
+  const [passwordSetupComplete, setPasswordSetupComplete] = useState<boolean>(false);
+  
+  // Check if the password is already set
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedPassword = localStorage.getItem('employerPassword');
+      if (savedPassword) {
+        setEmployerPassword(savedPassword);
+        setPasswordSetupComplete(true);
+      }
+    }
+  }, []);
+  
+  // Handle password verification
+  const verifyPassword = () => {
+    if (passwordInput === employerPassword) {
+      setPasswordVerified(true);
+      setShowPasswordModal(false);
+      setPasswordInput("");
+      
+      // Perform the protected action
+      if (protectedAction === 'addEmployee') {
+        setEditingEmployee(null);
+        setShowModal(true);
+      } else if (protectedAction === 'editBusiness') {
+        setShowOnboarding(true);
+      }
+    } else {
+      setPasswordError("Incorrect password. Please try again.");
+      setTimeout(() => setPasswordError(""), 3000);
+    }
+  };
+  
+  // Save password during onboarding
+  const savePassword = () => {
+    if (passwordInput.length < 4) {
+      setPasswordError("Password must be at least 4 characters long.");
+      return false;
+    }
+    
+    if (passwordInput !== passwordConfirm) {
+      setPasswordError("Passwords do not match. Please try again.");
+      return false;
+    }
+    
+    // Save the password
+    setEmployerPassword(passwordInput);
+    localStorage.setItem('employerPassword', passwordInput);
+    setPasswordSetupComplete(true);
+    setPasswordInput("");
+    setPasswordConfirm("");
+    return true;
+  };
+  
+  // Protect sensitive actions with password
+  const initiateProtectedAction = (action: 'addEmployee' | 'editBusiness') => {
+    // If password verification is still valid from a recent check
+    if (passwordVerified) {
+      if (action === 'addEmployee') {
+        setEditingEmployee(null);
+        setShowModal(true);
+      } else if (action === 'editBusiness') {
+        setShowOnboarding(true);
+      }
+      return;
+    }
+    
+    setProtectedAction(action);
+    setShowPasswordModal(true);
+    setPasswordInput("");
+  };
+  
+  // Add the Password Verification Modal
+  const renderPasswordModal = () => (
+    <div className={`fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 ${showPasswordModal ? 'visible' : 'invisible'} transition-all duration-300`}>
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl overflow-hidden w-full max-w-md transition-colors duration-200`}>
+        {/* Header with gradient accent */}
+        <div className="h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+        
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-stone-800'} flex items-center`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.primary}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              Administrator Verification
+            </h3>
+            
+            <button 
+              onClick={() => {
+                setShowPasswordModal(false);
+                setPasswordInput("");
+                setPasswordError("");
+              }}
+              className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            <div className={`p-4 rounded-lg bg-${darkMode ? 'gray-700/50' : 'gray-50'} text-${darkMode ? 'gray-300' : 'gray-700'} text-sm flex items-start`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 text-${theme.accent} flex-shrink-0 mt-0.5`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <p>
+                This action requires administrator verification. Please enter the employer password you set up during onboarding.
+              </p>
+            </div>
+            
+            <div>
+              <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Enter Employer Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-2.5 border ${
+                    passwordError 
+                      ? 'border-red-500 bg-red-50/10' 
+                      : darkMode 
+                        ? 'border-gray-600 bg-gray-700 text-gray-100' 
+                        : 'border-gray-300 bg-white text-gray-800'
+                  } rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200`}
+                  placeholder="Enter your password"
+                  onKeyPress={(e) => e.key === 'Enter' && verifyPassword()}
+                />
+              </div>
+              {passwordError && (
+                <p className="mt-1.5 text-sm text-red-500 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {passwordError}
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={() => {
+                setShowPasswordModal(false);
+                setPasswordInput("");
+                setPasswordError("");
+              }}
+              className={`px-4 py-2.5 rounded-lg border ${
+                darkMode 
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              } transition-colors`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={verifyPassword}
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-sm flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Verify Password
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Render the dashboard tab content with dark mode support
   const renderDashboard = () => {
     // Filter employees for search
@@ -745,7 +932,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       </div>
       
       <button
-        onClick={() => setShowOnboarding(true)}
+        onClick={() => initiateProtectedAction('editBusiness')}
         className={`text-xs flex items-center gap-1 px-3 py-2 rounded-md bg-${theme.primary}/10 text-${theme.primary} hover:bg-${theme.primary}/20 transition-colors duration-200 mt-3 sm:mt-0`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -1358,10 +1545,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 )}
               </div>
               <button
-                onClick={() => {
-                  setEditingEmployee(null);
-                  setShowModal(true);
-                }}
+                onClick={() => initiateProtectedAction('addEmployee')}
                 className="bg-gradient-to-r from-green-500 to-green-600 text-white py-2 px-4 rounded-md hover:from-green-600 hover:to-green-700 transition duration-300 shadow-sm flex items-center gap-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -1961,6 +2145,118 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             
             {/* Scrollable content area */}
             <div className="overflow-y-auto flex-grow px-6 py-5">
+              {/* Add Password Security Section first */}
+              {!passwordSetupComplete && (
+                <div className="mb-8">
+                  <div className="p-4 rounded-xl border border-purple-300/30 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/10 shadow-sm mb-6">
+                    <h4 className="text-base font-semibold text-purple-800 dark:text-purple-300 mb-2 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600 dark:text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                      </svg>
+                      Administrator Password Protection
+                    </h4>
+                    <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
+                      Set up a password to protect employer-only actions, including:
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                        </svg>
+                        <div>
+                          <p className="font-medium text-purple-700 dark:text-purple-300">Adding New Employees</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400">Prevent unauthorized personnel from adding employees</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+                        </svg>
+                        <div>
+                          <p className="font-medium text-purple-700 dark:text-purple-300">Modifying Business Information</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400">Secure your business details from unauthorized changes</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                
+                  <div className="space-y-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'} flex items-center justify-between`}>
+                        <span>Create Administrator Password</span>
+                        <span className="text-xs text-red-500 font-medium">Required</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <input
+                          type="password"
+                          value={passwordInput}
+                          onChange={(e) => setPasswordInput(e.target.value)}
+                          className={`w-full pl-10 pr-4 py-2.5 border ${
+                            passwordError 
+                              ? 'border-red-500 bg-red-50/10' 
+                              : darkMode 
+                                ? 'border-gray-600 bg-gray-700 text-gray-100' 
+                                : 'border-gray-300 bg-white text-gray-800'
+                          } rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200`}
+                          placeholder="Create your password"
+                          required
+                        />
+                      </div>
+                    </div>
+                  
+                    <div>
+                      <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <input
+                          type="password"
+                          value={passwordConfirm}
+                          onChange={(e) => setPasswordConfirm(e.target.value)}
+                          className={`w-full pl-10 pr-4 py-2.5 border ${
+                            passwordError 
+                              ? 'border-red-500 bg-red-50/10' 
+                              : darkMode 
+                                ? 'border-gray-600 bg-gray-700 text-gray-100' 
+                                : 'border-gray-300 bg-white text-gray-800'
+                          } rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200`}
+                          placeholder="Confirm your password"
+                          required
+                        />
+                      </div>
+                    </div>
+                  
+                    {passwordError && (
+                      <div className="p-3 rounded-lg bg-red-500/10 flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+                      </div>
+                    )}
+                  
+                    <div className="p-3 rounded-lg bg-yellow-500/10 flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                        <span className="font-medium">Important:</span> This password is stored locally on your device. Make sure to remember it as there is no recovery option.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* Privacy notice banner */}
               <div className="mb-6 p-0 overflow-hidden rounded-xl border border-amber-300/30 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/10">
                 <div className="bg-amber-200/30 dark:bg-amber-700/20 px-4 py-2.5 border-b border-amber-300/30 flex items-center">
@@ -1988,7 +2284,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     </div>
                     <div className="flex items-start text-amber-700 dark:text-amber-300">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                       <span>Secure local storage</span>
                     </div>
@@ -2012,6 +2308,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               
               <form onSubmit={(e) => { 
                 e.preventDefault(); 
+                if (!passwordSetupComplete && !savePassword()) {
+                  return; // Don't proceed if password setup fails
+                }
                 completeOnboarding();
               }}>
                 {/* Business Information Section */}
@@ -2235,15 +2534,25 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             <div className={`sticky bottom-0 z-10 border-t border-${darkMode ? 'gray-700' : 'gray-200'}/70 bg-${darkMode ? 'gray-800/90' : 'white/90'} backdrop-blur-sm p-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3`}>
               <button 
                 type="button"
-                onClick={() => setShowOnboarding(false)}
+                onClick={() => {
+                  // If we are in password setup and trying to skip, remind the user this is required
+                  if (!passwordSetupComplete) {
+                    setPasswordError("Password setup is required to secure your system.");
+                    return;
+                  }
+                  setShowOnboarding(false);
+                }}
                 className={`px-4 py-2.5 bg-${darkMode ? 'gray-700' : 'gray-100'} hover:bg-${darkMode ? 'gray-600' : 'gray-200'} text-${darkMode ? 'gray-200' : 'gray-700'} rounded-lg shadow-sm font-medium transition-all duration-200 border border-${darkMode ? 'gray-600' : 'gray-200'} text-sm w-full sm:w-auto`}
               >
-                Skip for Now
+                {passwordSetupComplete ? 'Skip for Now' : 'Cancel'}
               </button>
               <button 
                 type="submit"
                 onClick={(e) => { 
                   e.preventDefault(); 
+                  if (!passwordSetupComplete && !savePassword()) {
+                    return; // Don't proceed if password setup fails
+                  }
                   completeOnboarding();
                 }}
                 className={`px-5 py-2.5 bg-gradient-to-r from-${theme.primary} to-${theme.accent} hover:from-${theme.accent} hover:to-${theme.primary} text-white rounded-lg shadow-md font-medium transition-all duration-300 flex items-center justify-center space-x-2 text-sm w-full sm:w-auto`}
@@ -2251,7 +2560,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span>Complete Setup</span>
+                <span>{passwordSetupComplete ? 'Complete Setup' : 'Create Password & Continue'}</span>
               </button>
             </div>
           </motion.div>
@@ -2265,57 +2574,110 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors duration-200`}>
       {/* Navigation */}
       <nav className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm transition-colors duration-200`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
-                <span className="text-xl font-bold text-indigo-600">TimeTrack Pro</span>
-              </div>
-              <div className="hidden md:ml-6 md:flex md:space-x-8">
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
-                    activeTab === 'dashboard'
-                      ? `border-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}`
-                      : `border-transparent ${darkMode ? 'text-gray-300 hover:text-gray-100 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
-                  }`}
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setActiveTab('employees')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
-                    activeTab === 'employees'
-                      ? `border-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}`
-                      : `border-transparent ${darkMode ? 'text-gray-300 hover:text-gray-100 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
-                  }`}
-                >
-                  Employees
-                </button>
-              </div>
-            </div>
-            
-            {/* Dark mode toggle button */}
-            <div className="flex items-center">
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} transition-colors duration-200`}
-                aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
-              >
-                {darkMode ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="flex justify-between h-16">
+      <div className="flex items-center">
+        <div className="flex-shrink-0 flex items-center">
+          <span className="text-xl font-bold text-indigo-600">TimeTrack Pro</span>
         </div>
-      </nav>
+        
+        {/* Desktop Navigation - Hidden on mobile */}
+        <div className="hidden md:ml-6 md:flex md:space-x-8">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
+              activeTab === 'dashboard'
+                ? `border-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}`
+                : `border-transparent ${darkMode ? 'text-gray-300 hover:text-gray-100 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
+            }`}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('employees')}
+            className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
+              activeTab === 'employees'
+                ? `border-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}`
+                : `border-transparent ${darkMode ? 'text-gray-300 hover:text-gray-100 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
+            }`}
+          >
+            Employees
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        {/* Dark mode toggle button */}
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} transition-colors duration-200`}
+          aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
+        >
+          {darkMode ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+            </svg>
+          )}
+        </button>
+        
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="md:hidden p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+          aria-expanded="false"
+          aria-label="Toggle menu"
+        >
+          <span className="sr-only">Open main menu</span>
+          {!isMobileMenuOpen ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {/* Mobile menu, show/hide based on menu state */}
+  <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:hidden`}>
+    <div className={`pt-2 pb-3 space-y-1 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <button
+        onClick={() => {
+          setActiveTab('dashboard');
+          setIsMobileMenuOpen(false);
+        }}
+        className={`block w-full text-left px-4 py-2 text-base font-medium ${
+          activeTab === 'dashboard'
+            ? `${darkMode ? 'bg-gray-700 text-white' : 'bg-indigo-50 text-indigo-700'} border-l-4 border-indigo-500`
+            : `${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'} border-l-4 border-transparent`
+        } transition-colors duration-200`}
+      >
+        Dashboard
+      </button>
+      <button
+        onClick={() => {
+          setActiveTab('employees');
+          setIsMobileMenuOpen(false);
+        }}
+        className={`block w-full text-left px-4 py-2 text-base font-medium ${
+          activeTab === 'employees'
+            ? `${darkMode ? 'bg-gray-700 text-white' : 'bg-indigo-50 text-indigo-700'} border-l-4 border-indigo-500` 
+            : `${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'} border-l-4 border-transparent`
+        } transition-colors duration-200`}
+      >
+        Employees
+      </button>
+    </div>
+  </div>
+</nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'dashboard' ? renderDashboard() : renderEmployees()}
@@ -2323,6 +2685,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
 
       {showModal && renderModal()}
       {showVerificationModal && renderVerificationModal()}
+      {showPasswordModal && renderPasswordModal()}
       {renderOnboardingModal()}
     </div>
   );
