@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FaVolumeUp, FaVolumeMute, FaArrowLeft, FaArrowRight, FaRandom, FaStar, FaCircle, FaSquare, FaSmile, FaTachometerAlt } from 'react-icons/fa';
+import { FaVolumeUp, FaVolumeMute, FaArrowLeft, FaArrowRight, FaRandom, FaStar, FaCircle, FaSquare, FaSmile, FaTachometerAlt, FaPalette } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 type PlayerSide = 'left' | 'right';
 type BallDesign = 'square' | 'circle' | 'emoji';
 type GameSpeed = 'slow' | 'normal' | 'fast';
+type PaddleTheme = 'classic' | 'neon' | 'cosmic' | 'fire' | 'ice';
 
 interface GameState {
   playerScore: number;
@@ -23,6 +24,7 @@ const PingPongGame = () => {
   const [playerSide, setPlayerSide] = useState<PlayerSide>('left');
   const [ballDesign, setBallDesign] = useState<BallDesign>('square');
   const [ballColor, setBallColor] = useState<string>('#f97316'); // Orange default
+  const [paddleTheme, setPaddleTheme] = useState<PaddleTheme>('neon');
   const [gameSpeed, setGameSpeed] = useState<GameSpeed>('normal');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [gameState, setGameState] = useState<GameState>({
@@ -45,6 +47,35 @@ const PingPongGame = () => {
     { name: 'Pink', value: '#ec4899' },
     { name: 'Yellow', value: '#eab308' },
   ];
+
+  // Paddle theme settings
+  const paddleThemes = {
+    classic: {
+      player: '#f8fafc',
+      ai: '#f8fafc',
+      glow: 'rgba(255, 255, 255, 0.6)'
+    },
+    neon: {
+      player: '#3b82f6',
+      ai: '#ef4444',
+      glow: 'rgba(191, 219, 254, 0.8)'
+    },
+    cosmic: {
+      player: '#8b5cf6',
+      ai: '#06b6d4',
+      glow: 'rgba(167, 139, 250, 0.8)'
+    },
+    fire: {
+      player: '#f97316',
+      ai: '#fbbf24',
+      glow: 'rgba(251, 146, 60, 0.8)'
+    },
+    ice: {
+      player: '#06b6d4',
+      ai: '#93c5fd',
+      glow: 'rgba(125, 211, 252, 0.8)'
+    }
+  };
 
   // Game speed multipliers
   const speedMultipliers = {
@@ -74,7 +105,8 @@ const PingPongGame = () => {
   const colors = {
     background: '#0f172a',
     centerLine: '#475569',
-    paddle: '#f8fafc', 
+    paddle: paddleThemes[paddleTheme].player, 
+    aiPaddle: paddleThemes[paddleTheme].ai,
     ball: ballColor,
     playerSide: 'rgba(59, 130, 246, 0.1)', // Light blue tint
     aiSide: 'rgba(239, 68, 68, 0.1)', // Light red tint
@@ -397,6 +429,11 @@ const PingPongGame = () => {
     }
   };
 
+  // Select paddle theme
+  const selectPaddleTheme = (theme: PaddleTheme) => {
+    setPaddleTheme(theme);
+  };
+
   // Game rendering
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -632,12 +669,13 @@ const PingPongGame = () => {
         context.fillRect(game.canvasWidth / 2, 0, game.canvasWidth / 2, game.canvasHeight);
       }
 
-      // Draw center line
+      // Draw center line with futuristic pulsing effect
+      const centerLineOpacity = 0.6 + Math.sin(Date.now() / 800) * 0.4;
       context.setLineDash([5, 15]);
       context.beginPath();
       context.moveTo(game.canvasWidth / 2, 0);
       context.lineTo(game.canvasWidth / 2, game.canvasHeight);
-      context.strokeStyle = colors.centerLine;
+      context.strokeStyle = `rgba(71, 85, 105, ${centerLineOpacity})`;
       context.lineWidth = 2;
       context.stroke();
       context.setLineDash([]);
@@ -674,36 +712,55 @@ const PingPongGame = () => {
         context.fill();
       });
 
-      // Draw paddles based on player side
-      context.fillStyle = colors.paddle;
+      // Draw paddles based on player side with theme coloring
+      const playerPaddleColor = paddleThemes[paddleTheme].player;
+      const aiPaddleColor = paddleThemes[paddleTheme].ai;
+      const glowColor = paddleThemes[paddleTheme].glow;
       
       if (playerSide === 'left') {
         // Player on left, AI on right
         
+        // Apply paddle glow effect
+        context.shadowColor = playerPaddleColor;
+        context.shadowBlur = 10;
+        
         // Player paddle with highlight effect
+        context.fillStyle = playerPaddleColor;
         context.fillRect(0, game.player.y, paddleWidth, paddleHeight);
+        
+        // Add pulsing effect to player paddle
+        const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
         const playerGradient = context.createLinearGradient(0, game.player.y, paddleWidth, game.player.y + paddleHeight);
-        playerGradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
-        playerGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+        playerGradient.addColorStop(0, glowColor);
+        playerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
         playerGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
         context.fillStyle = playerGradient;
         context.fillRect(0, game.player.y, paddleWidth / 2, paddleHeight);
         
+        // Reset shadow for AI paddle
+        context.shadowBlur = 0;
+        
+        // Apply AI paddle glow
+        context.shadowColor = aiPaddleColor;
+        context.shadowBlur = 10;
+        
         // AI paddle with highlight effect
-        context.fillStyle = colors.paddle;
+        context.fillStyle = aiPaddleColor;
         context.fillRect(
           game.canvasWidth - paddleWidth,
           game.ai.y,
           paddleWidth,
           paddleHeight
         );
+        
+        // Add pulsing effect to AI paddle
         const aiGradient = context.createLinearGradient(
           game.canvasWidth - paddleWidth, game.ai.y,
           game.canvasWidth, game.ai.y + paddleHeight
         );
         aiGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-        aiGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
-        aiGradient.addColorStop(1, 'rgba(255, 255, 255, 0.7)');
+        aiGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+        aiGradient.addColorStop(1, glowColor);
         context.fillStyle = aiGradient;
         context.fillRect(
           game.canvasWidth - paddleWidth / 2,
@@ -711,18 +768,53 @@ const PingPongGame = () => {
           paddleWidth / 2,
           paddleHeight
         );
+        
+        // Reset shadow
+        context.shadowBlur = 0;
       } else {
         // Player on right, AI on left
         
+        // Apply AI paddle glow
+        context.shadowColor = aiPaddleColor;
+        context.shadowBlur = 10;
+        
+        // AI paddle with highlight effect
+        context.fillStyle = aiPaddleColor;
+        context.fillRect(0, game.ai.y, paddleWidth, paddleHeight);
+        
+        // Add pulsing effect to AI paddle
+        const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
+        const aiGradient = context.createLinearGradient(0, game.ai.y, paddleWidth, game.ai.y + paddleHeight);
+        aiGradient.addColorStop(0, glowColor);
+        aiGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+        aiGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        context.fillStyle = aiGradient;
+        context.fillRect(0, game.ai.y, paddleWidth / 2, paddleHeight);
+        
+        // Reset shadow for player paddle
+        context.shadowBlur = 0;
+        
+        // Apply player paddle glow
+        context.shadowColor = playerPaddleColor;
+        context.shadowBlur = 10;
+        
         // Player paddle with highlight effect
-        context.fillRect(game.canvasWidth - paddleWidth, game.player.y, paddleWidth, paddleHeight);
+        context.fillStyle = playerPaddleColor;
+        context.fillRect(
+          game.canvasWidth - paddleWidth,
+          game.player.y,
+          paddleWidth,
+          paddleHeight
+        );
+        
+        // Add pulsing effect to player paddle
         const playerGradient = context.createLinearGradient(
           game.canvasWidth - paddleWidth, game.player.y,
           game.canvasWidth, game.player.y + paddleHeight
         );
         playerGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-        playerGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
-        playerGradient.addColorStop(1, 'rgba(255, 255, 255, 0.7)');
+        playerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+        playerGradient.addColorStop(1, glowColor);
         context.fillStyle = playerGradient;
         context.fillRect(
           game.canvasWidth - paddleWidth / 2,
@@ -731,32 +823,27 @@ const PingPongGame = () => {
           paddleHeight
         );
         
-        // AI paddle with highlight effect
-        context.fillStyle = colors.paddle;
-        context.fillRect(0, game.ai.y, paddleWidth, paddleHeight);
-        const aiGradient = context.createLinearGradient(0, game.ai.y, paddleWidth, game.ai.y + paddleHeight);
-        aiGradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
-        aiGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
-        aiGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        context.fillStyle = aiGradient;
-        context.fillRect(0, game.ai.y, paddleWidth / 2, paddleHeight);
+        // Reset shadow
+        context.shadowBlur = 0;
       }
 
       // Draw ball based on selected design
       if (ballDesign === 'square') {
         // Square ball with glow
+        context.shadowColor = ballColor;
+        context.shadowBlur = 15;
         context.fillStyle = ballColor;
         context.fillRect(game.ball.x, game.ball.y, ballSize, ballSize);
         
         // Add ball glow
-        context.shadowColor = ballColor;
-        context.shadowBlur = 15; 
         context.fillStyle = ballColor + 'B3'; // 70% opacity
         context.fillRect(game.ball.x, game.ball.y, ballSize, ballSize);
         context.shadowBlur = 0;
       } 
       else if (ballDesign === 'circle') {
         // Circle ball with glow
+        context.shadowColor = ballColor;
+        context.shadowBlur = 15;
         context.beginPath();
         context.arc(
           game.ball.x + ballSize / 2,
@@ -767,8 +854,6 @@ const PingPongGame = () => {
         context.fill();
         
         // Add ball glow
-        context.shadowColor = ballColor;
-        context.shadowBlur = 15;
         context.beginPath();
         context.arc(
           game.ball.x + ballSize / 2,
@@ -780,19 +865,12 @@ const PingPongGame = () => {
         context.shadowBlur = 0;
       }
       else if (ballDesign === 'emoji') {
-        // Draw emoji as ball
+        // Draw emoji as ball with glowing effect
+        context.shadowColor = ballColor;
+        context.shadowBlur = 10;
         context.font = `${ballSize}px Arial`;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(
-          game.emoji, 
-          game.ball.x + ballSize/2, 
-          game.ball.y + ballSize/2
-        );
-        
-        // Add subtle glow behind emoji
-        context.shadowColor = ballColor;
-        context.shadowBlur = 10;
         context.fillText(
           game.emoji, 
           game.ball.x + ballSize/2, 
@@ -829,7 +907,7 @@ const PingPongGame = () => {
           ballSize + pulseSize,
           0, Math.PI * 2
         );
-        context.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        context.strokeStyle = `rgba(255, 255, 255, ${0.4 + Math.sin(Date.now() / 300) * 0.2})`;
         context.lineWidth = 2;
         context.stroke();
       }
@@ -850,7 +928,7 @@ const PingPongGame = () => {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [difficulty, gameState.isPlaying, gameState.waitingForServe, gameState.lastScorer, isMuted, playerSide, ballColor, ballDesign, gameSpeed]);
+  }, [difficulty, gameState.isPlaying, gameState.waitingForServe, gameState.lastScorer, isMuted, playerSide, ballColor, ballDesign, gameSpeed, paddleTheme]);
 
   const restartGame = () => {
     if (backgroundMusicRef.current) {
@@ -900,20 +978,20 @@ const PingPongGame = () => {
         transition={{ duration: 0.5 }}
         className="mb-4 text-3xl font-bold text-transparent md:mb-6 md:text-5xl bg-clip-text bg-gradient-to-r from-orange-400 to-pink-500"
       >
-        Super Ping Pong
+        Super Ping Pong 2025
       </motion.h1>
       
       <motion.div 
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="w-full max-w-4xl p-3 mb-4 border-2 rounded-lg shadow-xl md:p-6 md:mb-8 border-indigo-500/50 bg-gradient-to-b from-slate-800 to-slate-900"
+        className="w-full max-w-4xl p-3 mb-4 border-none rounded-lg shadow-xl md:p-6 md:mb-8 bg-gradient-to-b from-slate-800/70 to-slate-900/90 backdrop-blur-sm"
       >
         {/* Game header with scores and controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <motion.div 
             whileHover={{ scale: 1.05 }}
-            className="p-3 text-center rounded-lg shadow-lg bg-blue-900/40"
+            className="p-3 text-center border rounded-lg shadow-lg bg-gradient-to-br from-blue-900/80 to-indigo-900/80 backdrop-blur-sm border-blue-500/30"
           >
             <span className="text-xl font-semibold text-blue-300">You</span>
             <p className="text-3xl font-bold text-blue-500 md:text-4xl">{gameState.playerScore}</p>
@@ -926,7 +1004,7 @@ const PingPongGame = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleSettings}
-                  className="px-4 py-2 mb-2 font-semibold text-white transition-colors bg-indigo-600 rounded-lg shadow-lg sm:mb-0 hover:bg-indigo-700"
+                  className="px-4 py-2 mb-2 font-semibold text-white transition-colors bg-indigo-600 border rounded-lg shadow-lg sm:mb-0 hover:bg-indigo-700 border-indigo-400/30 backdrop-blur-sm"
                 >
                   {showSettings ? 'Hide Settings' : 'Game Settings'}
                 </motion.button>
@@ -934,7 +1012,7 @@ const PingPongGame = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={startGame}
-                  className="px-6 py-3 text-lg font-semibold text-white transition-colors rounded-lg shadow-lg bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800"
+                  className="px-6 py-3 text-lg font-semibold text-white transition-colors border rounded-lg shadow-lg bg-gradient-to-r from-green-500 to-emerald-700 hover:from-green-600 hover:to-emerald-800 border-green-400/30 backdrop-blur-sm"
                 >
                   Start Game
                 </motion.button>
@@ -944,7 +1022,7 @@ const PingPongGame = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={restartGame}
-                className="px-6 py-2 font-semibold text-white transition-colors rounded-lg shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800"
+                className="px-6 py-2 font-semibold text-white transition-colors border rounded-lg shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 border-red-400/30 backdrop-blur-sm"
               >
                 Restart Game
               </motion.button>
@@ -953,7 +1031,7 @@ const PingPongGame = () => {
           
           <motion.div 
             whileHover={{ scale: 1.05 }}
-            className="p-3 text-center rounded-lg shadow-lg bg-red-900/40"
+            className="p-3 text-center border rounded-lg shadow-lg bg-gradient-to-br from-red-900/80 to-rose-900/80 backdrop-blur-sm border-red-500/30"
           >
             <span className="text-xl font-semibold text-red-300">AI</span>
             <p className="text-3xl font-bold text-red-500 md:text-4xl">{gameState.aiScore}</p>
@@ -966,7 +1044,7 @@ const PingPongGame = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             transition={{ duration: 0.3 }}
-            className="p-4 mb-4 border rounded-lg shadow-inner bg-slate-800/80 border-indigo-500/30"
+            className="p-4 mb-4 border rounded-lg shadow-inner bg-slate-800/80 backdrop-blur-sm border-indigo-500/30"
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Difficulty Settings */}
@@ -1086,6 +1164,29 @@ const PingPongGame = () => {
                 </div>
               </div>
               
+              {/* Paddle Theme Selection - New! */}
+              <div className="p-3 rounded-lg bg-slate-700/50">
+                <h3 className="mb-2 font-semibold text-white">Paddle Theme</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['classic', 'neon', 'cosmic', 'fire', 'ice'].map((theme) => (
+                    <motion.button
+                      key={theme}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => selectPaddleTheme(theme as PaddleTheme)}
+                      className={`px-3 py-1 rounded flex items-center justify-center ${
+                        paddleTheme === theme 
+                          ? 'bg-violet-600 text-white' 
+                          : 'bg-slate-600 text-slate-200'
+                      }`}
+                    >
+                      <FaPalette className="mr-1" /> 
+                      {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+              
               {/* Ball Color */}
               <div className="p-3 rounded-lg bg-slate-700/50">
                 <h3 className="mb-2 font-semibold text-white">Ball Color</h3>
@@ -1096,8 +1197,10 @@ const PingPongGame = () => {
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => selectBallColor(color.value)}
-                      className={`w-8 h-8 rounded-full border-2 ${
-                        ballColor === color.value ? 'border-white' : 'border-transparent'
+                      className={`w-8 h-8 rounded-full ${
+                        ballColor === color.value 
+                          ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-700' 
+                          : 'border border-slate-500'
                       }`}
                       style={{ backgroundColor: color.value }}
                       aria-label={`Select ${color.name} color`}
@@ -1114,11 +1217,11 @@ const PingPongGame = () => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="relative w-full overflow-hidden border-4 rounded-lg border-indigo-600/50 shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+          className="relative w-full overflow-hidden rounded-lg border-none shadow-[0_0_30px_rgba(99,102,241,0.4)]"
         >
           <button 
             onClick={toggleMute} 
-            className="absolute z-10 p-2 text-white transition-colors rounded-md md:p-3 bg-slate-700 top-2 right-2 md:top-3 md:right-3 hover:bg-slate-600"
+            className="absolute z-10 p-2 text-white transition-colors rounded-md md:p-3 bg-slate-700/80 backdrop-blur-sm top-2 right-2 md:top-3 md:right-3 hover:bg-slate-600"
           >
             {isMuted ? <FaVolumeMute size={18} /> : <FaVolumeUp size={18} />}
           </button>
@@ -1130,7 +1233,7 @@ const PingPongGame = () => {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="w-full h-[65vh] md:h-[550px] bg-slate-900"
+            className="w-full h-[65vh] md:h-[550px] bg-slate-900 rounded-lg"
             style={{ touchAction: 'none' }}
           />
           
@@ -1138,20 +1241,20 @@ const PingPongGame = () => {
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70"
+              className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/70 backdrop-blur-sm"
             >
               <motion.div 
                 initial={{ scale: 0.8 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 300 }}
-                className="p-4 md:p-8 text-center border shadow-xl bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border-indigo-500/30 max-w-[90%] md:max-w-[70%]"
+                className="p-4 md:p-8 text-center border shadow-xl bg-gradient-to-br from-slate-800/90 to-slate-900/90 rounded-xl border-indigo-500/30 max-w-[90%] md:max-w-[70%] backdrop-blur-md"
               >
                 <motion.div 
                   animate={{ rotate: [0, 5, 0, -5, 0], y: [0, -5, 0, -3, 0] }}
                   transition={{ repeat: Infinity, duration: 5 }}
                 >
-                  <h2 className="mb-4 text-2xl font-bold text-transparent md:mb-6 md:text-3xl bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">
-                    Welcome to Super Ping Pong!
+                  <h2 className="mb-4 text-2xl font-bold text-transparent md:mb-6 md:text-3xl bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-500 to-purple-500">
+                    Welcome to Super Ping Pong 2025!
                   </h2>
                 </motion.div>
                 <div className="flex flex-wrap justify-center gap-2 mb-4 md:gap-4 md:mb-6">
@@ -1177,18 +1280,26 @@ const PingPongGame = () => {
                 <p className="mb-3 text-base md:mb-4 md:text-xl text-slate-200">
                   Move your mouse or swipe to control your paddle!
                 </p>
-                <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
                   <p className="text-base italic text-orange-400 md:text-lg">
-                    Difficulty: <span className="font-bold uppercase">{difficulty}</span>
+                    <span className="block text-xs text-orange-300">DIFFICULTY</span> 
+                    <span className="font-bold uppercase">{difficulty}</span>
                   </p>
                   <p className="text-base text-blue-300 md:text-lg">
-                    Side: <span className="font-bold uppercase">{playerSide}</span>
+                    <span className="block text-xs text-blue-200">SIDE</span>
+                    <span className="font-bold uppercase">{playerSide}</span>
                   </p>
                   <p className="text-base text-green-300 md:text-lg">
-                    Speed: <span className="font-bold uppercase">{gameSpeed}</span>
+                    <span className="block text-xs text-green-200">SPEED</span>
+                    <span className="font-bold uppercase">{gameSpeed}</span>
                   </p>
                   <p className="text-base text-purple-300 md:text-lg">
-                    Ball: <span className="font-bold capitalize">{ballDesign}</span>
+                    <span className="block text-xs text-purple-200">BALL</span>
+                    <span className="font-bold capitalize">{ballDesign}</span>
+                  </p>
+                  <p className="text-base text-pink-300 md:text-lg sm:col-span-2">
+                    <span className="block text-xs text-pink-200">PADDLE THEME</span>
+                    <span className="font-bold capitalize">{paddleTheme}</span>
                   </p>
                 </div>
               </motion.div>
@@ -1201,7 +1312,7 @@ const PingPongGame = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
-        className="max-w-2xl p-3 text-center border rounded-lg shadow-lg md:p-4 bg-slate-800/50 border-indigo-500/20"
+        className="max-w-2xl p-3 text-center border rounded-lg shadow-lg md:p-4 bg-slate-800/30 backdrop-blur-sm border-indigo-500/20"
       >
         <p className="text-base md:text-lg text-slate-300">
           Use your mouse or swipe to move the paddle.
