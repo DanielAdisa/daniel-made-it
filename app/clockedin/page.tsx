@@ -60,6 +60,7 @@ export default function PunchClockSystem() {
   const [recordsExportOpen, setRecordsExportOpen] = useState(false);
   const [employeesExportOpen, setEmployeesExportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activitySearchQuery, setActivitySearchQuery] = useState<string>('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('');
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   
@@ -937,7 +938,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                   <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <input
@@ -1479,7 +1480,25 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </div>
           </div>
           
-         
+          {/* Add search input for activity records */}
+          <div className="mb-5">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                className={`w-full pl-10 pr-4 py-2.5 text-gray-300 transition-all duration-200 
+                            border border-gray-700 rounded-lg bg-gray-800/50 
+                            focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500`}
+                placeholder="Search by employee name or department..."
+                value={activitySearchQuery}
+                onChange={(e) => setActivitySearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
 
           {/* Today's records table */}
           {records.filter(record => record.date === currentDate).length > 0 ? (
@@ -1497,8 +1516,20 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   </tr>
                 </thead>
                 <tbody>
-                  {records.filter(record => record.date === currentDate)
+                  {records
+                    .filter(record => record.date === currentDate)
                     .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
+                    // Filter records based on activity search query
+                    .filter(record => {
+                      if (!activitySearchQuery) return true;
+                      
+                      const employee = employees.find(emp => emp.id === record.employeeId);
+                      const employeeName = employee ? employee.name.toLowerCase() : '';
+                      const department = employee ? employee.department.toLowerCase() : '';
+                      const searchLower = activitySearchQuery.toLowerCase();
+                      
+                      return employeeName.includes(searchLower) || department.includes(searchLower);
+                    })
                     .map((record, index) => {
                     const clockIn = new Date(record.clockInTime);
                     const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
@@ -2071,7 +2102,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         <div className="relative">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
             </svg>
           </div>
           <input
@@ -2354,7 +2385,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   
                     <div className="flex items-start p-3 rounded-lg bg-yellow-500/10">
                       <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                       </svg>
                       <p className="text-sm text-yellow-600 dark:text-yellow-400">
                         <span className="font-medium">Important:</span> This password is stored locally on your device. Make sure to remember it as there is no recovery option.
@@ -2369,7 +2400,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <div className="bg-amber-200/30 dark:bg-amber-700/20 px-4 py-2.5 border-b border-amber-300/30 flex items-center">
                   <div className="p-1.5 rounded-full bg-amber-400/20 mr-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Your Data Privacy & Security</h3>
@@ -2378,7 +2409,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <div className="px-4 py-3 space-y-2">
                   <p className="flex items-start text-xs text-amber-700 dark:text-amber-300">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-1 1v4a1 1 0 102 0V7a1 1 0 00-1-1zM9 12a1 1 0 100 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                     </svg>
                     <span>ClockedIn operates <strong>entirely on your device</strong> - this app has <strong>zero access</strong> to your data</span>
                   </p>
