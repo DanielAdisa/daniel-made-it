@@ -42,7 +42,32 @@ interface BusinessInfo {
   industry?: string; // Added industry field
   overtimeRate?: number; // Added overtime rate
   latenessDeduction?: number; // Added lateness deduction
+  currency?: Currency; // Added currency field
 }
+
+// Currency interface
+interface Currency {
+  code: string;
+  symbol: string;
+  name: string;
+}
+
+// Available currencies with focus on African currencies
+const currencies: Currency[] = [
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'NGN', symbol: '₦', name: 'Nigerian Naira' },
+  { code: 'GHS', symbol: '₵', name: 'Ghanaian Cedi' },
+  { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling' },
+  { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
+  { code: 'EGP', symbol: 'E£', name: 'Egyptian Pound' },
+  { code: 'MAD', symbol: 'DH', name: 'Moroccan Dirham' },
+  { code: 'XOF', symbol: 'CFA', name: 'West African CFA franc' },
+  { code: 'XAF', symbol: 'FCFA', name: 'Central African CFA franc' },
+  { code: 'TZS', symbol: 'TSh', name: 'Tanzanian Shilling' },
+  { code: 'UGX', symbol: 'USh', name: 'Ugandan Shilling' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+];
 
 interface PayrollItem {
   id: string;
@@ -93,6 +118,9 @@ export default function PunchClockSystem() {
   // Add dark mode state
   const [darkMode, setDarkMode] = useState<boolean>(false);
   
+  // Add state for selected currency (default to USD)
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(currencies[0]);
+  
   // Company information
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
     name: "ClockedIn",
@@ -105,7 +133,8 @@ export default function PunchClockSystem() {
     workDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     established: "2023",
     overtimeRate: 1.5, // Default overtime rate (1.5x)
-    latenessDeduction: 0.0 // Default lateness deduction per minute
+    latenessDeduction: 0.0, // Default lateness deduction per minute
+    currency: currencies[0] // Default to USD
   });
   
   // Dynamic theme based on dark mode
@@ -996,7 +1025,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           contractType: payroll.contractType,
           payPeriod: `${new Date(payroll.startDate).toLocaleDateString()} to ${new Date(payroll.endDate).toLocaleDateString()}`,
           hoursWorked: payroll.hoursWorked ? payroll.hoursWorked.toFixed(1) : 'N/A',
-          amount: `$${payroll.amount.toFixed(2)}`,
+          amount: `${selectedCurrency.symbol}${payroll.amount.toFixed(2)}`,
           status: payroll.status,
           generatedDate: payroll.date
         };
@@ -2249,7 +2278,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           employee.contractType === 'weekly' ? 'Weekly Pay' :
                           employee.contractType === 'monthly' ? 'Monthly Pay' : 'One-off Payment'}
                           {employee.renumeration && (
-                            <span className="ml-1.5 text-green-600">${employee.renumeration}</span>
+                            <span className="ml-1.5 text-green-600">{selectedCurrency.symbol}{employee.renumeration}</span>
                           )}
                         </div>
                       </div>
@@ -2491,9 +2520,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             <span>
               Renumeration 
               <span className="ml-1 text-xs opacity-70">
-                {newEmployee.contractType === 'hourly' ? '(per hour)' : 
-                newEmployee.contractType === 'weekly' ? '(per week)' :
-                newEmployee.contractType === 'monthly' ? '(per month)' : '(one-time)'}
+                {newEmployee.contractType === 'hourly' ? `(per hour in ${selectedCurrency.code})` : 
+                newEmployee.contractType === 'weekly' ? `(per week in ${selectedCurrency.code})` :
+                newEmployee.contractType === 'monthly' ? `(per month in ${selectedCurrency.code})` : `(one-time in ${selectedCurrency.code})`}
               </span>
             </span>
             {formErrors.renumeration && (
@@ -2502,7 +2531,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <span className={`${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>$</span>
+              <span className={`${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{selectedCurrency.symbol}</span>
             </div>
             <input
               type="text"
@@ -2666,7 +2695,8 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     workDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     established: "2023",
     overtimeRate: businessInfo.overtimeRate || 1.5,
-    latenessDeduction: businessInfo.latenessDeduction || 0.0
+    latenessDeduction: businessInfo.latenessDeduction || 0.0,
+    currency: businessInfo.currency || currencies[0]
   });
   
   // Check if we've completed onboarding before
@@ -2683,6 +2713,11 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         const parsedInfo = JSON.parse(savedBusinessInfo);
         setBusinessInfo(parsedInfo);
         setBusinessFormData(parsedInfo);
+        
+        // Set the selected currency from saved business info
+        if (parsedInfo.currency) {
+          setSelectedCurrency(parsedInfo.currency);
+        }
       }
     }
   }, []);
@@ -2715,6 +2750,16 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
         return { ...prev, workDays: [...currentDays, day] };
       }
     });
+  };
+  
+  // Handle currency change
+  const handleCurrencyChange = (currencyCode: string) => {
+    const newCurrency = currencies.find(c => c.code === currencyCode) || currencies[0];
+    setSelectedCurrency(newCurrency);
+    setBusinessFormData(prev => ({
+      ...prev,
+      currency: newCurrency
+    }));
   };
   
   // Complete onboarding
@@ -2778,7 +2823,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <h3 className={`text-xl font-bold text-white flex items-center`}>
                   <div className="flex items-center justify-center p-2 mr-3 rounded-full bg-white/20">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
                     </svg>
                   </div>
                   Welcome to ClockedIn!
@@ -3034,7 +3079,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   <div className="flex items-center mb-3">
                     <div className={`p-1.5 rounded-full bg-${theme.accent}/10 mr-2`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
                       </svg>
                     </div>
                     <h4 className={`text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'}`}>Work Hours</h4>
@@ -3082,7 +3127,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                             <span>Overtime Rate</span>
                             <div className="relative ml-1 group">
                               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
                               </svg>
                               <div className={`absolute bottom-full mb-2 w-48 p-2 rounded-md text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} shadow-lg z-10 hidden group-hover:block`}>
                                 Multiplier for overtime pay (e.g., 1.5 means time and a half)
@@ -3221,6 +3266,54 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         className={`w-full p-3 bg-${darkMode ? 'gray-700' : 'white'} border border-${darkMode ? 'gray-600' : 'gray-300'} text-${darkMode ? 'gray-200' : 'gray-700'} rounded-lg focus:ring-2 focus:ring-${theme.primary} focus:border-${theme.primary} transition-all duration-200 text-sm`}
                         placeholder="e.g., timetrackpro.com"
                       />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Currency Settings Section */}
+                <div className="mb-6">
+                  <div className="flex items-center mb-3">
+                    <div className={`p-1.5 rounded-full bg-${theme.primary}/10 mr-2`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${theme.primary}`} viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <h4 className={`text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'}`}>Currency Settings</h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Select Default Currency
+                      </label>
+                      <div className="relative">
+                        <select
+                          title="Currency Selector"
+                          value={businessFormData.currency?.code || 'USD'}
+                          onChange={(e) => handleCurrencyChange(e.target.value)}
+                          className={`w-full pl-10 pr-10 py-3 bg-${darkMode ? 'gray-700' : 'white'} border border-${darkMode ? 'gray-600' : 'gray-300'} text-${darkMode ? 'gray-200' : 'gray-700'} rounded-lg focus:ring-2 focus:ring-${theme.primary} focus:border-${theme.primary} transition-all duration-200 text-sm appearance-none`}
+                        >
+                          {currencies.map(currency => (
+                            <option key={currency.code} value={currency.code}>
+                              {currency.symbol} - {currency.name} ({currency.code})
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                          <span className={`text-${darkMode ? 'gray-400' : 'gray-500'} font-medium`}>
+                            {businessFormData.currency?.symbol || '$'}
+                          </span>
+                        </div>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        This currency will be used for all payment calculations and displays.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -3491,7 +3584,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         {payroll.hoursWorked !== undefined ? `${payroll.hoursWorked.toFixed(1)} hrs` : 'N/A'}
                       </td>
                       <td className={`px-6 py-4 text-sm ${darkMode ? 'text-green-400' : 'text-green-600'} whitespace-nowrap font-medium`}>
-                        ${typeof payroll.amount === 'number' ? payroll.amount.toFixed(2) : payroll.amount}
+                        {selectedCurrency.symbol}{typeof payroll.amount === 'number' ? payroll.amount.toFixed(2) : payroll.amount}
                       </td>
                       <td className={`px-6 py-4 text-sm whitespace-nowrap`}>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
