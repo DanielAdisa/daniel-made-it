@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FaVolumeUp, FaVolumeMute, FaArrowLeft, FaArrowRight, FaRandom, FaStar, FaCircle, FaSquare, FaSmile, FaTachometerAlt, FaPalette } from 'react-icons/fa';
+import { FaVolumeUp, FaVolumeMute, FaArrowLeft, FaArrowRight, FaRandom, FaStar, FaCircle, FaSquare, FaSmile, FaTachometerAlt, FaPalette, FaArrowsAltH, FaArrowsAltV } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
@@ -9,6 +9,7 @@ type PlayerSide = 'left' | 'right';
 type BallDesign = 'square' | 'circle' | 'emoji';
 type GameSpeed = 'slow' | 'normal' | 'fast';
 type PaddleTheme = 'classic' | 'neon' | 'cosmic' | 'fire' | 'ice';
+type GameOrientation = 'horizontal' | 'vertical';
 
 interface GameState {
   playerScore: number;
@@ -26,6 +27,7 @@ const PingPongGame = () => {
   const [ballColor, setBallColor] = useState<string>('#f97316'); // Orange default
   const [paddleTheme, setPaddleTheme] = useState<PaddleTheme>('neon');
   const [gameSpeed, setGameSpeed] = useState<GameSpeed>('normal');
+  const [gameOrientation, setGameOrientation] = useState<GameOrientation>('horizontal');
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [gameState, setGameState] = useState<GameState>({
     playerScore: 0,
@@ -37,6 +39,7 @@ const PingPongGame = () => {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showSideSelection, setShowSideSelection] = useState<boolean>(false);
   const [touchY, setTouchY] = useState<number | null>(null);
+  const [touchX, setTouchX] = useState<number | null>(null);
 
   // Available ball colors
   const ballColors = [
@@ -91,9 +94,35 @@ const PingPongGame = () => {
   const gameStartSoundRef = useRef<HTMLAudioElement | null>(null);
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
 
-  // Game variables
-  const paddleHeight = 140; // Increased paddle height
-  const paddleWidth = 15;
+  
+  // Function to create particle effects when ball hits something
+const createParticles = (x: number, y: number, count: number, color: string) => {
+  const game = gameRef.current;
+  
+  for (let i = 0; i < count; i++) {
+    // Add some randomness to particle positioning
+    const randomX = x + (Math.random() * 20 - 10);
+    const randomY = y + (Math.random() * 20 - 10);
+    
+    // Randomize particle properties
+    const size = Math.random() * 3 + 1;
+    const life = Math.random() * 20 + 10;
+    
+    // Add particle to the game's particle effects array
+    game.particleEffects.push({
+      x: randomX,
+      y: randomY,
+      size: size,
+      color: color,
+      life: life
+    });
+  }
+};
+
+
+  // Game variables - updated to handle both orientations
+  const paddleHeight = gameOrientation === 'horizontal' ? 140 : 15;
+  const paddleWidth = gameOrientation === 'horizontal' ? 15 : 140;
   const ballSize = 15;
   const difficultySettings = {
     easy: 0.02,
@@ -116,8 +145,8 @@ const PingPongGame = () => {
 
   // Game loop with reference values
   const gameRef = useRef({
-    player: { y: 0, speed: 0 },
-    ai: { y: 0, speed: 0 },
+    player: { y: 0, x: 0, speed: 0 },
+    ai: { y: 0, x: 0, speed: 0 },
     ball: { x: 0, y: 0, speedX: 0, speedY: 0 },
     canvasWidth: 0,
     canvasHeight: 0,
@@ -197,6 +226,7 @@ const PingPongGame = () => {
     }
   };
 
+  // Start game - updated to handle game orientation
   const startGame = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -205,18 +235,44 @@ const PingPongGame = () => {
     game.canvasWidth = canvas.width;
     game.canvasHeight = canvas.height;
     
-    // Reset positions
-    game.player.y = game.canvasHeight / 2 - paddleHeight / 2;
-    game.ai.y = game.canvasHeight / 2 - paddleHeight / 2;
+    // Reset positions based on game orientation
+    if (gameOrientation === 'horizontal') {
+      // Horizontal gameplay (paddles on sides)
+      game.player.y = game.canvasHeight / 2 - paddleHeight / 2;
+      game.ai.y = game.canvasHeight / 2 - paddleHeight / 2;
+      
+      // Set x positions based on player side
+      if (playerSide === 'left') {
+        game.player.x = 0;
+        game.ai.x = game.canvasWidth - paddleWidth;
+      } else {
+        game.player.x = game.canvasWidth - paddleWidth;
+        game.ai.x = 0;
+      }
+    } else {
+      // Vertical gameplay (paddles on top/bottom)
+      game.player.x = game.canvasWidth / 2 - paddleWidth / 2;
+      game.ai.x = game.canvasWidth / 2 - paddleWidth / 2;
+      
+      // Player is always at bottom in vertical mode
+      game.player.y = game.canvasHeight - paddleHeight;
+      game.ai.y = 0;
+    }
     
-    // Center ball and give random direction
+    // Center ball
     game.ball.x = game.canvasWidth / 2;
     game.ball.y = game.canvasHeight / 2;
     
     // Apply speed based on game speed setting
     const baseSpeed = 5 * speedMultipliers[gameSpeed];
-    game.ball.speedX = Math.random() > 0.5 ? baseSpeed : -baseSpeed;
-    game.ball.speedY = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    
+    if (gameOrientation === 'horizontal') {
+      game.ball.speedX = Math.random() > 0.5 ? baseSpeed : -baseSpeed;
+      game.ball.speedY = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    } else {
+      game.ball.speedY = Math.random() > 0.5 ? baseSpeed : -baseSpeed;
+      game.ball.speedX = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    }
     
     // Clear ball trail
     game.ballTrail = [];
@@ -239,32 +295,44 @@ const PingPongGame = () => {
     setShowSettings(false);
   };
 
-  // Prepare to serve ball
+  // Prepare to serve ball - updated for game orientation
   const prepareServe = (scorer: 'player' | 'ai') => {
     const game = gameRef.current;
     
-    // Adjust serve positions based on player side
-    if (scorer === 'ai') {
-      // Position ball next to player paddle for them to serve
-      if (playerSide === 'left') {
-        game.ball.x = paddleWidth * 2;
+    if (gameOrientation === 'horizontal') {
+      // Horizontal gameplay - serve from sides
+      if (scorer === 'ai') {
+        // Position ball next to player paddle for them to serve
+        if (playerSide === 'left') {
+          game.ball.x = paddleWidth * 2;
+        } else {
+          game.ball.x = game.canvasWidth - paddleWidth * 2 - ballSize;
+        }
+        game.ball.y = game.player.y + paddleHeight / 2;
       } else {
-        game.ball.x = game.canvasWidth - paddleWidth * 2 - ballSize;
+        // Position ball next to AI paddle for them to serve
+        if (playerSide === 'left') {
+          game.ball.x = game.canvasWidth - paddleWidth * 2 - ballSize;
+        } else {
+          game.ball.x = paddleWidth * 2;
+        }
+        game.ball.y = game.ai.y + paddleHeight / 2;
       }
-      game.ball.y = game.player.y + paddleHeight / 2;
-      game.ball.speedX = 0;
-      game.ball.speedY = 0;
     } else {
-      // Position ball next to AI paddle for them to serve
-      if (playerSide === 'left') {
-        game.ball.x = game.canvasWidth - paddleWidth * 2 - ballSize;
+      // Vertical gameplay - serve from top/bottom
+      if (scorer === 'ai') {
+        // Position ball next to player paddle (bottom) for them to serve
+        game.ball.x = game.player.x + paddleWidth / 2;
+        game.ball.y = game.canvasHeight - paddleHeight * 2 - ballSize;
       } else {
-        game.ball.x = paddleWidth * 2;
+        // Position ball next to AI paddle (top) for them to serve
+        game.ball.x = game.ai.x + paddleWidth / 2;
+        game.ball.y = paddleHeight * 2;
       }
-      game.ball.y = game.ai.y + paddleHeight / 2;
-      game.ball.speedX = 0;
-      game.ball.speedY = 0;
     }
+    
+    game.ball.speedX = 0;
+    game.ball.speedY = 0;
     
     setGameState(prev => ({
       ...prev,
@@ -275,7 +343,6 @@ const PingPongGame = () => {
     // If AI needs to serve, do it automatically after a delay
     if (scorer === 'player') {
       setTimeout(() => {
-        // Use a function to get current state instead of closure
         setGameState(currentState => {
           if (currentState.waitingForServe && currentState.lastScorer === 'player' && currentState.isPlaying) {
             serveFromAI();
@@ -286,15 +353,22 @@ const PingPongGame = () => {
     }
   };
 
-  // Player serves the ball
+  // Player serves the ball - updated for game orientation
   const serveFromPlayer = () => {
     if (!gameState.waitingForServe || gameState.lastScorer !== 'ai') return;
     
     const game = gameRef.current;
-    // Serve in correct direction based on player side
     const baseSpeed = 5 * speedMultipliers[gameSpeed];
-    game.ball.speedX = playerSide === 'left' ? baseSpeed : -baseSpeed;
-    game.ball.speedY = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed]; 
+    
+    if (gameOrientation === 'horizontal') {
+      // Horizontal gameplay
+      game.ball.speedX = playerSide === 'left' ? baseSpeed : -baseSpeed;
+      game.ball.speedY = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed]; 
+    } else {
+      // Vertical gameplay - always serve upward from bottom
+      game.ball.speedY = -baseSpeed;
+      game.ball.speedX = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    }
     
     setGameState(prev => ({
       ...prev,
@@ -304,13 +378,20 @@ const PingPongGame = () => {
     playSound(paddleHitSoundRef);
   };
   
-  // AI serves the ball
+  // AI serves the ball - updated for game orientation
   const serveFromAI = () => {
     const game = gameRef.current;
-    // Serve in correct direction based on player side
     const baseSpeed = 5 * speedMultipliers[gameSpeed];
-    game.ball.speedX = playerSide === 'left' ? -baseSpeed : baseSpeed;
-    game.ball.speedY = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    
+    if (gameOrientation === 'horizontal') {
+      // Horizontal gameplay
+      game.ball.speedX = playerSide === 'left' ? -baseSpeed : baseSpeed;
+      game.ball.speedY = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    } else {
+      // Vertical gameplay - always serve downward from top
+      game.ball.speedY = baseSpeed;
+      game.ball.speedX = (Math.random() * 4 - 2) * speedMultipliers[gameSpeed];
+    }
     
     setGameState(prev => ({
       ...prev,
@@ -320,33 +401,24 @@ const PingPongGame = () => {
     playSound(paddleHitSoundRef);
   };
 
-  // Create particle effect
-  const createParticles = (x: number, y: number, count: number, color: string) => {
-    const game = gameRef.current;
-    for (let i = 0; i < count; i++) {
-      game.particleEffects.push({
-        x,
-        y,
-        size: Math.random() * 4 + 1,
-        color,
-        life: 30
-      });
-    }
-  };
-
-  // Handle mouse/touch movement
+  // Handle mouse movement - updated for game orientation
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !gameState.isPlaying) return;
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const mouseY = e.clientY - rect.top;
+    const mouseX = e.clientX - rect.left;
     
-    // Update player paddle position
-    updatePlayerPosition(mouseY);
+    // Update player paddle position based on orientation
+    if (gameOrientation === 'horizontal') {
+      updatePlayerPosition(mouseY, null);
+    } else {
+      updatePlayerPosition(null, mouseX);
+    }
   };
 
-  // Handle touch events for mobile users
+  // Handle touch events for mobile users - updated for game orientation
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!gameState.isPlaying) return;
     e.preventDefault(); // Prevent default to avoid scrolling
@@ -357,7 +429,10 @@ const PingPongGame = () => {
       
       const rect = canvas.getBoundingClientRect();
       const touchY = e.touches[0].clientY - rect.top;
+      const touchX = e.touches[0].clientX - rect.left;
+      
       setTouchY(touchY);
+      setTouchX(touchX);
       
       // Also handle serve on touch for mobile
       if (gameState.waitingForServe && gameState.lastScorer === 'ai') {
@@ -376,26 +451,49 @@ const PingPongGame = () => {
       
       const rect = canvas.getBoundingClientRect();
       const currentTouchY = e.touches[0].clientY - rect.top;
+      const currentTouchX = e.touches[0].clientX - rect.left;
       
-      // Update player paddle position
-      updatePlayerPosition(currentTouchY);
+      // Update player paddle position based on orientation
+      if (gameOrientation === 'horizontal') {
+        updatePlayerPosition(currentTouchY, null);
+      } else {
+        updatePlayerPosition(null, currentTouchX);
+      }
+      
       setTouchY(currentTouchY);
+      setTouchX(currentTouchX);
     }
   };
 
   const handleTouchEnd = () => {
     setTouchY(null);
+    setTouchX(null);
   };
 
-  // Update player position with boundaries check
-  const updatePlayerPosition = (yPos: number) => {
+  // Update player position with boundaries check - updated for game orientation
+  const updatePlayerPosition = (yPos: number | null, xPos: number | null) => {
     const game = gameRef.current;
-    game.player.y = yPos - paddleHeight / 2;
     
-    // Keep paddle within canvas boundaries
-    if (game.player.y < 0) game.player.y = 0;
-    if (game.player.y + paddleHeight > game.canvasHeight) {
-      game.player.y = game.canvasHeight - paddleHeight;
+    if (gameOrientation === 'horizontal') {
+      if (yPos !== null) {
+        game.player.y = yPos - paddleHeight / 2;
+        
+        // Keep paddle within canvas boundaries
+        if (game.player.y < 0) game.player.y = 0;
+        if (game.player.y + paddleHeight > game.canvasHeight) {
+          game.player.y = game.canvasHeight - paddleHeight;
+        }
+      }
+    } else {
+      if (xPos !== null) {
+        game.player.x = xPos - paddleWidth / 2;
+        
+        // Keep paddle within canvas boundaries
+        if (game.player.x < 0) game.player.x = 0;
+        if (game.player.x + paddleWidth > game.canvasWidth) {
+          game.player.x = game.canvasWidth - paddleWidth;
+        }
+      }
     }
   };
 
@@ -434,7 +532,12 @@ const PingPongGame = () => {
     setPaddleTheme(theme);
   };
 
-  // Game rendering
+  // Select game orientation
+  const selectGameOrientation = (orientation: GameOrientation) => {
+    setGameOrientation(orientation);
+  };
+
+  // Game rendering - updated for both orientations
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -446,9 +549,25 @@ const PingPongGame = () => {
     game.canvasWidth = canvas.width = canvas.clientWidth;
     game.canvasHeight = canvas.height = canvas.clientHeight;
 
-    // Initialize positions
-    game.player.y = game.canvasHeight / 2 - paddleHeight / 2;
-    game.ai.y = game.canvasHeight / 2 - paddleHeight / 2;
+    // Initialize positions based on orientation
+    if (gameOrientation === 'horizontal') {
+      game.player.y = game.canvasHeight / 2 - paddleHeight / 2;
+      game.ai.y = game.canvasHeight / 2 - paddleHeight / 2;
+      
+      if (playerSide === 'left') {
+        game.player.x = 0;
+        game.ai.x = game.canvasWidth - paddleWidth;
+      } else {
+        game.player.x = game.canvasWidth - paddleWidth;
+        game.ai.x = 0;
+      }
+    } else {
+      game.player.x = game.canvasWidth / 2 - paddleWidth / 2;
+      game.ai.x = game.canvasWidth / 2 - paddleWidth / 2;
+      game.player.y = game.canvasHeight - paddleHeight;
+      game.ai.y = 0;
+    }
+    
     game.ball.x = game.canvasWidth / 2;
     game.ball.y = game.canvasHeight / 2;
 
@@ -468,136 +587,226 @@ const PingPongGame = () => {
         game.ballTrail.unshift({ x: game.ball.x, y: game.ball.y });
         if (game.ballTrail.length > 5) game.ballTrail.pop();
 
-        // Ball collision with top and bottom walls
-        if (game.ball.y < 0 || game.ball.y + ballSize > game.canvasHeight) {
-          game.ball.speedY *= -1;
-          playSound(wallHitSoundRef);
-          createParticles(game.ball.x, game.ball.y < 0 ? 0 : game.canvasHeight, 5, ballColor);
-        }
-
-        // Update AI position based on player side
-        let aiTargetY;
-        const aiReactionSpeed = difficultySettings[difficulty];
-        
-        if ((playerSide === 'left' && game.ball.speedX > 0) || 
-            (playerSide === 'right' && game.ball.speedX < 0)) {
-          // AI needs to react to ball coming towards it
-          aiTargetY = game.ball.y - paddleHeight / 2;
-        } else {
-          // Ball is moving away from AI, stay in center or follow loosely
-          aiTargetY = (game.canvasHeight / 2) - (paddleHeight / 2);
-        }
-        
-        game.ai.y += (aiTargetY - game.ai.y) * aiReactionSpeed;
-
-        // Keep AI paddle within boundaries
-        if (game.ai.y < 0) game.ai.y = 0;
-        if (game.ai.y + paddleHeight > game.canvasHeight) {
-          game.ai.y = game.canvasHeight - paddleHeight;
-        }
-
-        // Ball collision with paddles based on player side
-        if (playerSide === 'left') {
-          // Player on left, AI on right
-          
-          // Player paddle collision (left side)
-          if (
-            game.ball.x <= paddleWidth &&
-            game.ball.y + ballSize >= game.player.y &&
-            game.ball.y <= game.player.y + paddleHeight
-          ) {
-            game.ball.speedX *= -1.1; // Increase speed slightly
-            // Adjust angle based on where the ball hits the paddle
-            const hitPosition = (game.ball.y - game.player.y) / paddleHeight;
-            game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
-            playSound(paddleHitSoundRef);
-            createParticles(game.ball.x + ballSize, game.ball.y, 8, ballColor);
-          }
-
-          // AI paddle collision (right side)
-          if (
-            game.ball.x + ballSize >= game.canvasWidth - paddleWidth &&
-            game.ball.y + ballSize >= game.ai.y &&
-            game.ball.y <= game.ai.y + paddleHeight
-          ) {
-            game.ball.speedX *= -1.1; // Increase speed slightly
-            // Adjust angle based on where the ball hits the paddle
-            const hitPosition = (game.ball.y - game.ai.y) / paddleHeight;
-            game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
-            playSound(paddleHitSoundRef);
-            createParticles(game.ball.x, game.ball.y, 8, colors.paddle);
+        // Ball collision with walls based on orientation
+        if (gameOrientation === 'horizontal') {
+          // In horizontal mode, ball bounces off top/bottom walls
+          if (game.ball.y < 0 || game.ball.y + ballSize > game.canvasHeight) {
+            game.ball.speedY *= -1;
+            playSound(wallHitSoundRef);
+            createParticles(game.ball.x, game.ball.y < 0 ? 0 : game.canvasHeight, 5, ballColor);
           }
         } else {
-          // Player on right, AI on left
+          // In vertical mode, ball bounces off left/right walls
+          if (game.ball.x < 0 || game.ball.x + ballSize > game.canvasWidth) {
+            game.ball.speedX *= -1;
+            playSound(wallHitSoundRef);
+            createParticles(game.ball.x < 0 ? 0 : game.canvasWidth, game.ball.y, 5, ballColor);
+          }
+        }
+
+        // Update AI position based on orientation
+        if (gameOrientation === 'horizontal') {
+          // Horizontal gameplay
+          let aiTargetY;
+          const aiReactionSpeed = difficultySettings[difficulty];
           
-          // Player paddle collision (right side)
+          if ((playerSide === 'left' && game.ball.speedX > 0) || 
+              (playerSide === 'right' && game.ball.speedX < 0)) {
+            // AI needs to react to ball coming towards it
+            aiTargetY = game.ball.y - paddleHeight / 2;
+          } else {
+            // Ball is moving away from AI, stay in center or follow loosely
+            aiTargetY = (game.canvasHeight / 2) - (paddleHeight / 2);
+          }
+          
+          game.ai.y += (aiTargetY - game.ai.y) * aiReactionSpeed;
+
+          // Keep AI paddle within boundaries
+          if (game.ai.y < 0) game.ai.y = 0;
+          if (game.ai.y + paddleHeight > game.canvasHeight) {
+            game.ai.y = game.canvasHeight - paddleHeight;
+          }
+        } else {
+          // Vertical gameplay
+          let aiTargetX;
+          const aiReactionSpeed = difficultySettings[difficulty];
+          
+          // AI at top needs to react to ball coming towards it
+          if (game.ball.speedY < 0) {
+            aiTargetX = game.ball.x - paddleWidth / 2;
+          } else {
+            // Ball is moving away, center paddle
+            aiTargetX = (game.canvasWidth / 2) - (paddleWidth / 2);
+          }
+          
+          game.ai.x += (aiTargetX - game.ai.x) * aiReactionSpeed;
+
+          // Keep AI paddle within boundaries
+          if (game.ai.x < 0) game.ai.x = 0;
+          if (game.ai.x + paddleWidth > game.canvasWidth) {
+            game.ai.x = game.canvasWidth - paddleWidth;
+          }
+        }
+
+        // Ball collision with paddles based on orientation
+        if (gameOrientation === 'horizontal') {
+          // Horizontal gameplay (left/right paddles)
+          if (playerSide === 'left') {
+            // Player on left, AI on right
+            
+            // Player paddle collision (left side)
+            if (
+              game.ball.x <= paddleWidth &&
+              game.ball.y + ballSize >= game.player.y &&
+              game.ball.y <= game.player.y + paddleHeight
+            ) {
+              game.ball.speedX *= -1.1; // Increase speed slightly
+              // Adjust angle based on where the ball hits the paddle
+              const hitPosition = (game.ball.y - game.player.y) / paddleHeight;
+              game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
+              playSound(paddleHitSoundRef);
+              createParticles(game.ball.x + ballSize, game.ball.y, 8, ballColor);
+            }
+
+            // AI paddle collision (right side)
+            if (
+              game.ball.x + ballSize >= game.canvasWidth - paddleWidth &&
+              game.ball.y + ballSize >= game.ai.y &&
+              game.ball.y <= game.ai.y + paddleHeight
+            ) {
+              game.ball.speedX *= -1.1; // Increase speed slightly
+              // Adjust angle based on where the ball hits the paddle
+              const hitPosition = (game.ball.y - game.ai.y) / paddleHeight;
+              game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
+              playSound(paddleHitSoundRef);
+              createParticles(game.ball.x, game.ball.y, 8, colors.paddle);
+            }
+          } else {
+            // Player on right, AI on left
+            
+            // Player paddle collision (right side)
+            if (
+              game.ball.x + ballSize >= game.canvasWidth - paddleWidth &&
+              game.ball.y + ballSize >= game.player.y &&
+              game.ball.y <= game.player.y + paddleHeight
+            ) {
+              game.ball.speedX *= -1.1; // Increase speed slightly
+              // Adjust angle based on where the ball hits the paddle
+              const hitPosition = (game.ball.y - game.player.y) / paddleHeight;
+              game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
+              playSound(paddleHitSoundRef);
+              createParticles(game.ball.x, game.ball.y, 8, ballColor);
+            }
+
+            // AI paddle collision (left side)
+            if (
+              game.ball.x <= paddleWidth &&
+              game.ball.y + ballSize >= game.ai.y &&
+              game.ball.y <= game.ai.y + paddleHeight
+            ) {
+              game.ball.speedX *= -1.1; // Increase speed slightly
+              // Adjust angle based on where the ball hits the paddle
+              const hitPosition = (game.ball.y - game.ai.y) / paddleHeight;
+              game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
+              playSound(paddleHitSoundRef);
+              createParticles(game.ball.x + ballSize, game.ball.y, 8, colors.paddle);
+            }
+          }
+        } else {
+          // Vertical gameplay (top/bottom paddles)
+          
+          // Player paddle collision (bottom)
           if (
-            game.ball.x + ballSize >= game.canvasWidth - paddleWidth &&
-            game.ball.y + ballSize >= game.player.y &&
-            game.ball.y <= game.player.y + paddleHeight
+            game.ball.y + ballSize >= game.canvasHeight - paddleHeight &&
+            game.ball.x + ballSize >= game.player.x &&
+            game.ball.x <= game.player.x + paddleWidth
           ) {
-            game.ball.speedX *= -1.1; // Increase speed slightly
-            // Adjust angle based on where the ball hits the paddle
-            const hitPosition = (game.ball.y - game.player.y) / paddleHeight;
-            game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
+            game.ball.speedY *= -1.1; // Increase speed slightly
+            // Adjust angle based on where ball hits paddle
+            const hitPosition = (game.ball.x - game.player.x) / paddleWidth;
+            game.ball.speedX = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
             playSound(paddleHitSoundRef);
             createParticles(game.ball.x, game.ball.y, 8, ballColor);
           }
-
-          // AI paddle collision (left side)
+          
+          // AI paddle collision (top)
           if (
-            game.ball.x <= paddleWidth &&
-            game.ball.y + ballSize >= game.ai.y &&
-            game.ball.y <= game.ai.y + paddleHeight
+            game.ball.y <= paddleHeight &&
+            game.ball.x + ballSize >= game.ai.x &&
+            game.ball.x <= game.ai.x + paddleWidth
           ) {
-            game.ball.speedX *= -1.1; // Increase speed slightly
-            // Adjust angle based on where the ball hits the paddle
-            const hitPosition = (game.ball.y - game.ai.y) / paddleHeight;
-            game.ball.speedY = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
+            game.ball.speedY *= -1.1; // Increase speed slightly
+            // Adjust angle based on where ball hits paddle
+            const hitPosition = (game.ball.x - game.ai.x) / paddleWidth;
+            game.ball.speedX = 10 * (hitPosition - 0.5) * speedMultipliers[gameSpeed];
             playSound(paddleHitSoundRef);
-            createParticles(game.ball.x + ballSize, game.ball.y, 8, colors.paddle);
+            createParticles(game.ball.x, game.ball.y + ballSize, 8, colors.paddle);
           }
         }
 
-        // Scoring - adjusted for player side
-        if (game.ball.x < 0) {
-          // Left side scores (player or AI depending on side)
-          if (playerSide === 'left') {
-            // AI scores
-            setGameState(prev => ({
-              ...prev,
-              aiScore: prev.aiScore + 1
-            }));
-            createParticles(0, game.ball.y, 15, '#ef4444'); // Red particles
-          } else {
-            // Player scores
+        // Scoring - adjusted for game orientation
+        if (gameOrientation === 'horizontal') {
+          // Horizontal gameplay - score when ball passes left/right edges
+          if (game.ball.x < 0) {
+            // Left side scores (player or AI depending on side)
+            if (playerSide === 'left') {
+              // AI scores
+              setGameState(prev => ({
+                ...prev,
+                aiScore: prev.aiScore + 1
+              }));
+              createParticles(0, game.ball.y, 15, '#ef4444'); // Red particles
+            } else {
+              // Player scores
+              setGameState(prev => ({
+                ...prev,
+                playerScore: prev.playerScore + 1
+              }));
+              createParticles(0, game.ball.y, 15, '#3b82f6'); // Blue particles
+            }
+            playSound(scoreSoundRef);
+            prepareServe(playerSide === 'left' ? 'ai' : 'player');
+          } else if (game.ball.x + ballSize > game.canvasWidth) {
+            // Right side scores
+            if (playerSide === 'left') {
+              // Player scores
+              setGameState(prev => ({
+                ...prev,
+                playerScore: prev.playerScore + 1
+              }));
+              createParticles(game.canvasWidth, game.ball.y, 15, '#3b82f6'); // Blue particles
+            } else {
+              // AI scores
+              setGameState(prev => ({
+                ...prev,
+                aiScore: prev.aiScore + 1
+              }));
+              createParticles(game.canvasWidth, game.ball.y, 15, '#ef4444'); // Red particles
+            }
+            playSound(scoreSoundRef);
+            prepareServe(playerSide === 'left' ? 'player' : 'ai');
+          }
+        } else {
+          // Vertical gameplay - score when ball passes top/bottom edges
+          if (game.ball.y < 0) {
+            // Ball passes top - player scores
             setGameState(prev => ({
               ...prev,
               playerScore: prev.playerScore + 1
             }));
-            createParticles(0, game.ball.y, 15, '#3b82f6'); // Blue particles
-          }
-          playSound(scoreSoundRef);
-          prepareServe(playerSide === 'left' ? 'ai' : 'player');
-        } else if (game.ball.x + ballSize > game.canvasWidth) {
-          // Right side scores (player or AI depending on side)
-          if (playerSide === 'left') {
-            // Player scores
-            setGameState(prev => ({
-              ...prev,
-              playerScore: prev.playerScore + 1
-            }));
-            createParticles(game.canvasWidth, game.ball.y, 15, '#3b82f6'); // Blue particles
-          } else {
-            // AI scores
+            createParticles(game.ball.x, 0, 15, '#3b82f6'); // Blue particles
+            playSound(scoreSoundRef);
+            prepareServe('player');
+          } else if (game.ball.y + ballSize > game.canvasHeight) {
+            // Ball passes bottom - AI scores
             setGameState(prev => ({
               ...prev,
               aiScore: prev.aiScore + 1
             }));
-            createParticles(game.canvasWidth, game.ball.y, 15, '#ef4444'); // Red particles
+            createParticles(game.ball.x, game.canvasHeight, 15, '#ef4444'); // Red particles
+            playSound(scoreSoundRef);
+            prepareServe('ai');
           }
-          playSound(scoreSoundRef);
-          prepareServe(playerSide === 'left' ? 'player' : 'ai');
         }
         
         // Safety check: If ball somehow gets far outside the canvas, reset it
@@ -654,27 +863,46 @@ const PingPongGame = () => {
         context.fill();
       });
 
-      // Draw team sides with slight color tint based on player side
-      if (playerSide === 'left') {
-        context.fillStyle = colors.playerSide;
-        context.fillRect(0, 0, game.canvasWidth / 2, game.canvasHeight);
-        
-        context.fillStyle = colors.aiSide;
-        context.fillRect(game.canvasWidth / 2, 0, game.canvasWidth / 2, game.canvasHeight);
+      // Draw team sides with slight color tint based on orientation
+      if (gameOrientation === 'horizontal') {
+        // Horizontal gameplay - tint left/right
+        if (playerSide === 'left') {
+          context.fillStyle = colors.playerSide;
+          context.fillRect(0, 0, game.canvasWidth / 2, game.canvasHeight);
+          
+          context.fillStyle = colors.aiSide;
+          context.fillRect(game.canvasWidth / 2, 0, game.canvasWidth / 2, game.canvasHeight);
+        } else {
+          context.fillStyle = colors.aiSide;
+          context.fillRect(0, 0, game.canvasWidth / 2, game.canvasHeight);
+          
+          context.fillStyle = colors.playerSide;
+          context.fillRect(game.canvasWidth / 2, 0, game.canvasWidth / 2, game.canvasHeight);
+        }
       } else {
+        // Vertical gameplay - tint top/bottom
         context.fillStyle = colors.aiSide;
-        context.fillRect(0, 0, game.canvasWidth / 2, game.canvasHeight);
+        context.fillRect(0, 0, game.canvasWidth, game.canvasHeight / 2);
         
         context.fillStyle = colors.playerSide;
-        context.fillRect(game.canvasWidth / 2, 0, game.canvasWidth / 2, game.canvasHeight);
+        context.fillRect(0, game.canvasHeight / 2, game.canvasWidth, game.canvasHeight / 2);
       }
 
-      // Draw center line with futuristic pulsing effect
+      // Draw center line with futuristic pulsing effect based on orientation
       const centerLineOpacity = 0.6 + Math.sin(Date.now() / 800) * 0.4;
       context.setLineDash([5, 15]);
       context.beginPath();
-      context.moveTo(game.canvasWidth / 2, 0);
-      context.lineTo(game.canvasWidth / 2, game.canvasHeight);
+      
+      if (gameOrientation === 'horizontal') {
+        // Vertical center line for horizontal gameplay
+        context.moveTo(game.canvasWidth / 2, 0);
+        context.lineTo(game.canvasWidth / 2, game.canvasHeight);
+      } else {
+        // Horizontal center line for vertical gameplay
+        context.moveTo(0, game.canvasHeight / 2);
+        context.lineTo(game.canvasWidth, game.canvasHeight / 2);
+      }
+      
       context.strokeStyle = `rgba(71, 85, 105, ${centerLineOpacity})`;
       context.lineWidth = 2;
       context.stroke();
@@ -712,118 +940,122 @@ const PingPongGame = () => {
         context.fill();
       });
 
-      // Draw paddles based on player side with theme coloring
+      // Draw paddles based on orientation
       const playerPaddleColor = paddleThemes[paddleTheme].player;
       const aiPaddleColor = paddleThemes[paddleTheme].ai;
       const glowColor = paddleThemes[paddleTheme].glow;
       
-      if (playerSide === 'left') {
-        // Player on left, AI on right
+      if (gameOrientation === 'horizontal') {
+        // Horizontal gameplay - paddles on sides
+        if (playerSide === 'left') {
+          // Player on left, AI on right
+          
+          // Apply paddle glow effect
+          context.shadowColor = playerPaddleColor;
+          context.shadowBlur = 10;
+          
+          // Player paddle with highlight effect
+          context.fillStyle = playerPaddleColor;
+          context.fillRect(game.player.x, game.player.y, paddleWidth, paddleHeight);
+          
+          // Add pulsing effect to player paddle
+          const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
+          const playerGradient = context.createLinearGradient(game.player.x, game.player.y, game.player.x + paddleWidth, game.player.y + paddleHeight);
+          playerGradient.addColorStop(0, glowColor);
+          playerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+          playerGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          context.fillStyle = playerGradient;
+          context.fillRect(game.player.x, game.player.y, paddleWidth / 2, paddleHeight);
+          
+          // Reset shadow for AI paddle
+          context.shadowBlur = 0;
+          
+          // Apply AI paddle glow
+          context.shadowColor = aiPaddleColor;
+          context.shadowBlur = 10;
+          
+          // AI paddle with highlight effect
+          context.fillStyle = aiPaddleColor;
+          context.fillRect(game.ai.x, game.ai.y, paddleWidth, paddleHeight);
+          
+          // Add pulsing effect to AI paddle
+          const aiGradient = context.createLinearGradient(game.ai.x, game.ai.y, game.ai.x + paddleWidth, game.ai.y + paddleHeight);
+          aiGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+          aiGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+          aiGradient.addColorStop(1, glowColor);
+          context.fillStyle = aiGradient;
+          context.fillRect(game.ai.x + paddleWidth / 2, game.ai.y, paddleWidth / 2, paddleHeight);
+        } else {
+          // Player on right, AI on left
+          
+          // Apply AI paddle glow
+          context.shadowColor = aiPaddleColor;
+          context.shadowBlur = 10;
+          
+          // AI paddle with highlight effect
+          context.fillStyle = aiPaddleColor;
+          context.fillRect(game.ai.x, game.ai.y, paddleWidth, paddleHeight);
+          
+          // Add pulsing effect to AI paddle
+          const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
+          const aiGradient = context.createLinearGradient(game.ai.x, game.ai.y, game.ai.x + paddleWidth, game.ai.y + paddleHeight);
+          aiGradient.addColorStop(0, glowColor);
+          aiGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+          aiGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          context.fillStyle = aiGradient;
+          context.fillRect(game.ai.x, game.ai.y, paddleWidth / 2, paddleHeight);
+          
+          // Reset shadow for player paddle
+          context.shadowBlur = 0;
+          
+          // Apply player paddle glow
+          context.shadowColor = playerPaddleColor;
+          context.shadowBlur = 10;
+          
+          // Player paddle with highlight effect
+          context.fillStyle = playerPaddleColor;
+          context.fillRect(game.player.x, game.player.y, paddleWidth, paddleHeight);
+          
+          // Add pulsing effect to player paddle
+          const playerGradient = context.createLinearGradient(game.player.x, game.player.y, game.player.x + paddleWidth, game.player.y + paddleHeight);
+          playerGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+          playerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
+          playerGradient.addColorStop(1, glowColor);
+          context.fillStyle = playerGradient;
+          context.fillRect(game.player.x + paddleWidth / 2, game.player.y, paddleWidth / 2, paddleHeight);
+        }
+      } else {
+        // Vertical gameplay - paddles on top/bottom
         
-        // Apply paddle glow effect
-        context.shadowColor = playerPaddleColor;
-        context.shadowBlur = 10;
-        
-        // Player paddle with highlight effect
-        context.fillStyle = playerPaddleColor;
-        context.fillRect(0, game.player.y, paddleWidth, paddleHeight);
-        
-        // Add pulsing effect to player paddle
-        const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
-        const playerGradient = context.createLinearGradient(0, game.player.y, paddleWidth, game.player.y + paddleHeight);
-        playerGradient.addColorStop(0, glowColor);
-        playerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
-        playerGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        context.fillStyle = playerGradient;
-        context.fillRect(0, game.player.y, paddleWidth / 2, paddleHeight);
-        
-        // Reset shadow for AI paddle
-        context.shadowBlur = 0;
-        
-        // Apply AI paddle glow
+        // AI paddle (top)
         context.shadowColor = aiPaddleColor;
         context.shadowBlur = 10;
-        
-        // AI paddle with highlight effect
         context.fillStyle = aiPaddleColor;
-        context.fillRect(
-          game.canvasWidth - paddleWidth,
-          game.ai.y,
-          paddleWidth,
-          paddleHeight
-        );
+        context.fillRect(game.ai.x, game.ai.y, paddleWidth, paddleHeight);
         
         // Add pulsing effect to AI paddle
-        const aiGradient = context.createLinearGradient(
-          game.canvasWidth - paddleWidth, game.ai.y,
-          game.canvasWidth, game.ai.y + paddleHeight
-        );
+        const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
+        const aiGradient = context.createLinearGradient(game.ai.x, game.ai.y, game.ai.x + paddleWidth, game.ai.y + paddleHeight);
         aiGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
         aiGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
         aiGradient.addColorStop(1, glowColor);
         context.fillStyle = aiGradient;
-        context.fillRect(
-          game.canvasWidth - paddleWidth / 2,
-          game.ai.y,
-          paddleWidth / 2,
-          paddleHeight
-        );
-        
-        // Reset shadow
-        context.shadowBlur = 0;
-      } else {
-        // Player on right, AI on left
-        
-        // Apply AI paddle glow
-        context.shadowColor = aiPaddleColor;
-        context.shadowBlur = 10;
-        
-        // AI paddle with highlight effect
-        context.fillStyle = aiPaddleColor;
-        context.fillRect(0, game.ai.y, paddleWidth, paddleHeight);
-        
-        // Add pulsing effect to AI paddle
-        const pulseAmount = Math.sin(Date.now() / 500) * 0.2 + 0.8;
-        const aiGradient = context.createLinearGradient(0, game.ai.y, paddleWidth, game.ai.y + paddleHeight);
-        aiGradient.addColorStop(0, glowColor);
-        aiGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
-        aiGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        context.fillStyle = aiGradient;
-        context.fillRect(0, game.ai.y, paddleWidth / 2, paddleHeight);
-        
-        // Reset shadow for player paddle
+        context.fillRect(game.ai.x, game.ai.y, paddleWidth, paddleHeight / 2);
         context.shadowBlur = 0;
         
-        // Apply player paddle glow
+        // Player paddle (bottom)
         context.shadowColor = playerPaddleColor;
         context.shadowBlur = 10;
-        
-        // Player paddle with highlight effect
         context.fillStyle = playerPaddleColor;
-        context.fillRect(
-          game.canvasWidth - paddleWidth,
-          game.player.y,
-          paddleWidth,
-          paddleHeight
-        );
+        context.fillRect(game.player.x, game.player.y, paddleWidth, paddleHeight);
         
         // Add pulsing effect to player paddle
-        const playerGradient = context.createLinearGradient(
-          game.canvasWidth - paddleWidth, game.player.y,
-          game.canvasWidth, game.player.y + paddleHeight
-        );
+        const playerGradient = context.createLinearGradient(game.player.x, game.player.y, game.player.x + paddleWidth, game.player.y + paddleHeight);
         playerGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
         playerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * pulseAmount})`);
         playerGradient.addColorStop(1, glowColor);
         context.fillStyle = playerGradient;
-        context.fillRect(
-          game.canvasWidth - paddleWidth / 2,
-          game.player.y,
-          paddleWidth / 2,
-          paddleHeight
-        );
-        
-        // Reset shadow
+        context.fillRect(game.player.x, game.player.y + paddleHeight / 2, paddleWidth, paddleHeight / 2);
         context.shadowBlur = 0;
       }
 
@@ -879,23 +1111,21 @@ const PingPongGame = () => {
         context.shadowBlur = 0;
       }
 
-      // Draw serve instruction if waiting for player serve
+      // Draw serve instruction if waiting for player serve - updated for orientation
       if (gameState.waitingForServe && gameState.lastScorer === 'ai') {
         context.fillStyle = 'rgba(255, 255, 255, 0.8)';
         context.font = 'bold 18px Arial';
         context.textAlign = 'center';
-        if (playerSide === 'left') {
-          context.fillText(
-            'Click or Tap to Serve!', 
-            game.ball.x + 70, 
-            game.ball.y - 15
-          );
+        
+        if (gameOrientation === 'horizontal') {
+          if (playerSide === 'left') {
+            context.fillText('Click or Tap to Serve!', game.ball.x + 70, game.ball.y - 15);
+          } else {
+            context.fillText('Click or Tap to Serve!', game.ball.x - 70, game.ball.y - 15);
+          }
         } else {
-          context.fillText(
-            'Click or Tap to Serve!', 
-            game.ball.x - 70, 
-            game.ball.y - 15
-          );
+          // Vertical orientation - serve text above ball
+          context.fillText('Click or Tap to Serve!', game.ball.x, game.ball.y - 20);
         }
         
         // Add pulsing visual cue
@@ -928,7 +1158,7 @@ const PingPongGame = () => {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [difficulty, gameState.isPlaying, gameState.waitingForServe, gameState.lastScorer, isMuted, playerSide, ballColor, ballDesign, gameSpeed, paddleTheme]);
+  }, [difficulty, gameState.isPlaying, gameState.waitingForServe, gameState.lastScorer, isMuted, playerSide, ballColor, ballDesign, gameSpeed, paddleTheme, gameOrientation]);
 
   const restartGame = () => {
     if (backgroundMusicRef.current) {
@@ -1069,40 +1299,73 @@ const PingPongGame = () => {
                 </div>
               </div>
               
-              {/* Side Selection */}
+              {/* Game Orientation - NEW SECTION */}
               <div className="p-3 rounded-lg bg-slate-700/50">
-                <h3 className="mb-2 font-semibold text-white">Choose Side</h3>
+                <h3 className="mb-2 font-semibold text-white">Game Orientation</h3>
                 <div className="flex flex-wrap gap-2">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => selectPlayerSide('left')}
+                    onClick={() => selectGameOrientation('horizontal')}
                     className={`px-3 py-1 rounded flex items-center justify-center ${
-                      playerSide === 'left' ? 'bg-blue-600 text-white' : 'bg-slate-600 text-slate-200'
+                      gameOrientation === 'horizontal' 
+                        ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white' 
+                        : 'bg-slate-600 text-slate-200'
                     }`}
                   >
-                    <FaArrowLeft className="mr-1" /> Left
+                    <FaArrowsAltH className="mr-1" /> Horizontal
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => selectPlayerSide('right')}
+                    onClick={() => selectGameOrientation('vertical')}
                     className={`px-3 py-1 rounded flex items-center justify-center ${
-                      playerSide === 'right' ? 'bg-blue-600 text-white' : 'bg-slate-600 text-slate-200'
+                      gameOrientation === 'vertical' 
+                        ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white' 
+                        : 'bg-slate-600 text-slate-200'
                     }`}
                   >
-                    Right <FaArrowRight className="ml-1" />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={randomizeSide}
-                    className="flex items-center justify-center px-3 py-1 text-white bg-purple-600 rounded"
-                  >
-                    <FaRandom className="mr-1" /> Random
+                    <FaArrowsAltV className="mr-1" /> Vertical
                   </motion.button>
                 </div>
               </div>
+              
+              {/* Side Selection - Only show in horizontal mode */}
+              {gameOrientation === 'horizontal' && (
+                <div className="p-3 rounded-lg bg-slate-700/50">
+                  <h3 className="mb-2 font-semibold text-white">Choose Side</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => selectPlayerSide('left')}
+                      className={`px-3 py-1 rounded flex items-center justify-center ${
+                        playerSide === 'left' ? 'bg-blue-600 text-white' : 'bg-slate-600 text-slate-200'
+                      }`}
+                    >
+                      <FaArrowLeft className="mr-1" /> Left
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => selectPlayerSide('right')}
+                      className={`px-3 py-1 rounded flex items-center justify-center ${
+                        playerSide === 'right' ? 'bg-blue-600 text-white' : 'bg-slate-600 text-slate-200'
+                      }`}
+                    >
+                      Right <FaArrowRight className="ml-1" />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={randomizeSide}
+                      className="flex items-center justify-center px-3 py-1 text-white bg-purple-600 rounded"
+                    >
+                      <FaRandom className="mr-1" /> Random
+                    </motion.button>
+                  </div>
+                </div>
+              )}
               
               {/* Game Speed */}
               <div className="p-3 rounded-lg bg-slate-700/50">
@@ -1278,17 +1541,25 @@ const PingPongGame = () => {
                   ))}
                 </div>
                 <p className="mb-3 text-base md:mb-4 md:text-xl text-slate-200">
-                  Move your mouse or swipe to control your paddle!
+                  {gameOrientation === 'horizontal' 
+                    ? "Move your mouse up/down or swipe to control your paddle!"
+                    : "Move your mouse left/right or swipe to control your paddle!"}
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
                   <p className="text-base italic text-orange-400 md:text-lg">
                     <span className="block text-xs text-orange-300">DIFFICULTY</span> 
                     <span className="font-bold uppercase">{difficulty}</span>
                   </p>
-                  <p className="text-base text-blue-300 md:text-lg">
-                    <span className="block text-xs text-blue-200">SIDE</span>
-                    <span className="font-bold uppercase">{playerSide}</span>
+                  <p className="text-base text-cyan-300 md:text-lg">
+                    <span className="block text-xs text-cyan-200">ORIENTATION</span>
+                    <span className="font-bold uppercase">{gameOrientation}</span>
                   </p>
+                  {gameOrientation === 'horizontal' && (
+                    <p className="text-base text-blue-300 md:text-lg">
+                      <span className="block text-xs text-blue-200">SIDE</span>
+                      <span className="font-bold uppercase">{playerSide}</span>
+                    </p>
+                  )}
                   <p className="text-base text-green-300 md:text-lg">
                     <span className="block text-xs text-green-200">SPEED</span>
                     <span className="font-bold uppercase">{gameSpeed}</span>
@@ -1297,7 +1568,7 @@ const PingPongGame = () => {
                     <span className="block text-xs text-purple-200">BALL</span>
                     <span className="font-bold capitalize">{ballDesign}</span>
                   </p>
-                  <p className="text-base text-pink-300 md:text-lg sm:col-span-2">
+                  <p className="text-base text-pink-300 md:text-lg">
                     <span className="block text-xs text-pink-200">PADDLE THEME</span>
                     <span className="font-bold capitalize">{paddleTheme}</span>
                   </p>
@@ -1315,8 +1586,10 @@ const PingPongGame = () => {
         className="max-w-2xl p-3 text-center border rounded-lg shadow-lg md:p-4 bg-slate-800/30 backdrop-blur-sm border-indigo-500/20"
       >
         <p className="text-base md:text-lg text-slate-300">
-          Use your mouse or swipe to move the paddle.
-          First to score 10 points wins!
+          {gameOrientation === 'horizontal'
+            ? "Use your mouse or swipe up/down to move the paddle."
+            : "Use your mouse or swipe left/right to move the paddle."}
+          {" First to score 10 points wins!"}
         </p>
         <p className="mt-1 text-sm md:text-base text-slate-400">
           {gameState.waitingForServe && gameState.lastScorer === 'ai' && 
@@ -1329,3 +1602,6 @@ const PingPongGame = () => {
 };
 
 export default PingPongGame;
+
+
+
