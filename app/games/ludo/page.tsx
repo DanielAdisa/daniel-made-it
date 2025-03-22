@@ -39,18 +39,18 @@ const FlappyBird = () => {
   });
 
   // Game constants - fine-tuned for better gameplay
-  const GRAVITY = 0.42;
-  const JUMP_FORCE = -7.2;
-  const PIPE_SPEED = 2.2;
-  const PIPE_INTERVAL = 1600; // milliseconds
+  const GRAVITY = 0.3;          // Reduced from 0.22 for gentler falling
+  const JUMP_FORCE = -5.5;       // Reduced from -7.2 for less dramatic jumps
+  const PIPE_SPEED = 2.2;        // Keeping the same horizontal speed
+  const PIPE_INTERVAL = 1600;    // milliseconds between pipe spawns
   const GAME_HEIGHT = 500;
   const GAME_WIDTH = 360;
   const BIRD_SIZE = 40;
   const PIPE_WIDTH = 60;
-  const GAP_HEIGHT = 150;
+  const GAP_HEIGHT = 160;        // Slightly increased from 150 for better playability
   const BIRD_X_POSITION = GAME_WIDTH / 3; // Fixed horizontal position
-  const GAP_HEIGHT_MIN = 140;  // Minimum gap height
-  const GAP_HEIGHT_MAX = 170;  // Maximum gap height
+  const GAP_HEIGHT_MIN = 150;    // Increased from 140 to match new gap height
+  const GAP_HEIGHT_MAX = 180;    // Increased from 170 for consistency
   const AUTO_RESTART_DELAY = 1500; // ms before auto restart
 
   // Colors

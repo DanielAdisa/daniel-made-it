@@ -174,13 +174,13 @@ const calculateLateness = (clockInTime: string): number => {
     
     // Calculate lateness (if negative, employee was early)
     const latenessMinutes = clockInMinutes - startTimeMinutes;
-
     
-    return Math.max(0, latenessMinutes); // Only return positive values (actual lateness)
-  };
-  
-  // Calculate overtime in minutes based on clock-out time and company end time
-  const calculateOvertime = (clockOutTime: string | null): number => {
+    // Convert to hours for consistency
+    return Math.max(0, latenessMinutes / 60); // Return lateness in hours
+};
+
+// Calculate overtime in hours based on clock-out time and company end time
+const calculateOvertime = (clockOutTime: string | null): number => {
     if (!clockOutTime || !businessInfo.workEndTime) return 0;
     
     // Parse clock-out time
@@ -198,20 +198,22 @@ const calculateLateness = (clockInTime: string): number => {
     // Calculate overtime (if negative, employee left early)
     const overtimeMinutes = clockOutMinutes - endTimeMinutes;
     
-    return Math.max(0, overtimeMinutes); // Only return positive values (actual overtime)
-  };
-  
-  // Format minutes to hours and minutes display
-  const formatMinutes = (minutes: number): string => {
-    if (minutes === 0) return '0m';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours === 0) return `${mins}m`;
-    if (mins === 0) return `${hours}h`;
-    return `${hours}h ${mins}m`;
-  };
-  
-  // Check for dark mode preference on mount
+    // Convert to hours for consistency
+    return Math.max(0, overtimeMinutes / 60); // Return overtime in hours
+};
+
+// Format hours to hours and minutes display
+const formatMinutes = (hours: number): string => {
+    if (hours === 0) return '0h';
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    
+    if (wholeHours === 0) return `${minutes}m`;
+    if (minutes === 0) return `${wholeHours}h`;
+    return `${wholeHours}h ${minutes}m`;
+};
+
+// Check for dark mode preference on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Check localStorage first
@@ -376,23 +378,19 @@ const calculateLateness = (clockInTime: string): number => {
     const exportData = records.map(record => {
       const employee = employees.find(emp => emp.id === record.employeeId);
       
-      // Calculate lateness
-      const latenessMinutes = calculateLateness(record.clockInTime);
-      const formattedLateness = latenessMinutes > 0 ? formatMinutes(latenessMinutes) : 'On time';
+      // Calculate lateness in hours
+      const latenessHours = calculateLateness(record.clockInTime);
+      const formattedLateness = latenessHours > 0 ? formatMinutes(latenessHours) : 'On time';
       
-      // Calculate overtime
-      const overtimeMinutes = calculateOvertime(record.clockOutTime);
+      // Calculate overtime in hours
+      const overtimeHours = calculateOvertime(record.clockOutTime);
       const formattedOvertime = record.clockOutTime 
-        ? (overtimeMinutes > 0 ? formatMinutes(overtimeMinutes) : 'None')
+        ? (overtimeHours > 0 ? formatMinutes(overtimeHours) : 'None')
         : 'Not applicable';
       
-      // Calculate duration in minutes and hours
-      const durationInMinutes = record.clockOutTime 
-        ? (new Date(record.clockOutTime).getTime() - new Date(record.clockInTime).getTime()) / (1000 * 60)
-        : null;
-      
-      const durationInHours = durationInMinutes 
-        ? (durationInMinutes / 60).toFixed(2)
+      // Calculate duration in hours
+      const durationInHours = record.clockOutTime 
+        ? (new Date(record.clockOutTime).getTime() - new Date(record.clockInTime).getTime()) / (1000 * 60 * 60)
         : null;
       
       return {
@@ -403,12 +401,12 @@ const calculateLateness = (clockInTime: string): number => {
         date: record.date,
         clockInTime: new Date(record.clockInTime).toLocaleString(),
         clockOutTime: record.clockOutTime ? new Date(record.clockOutTime).toLocaleString() : 'Not clocked out',
-        durationHours: durationInHours ? `${durationInHours} hrs` : 'In progress',
-        durationMinutes: durationInMinutes ? `${Math.round(durationInMinutes)} mins` : 'In progress',
+        durationHours: durationInHours ? `${durationInHours.toFixed(2)} hrs` : 'In progress',
+        durationMinutes: durationInHours ? `${Math.round(durationInHours * 60)} mins` : 'In progress',
         lateness: formattedLateness,
-        latenessMinutes: latenessMinutes,
+        latenessHours: latenessHours,
         overtime: formattedOvertime,
-        overtimeMinutes: overtimeMinutes,
+        overtimeHours: overtimeHours,
         status: record.clockOutTime ? 'Completed' : 'In progress',
         clockInTimeRaw: record.clockInTime,
         clockOutTimeRaw: record.clockOutTime || ''
@@ -477,16 +475,16 @@ const calculateLateness = (clockInTime: string): number => {
           return total + ((clockOut - clockIn) / (1000 * 60 * 60));
         }, 0);
         
-      // Calculate average lateness
+      // Calculate average lateness in hours
       const latenessInstances = employeeRecords
         .map(record => calculateLateness(record.clockInTime))
-        .filter(minutes => minutes > 0);
+        .filter(hours => hours > 0);
       
       const averageLateness = latenessInstances.length > 0
-        ? latenessInstances.reduce((sum, minutes) => sum + minutes, 0) / latenessInstances.length
+        ? latenessInstances.reduce((sum, hours) => sum + hours, 0) / latenessInstances.length
         : 0;
         
-      // Calculate total overtime
+      // Calculate total overtime in hours
       const totalOvertime = employeeRecords
         .filter(record => record.clockOutTime !== null)
         .reduce((total, record) => total + calculateOvertime(record.clockOutTime), 0);
@@ -499,9 +497,9 @@ const calculateLateness = (clockInTime: string): number => {
         totalHoursWorked: totalHoursWorked.toFixed(2),
         daysWorked,
         averageLateness: formatMinutes(averageLateness),
-        averageLatenessMinutes: Math.round(averageLateness),
+        averageLatenessHours: averageLateness.toFixed(2),
         totalOvertimeWorked: formatMinutes(totalOvertime),
-        totalOvertimeMinutes: totalOvertime,
+        totalOvertimeHours: totalOvertime.toFixed(2),
         punctualityRate: latenessInstances.length > 0
           ? `${Math.round(((employeeRecords.length - latenessInstances.length) / employeeRecords.length) * 100)}%`
           : '100%'
@@ -882,93 +880,91 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       // Default rate if not specified
       const rate = Number(employee.renumeration || 0);
       
-      // Get total lateness and overtime minutes
-      let totalLatenessMinutes = 0;
-      let totalOvertimeMinutes = 0;
+      // Get total lateness and overtime hours
+      let totalLatenessHours = 0;
+      let totalOvertimeHours = 0;
       let regularHours = 0;
-      let overtimeHours = 0;
       
       employeeRecords.forEach(record => {
-        // Calculate lateness
-        const lateMinutes = calculateLateness(record.clockInTime);
-        totalLatenessMinutes += lateMinutes;
-        
-        // Calculate overtime
-        const overtimeMinutes = calculateOvertime(record.clockOutTime);
-        totalOvertimeMinutes += overtimeMinutes;
-        
-        // Calculate regular hours
-        if (record.clockOutTime) {
-          const clockIn = new Date(record.clockInTime).getTime();
-          const clockOut = new Date(record.clockOutTime).getTime();
-          const totalMinutes = (clockOut - clockIn) / (1000 * 60);
-          const regularMinutes = Math.max(0, totalMinutes - overtimeMinutes);
+          // Calculate lateness in hours
+          const lateHours = calculateLateness(record.clockInTime);
+          totalLatenessHours += lateHours;
           
-          regularHours += regularMinutes / 60;
-          overtimeHours += overtimeMinutes / 60;
-        }
+          // Calculate overtime in hours
+          const overtimeHours = calculateOvertime(record.clockOutTime);
+          totalOvertimeHours += overtimeHours;
+          
+          // Calculate regular hours
+          if (record.clockOutTime) {
+              const clockIn = new Date(record.clockInTime).getTime();
+              const clockOut = new Date(record.clockOutTime).getTime();
+              const totalHours = (clockOut - clockIn) / (1000 * 60 * 60);
+              const regularHoursForDay = Math.max(0, totalHours - overtimeHours);
+              
+              regularHours += regularHoursForDay;
+          }
       });
       
       // Calculate based on contract type
       switch(employee.contractType) {
-        case 'hourly': {
-          // Apply overtime rate for overtime hours
-          const regularPay = regularHours * rate;
-          const overtimePay = overtimeHours * rate * (businessInfo.overtimeRate || 1.5);
+          case 'hourly': {
+              // Apply overtime rate for overtime hours
+              const regularPay = regularHours * rate;
+              const overtimePay = totalOvertimeHours * rate * (businessInfo.overtimeRate || 1.5);
+              
+              // Apply lateness deduction (now per hour)
+              const latenessDeduction = totalLatenessHours * (businessInfo.latenessDeduction || 0);
+              
+              return {
+                  amount: Math.max(0, regularPay + overtimePay - latenessDeduction),
+                  hoursWorked: regularHours + totalOvertimeHours
+              };
+          }
           
-          // Apply lateness deduction
-          const latenessDeduction = totalLatenessMinutes * (businessInfo.latenessDeduction || 0);
+          case 'weekly': {
+              // Count the number of weeks in the period
+              const startDateObj = new Date(startDate);
+              const endDateObj = new Date(endDate);
+              const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
+              const weeks = Math.ceil((endDateObj.getTime() - startDateObj.getTime() + 1) / millisecondsPerWeek);
+              
+              // Calculate lateness deduction (per hour)
+              const latenessDeduction = totalLatenessHours * (businessInfo.latenessDeduction || 0);
+              
+              // Add overtime pay
+              const overtimePay = totalOvertimeHours * (rate/40) * (businessInfo.overtimeRate || 1.5); // Assuming 40hr work week
+              
+              return {
+                  amount: Math.max(0, (weeks * rate) + overtimePay - latenessDeduction)
+              };
+          }
           
-          return {
-            amount: Math.max(0, regularPay + overtimePay - latenessDeduction),
-            hoursWorked: regularHours + overtimeHours
-          };
-        }
-        
-        case 'weekly': {
-          // Count the number of weeks in the period
-          const startDateObj = new Date(startDate);
-          const endDateObj = new Date(endDate);
-          const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
-          const weeks = Math.ceil((endDateObj.getTime() - startDateObj.getTime() + 1) / millisecondsPerWeek);
+          case 'monthly': {
+              // Count the number of months in the period
+              const start = new Date(startDate);
+              const end = new Date(endDate);
+              const months = (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 
+                          (end.getDate() >= start.getDate() ? 0 : -1);
+              
+              // Calculate lateness deduction (per hour)
+              const latenessDeduction = totalLatenessHours * (businessInfo.latenessDeduction || 0);
+              
+              // Add overtime pay - assuming monthly rate is based on 160 hours (40hr × 4 weeks)
+              const overtimePay = totalOvertimeHours * (rate/160) * (businessInfo.overtimeRate || 1.5);
+              
+              return {
+                  amount: Math.max(0, (Math.max(1, months || 1) * rate) + overtimePay - latenessDeduction)
+              };
+          }
           
-          // Calculate lateness deduction
-          const latenessDeduction = totalLatenessMinutes * (businessInfo.latenessDeduction || 0);
-          
-          // Add overtime pay
-          const overtimePay = overtimeHours * (rate/40) * (businessInfo.overtimeRate || 1.5); // Assuming 40hr work week
-          
-          return {
-            amount: Math.max(0, (weeks * rate) + overtimePay - latenessDeduction)
-          };
-        }
-        
-        case 'monthly': {
-          // Count the number of months in the period
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          const months = (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 
-                        (end.getDate() >= start.getDate() ? 0 : -1);
-          
-          // Calculate lateness deduction
-          const latenessDeduction = totalLatenessMinutes * (businessInfo.latenessDeduction || 0);
-          
-          // Add overtime pay - assuming monthly rate is based on 160 hours (40hr × 4 weeks)
-          const overtimePay = overtimeHours * (rate/160) * (businessInfo.overtimeRate || 1.5);
-          
-          return {
-            amount: Math.max(0, (Math.max(1, months || 1) * rate) + overtimePay - latenessDeduction)
-          };
-        }
-        
-        case 'one-off':
-        default:
-          // One-off payment is just the specified amount (no overtime or lateness affects)
-          return {
-            amount: rate
-          };
+          case 'one-off':
+          default:
+              // One-off payment is just the specified amount (no overtime or lateness affects)
+              return {
+                  amount: rate
+              };
       }
-    };
+  };
     
     // Generate payrolls for all employees
     const generatePayrolls = () => {
@@ -2938,7 +2934,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   
                     <div className="flex items-start p-3 rounded-lg bg-yellow-500/10">
                       <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
                       </svg>
                       <p className="text-sm text-yellow-600 dark:text-yellow-400">
                         <span className="font-medium">Important:</span> This password is stored locally on your device. Make sure to remember it as there is no recovery option.
@@ -2969,7 +2965,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-start text-amber-700 dark:text-amber-300">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M10 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
                       </svg>
                       <span>No accounts created</span>
                     </div>
@@ -3158,7 +3154,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                             <span>Lateness Penalty</span>
                             <div className="relative ml-1 group">
                               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-1 3a1 1 0 00-1 1v4a1 1 0 102 0V9a1 1 0 00-1-1z" clipRule="evenodd" />
                               </svg>
                               <div className={`absolute bottom-full mb-2 w-48 p-2 rounded-md text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} shadow-lg z-10 hidden group-hover:block`}>
                                 Amount to deduct per minute of lateness (0.0 for no penalty)
@@ -3323,7 +3319,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   <div className="flex items-start">
                     <div className={`p-1 rounded-full bg-${theme.primary}/10 mr-2 mt-0.5`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${theme.primary}`} viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 010-1.414z" clipRule="evenodd" />
                       </svg>
                     </div>
                     <p className={`text-xs text-${darkMode ? 'gray-400' : 'gray-500'}`}>
@@ -3421,7 +3417,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         className={`flex items-center w-full gap-2 px-4 py-2 text-sm text-left ${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-indigo-100 hover:text-indigo-900'}`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 010-1.414z" clipRule="evenodd" />
                         </svg>
                         Export as CSV
                       </button>
@@ -3433,7 +3429,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         className={`flex items-center w-full gap-2 px-4 py-2 text-sm text-left ${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-indigo-100 hover:text-indigo-900'}`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 010-1.414z" clipRule="evenodd" />
                         </svg>
                         Export as JSON
                       </button>
