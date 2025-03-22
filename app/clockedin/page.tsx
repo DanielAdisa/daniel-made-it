@@ -40,13 +40,29 @@ interface BusinessInfo {
   workDays?: string[];
   established?: string;
   industry?: string; // Added industry field
+  overtimeRate?: number; // Added overtime rate
+  latenessDeduction?: number; // Added lateness deduction
+}
+
+interface PayrollItem {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  contractType: 'hourly' | 'weekly' | 'monthly' | 'one-off';
+  startDate: string;
+  endDate: string;
+  hoursWorked?: number;
+  amount: number;
+  status: 'draft' | 'processed' | 'paid';
+  date: string;
 }
 
 export default function PunchClockSystem() {
   const [employeeId, setEmployeeId] = useState<string>('');
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'payrolls'>('dashboard');
   const [showModal, setShowModal] = useState(false);
   const [newEmployee, setNewEmployee] = useState<Omit<Employee, 'id'>>({
     name: '',
@@ -87,7 +103,9 @@ export default function PunchClockSystem() {
     workStartTime: "09:00",
     workEndTime: "17:00",
     workDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    established: "2023"
+    established: "2023",
+    overtimeRate: 1.5, // Default overtime rate (1.5x)
+    latenessDeduction: 0.0 // Default lateness deduction per minute
   });
   
   // Dynamic theme based on dark mode
@@ -821,7 +839,204 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
   const [passwordVerified, setPasswordVerified] = useState<boolean>(false);
   const [protectedAction, setProtectedAction] = useState<'addEmployee' | 'editBusiness' | null>(null);
   const [passwordSetupComplete, setPasswordSetupComplete] = useState<boolean>(false);
+
+    // Calculate pay based on employee contract type and time records
+    const calculateEmployeePay = (employee: Employee, startDate: string, endDate: string): {amount: number, hoursWorked?: number} => {
+      // Get all records for this employee within the date range
+      const employeeRecords = records.filter(record => 
+        record.employeeId === employee.id &&
+        record.date >= startDate &&
+        record.date <= endDate &&
+        record.clockOutTime !== null // Only count completed records
+      );
+      
+      // Default rate if not specified
+      const rate = Number(employee.renumeration || 0);
+      
+      // Get total lateness and overtime minutes
+      let totalLatenessMinutes = 0;
+      let totalOvertimeMinutes = 0;
+      let regularHours = 0;
+      let overtimeHours = 0;
+      
+      employeeRecords.forEach(record => {
+        // Calculate lateness
+        const lateMinutes = calculateLateness(record.clockInTime);
+        totalLatenessMinutes += lateMinutes;
+        
+        // Calculate overtime
+        const overtimeMinutes = calculateOvertime(record.clockOutTime);
+        totalOvertimeMinutes += overtimeMinutes;
+        
+        // Calculate regular hours
+        if (record.clockOutTime) {
+          const clockIn = new Date(record.clockInTime).getTime();
+          const clockOut = new Date(record.clockOutTime).getTime();
+          const totalMinutes = (clockOut - clockIn) / (1000 * 60);
+          const regularMinutes = Math.max(0, totalMinutes - overtimeMinutes);
+          
+          regularHours += regularMinutes / 60;
+          overtimeHours += overtimeMinutes / 60;
+        }
+      });
+      
+      // Calculate based on contract type
+      switch(employee.contractType) {
+        case 'hourly': {
+          // Apply overtime rate for overtime hours
+          const regularPay = regularHours * rate;
+          const overtimePay = overtimeHours * rate * (businessInfo.overtimeRate || 1.5);
+          
+          // Apply lateness deduction
+          const latenessDeduction = totalLatenessMinutes * (businessInfo.latenessDeduction || 0);
+          
+          return {
+            amount: Math.max(0, regularPay + overtimePay - latenessDeduction),
+            hoursWorked: regularHours + overtimeHours
+          };
+        }
+        
+        case 'weekly': {
+          // Count the number of weeks in the period
+          const startDateObj = new Date(startDate);
+          const endDateObj = new Date(endDate);
+          const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
+          const weeks = Math.ceil((endDateObj.getTime() - startDateObj.getTime() + 1) / millisecondsPerWeek);
+          
+          // Calculate lateness deduction
+          const latenessDeduction = totalLatenessMinutes * (businessInfo.latenessDeduction || 0);
+          
+          // Add overtime pay
+          const overtimePay = overtimeHours * (rate/40) * (businessInfo.overtimeRate || 1.5); // Assuming 40hr work week
+          
+          return {
+            amount: Math.max(0, (weeks * rate) + overtimePay - latenessDeduction)
+          };
+        }
+        
+        case 'monthly': {
+          // Count the number of months in the period
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          const months = (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 
+                        (end.getDate() >= start.getDate() ? 0 : -1);
+          
+          // Calculate lateness deduction
+          const latenessDeduction = totalLatenessMinutes * (businessInfo.latenessDeduction || 0);
+          
+          // Add overtime pay - assuming monthly rate is based on 160 hours (40hr × 4 weeks)
+          const overtimePay = overtimeHours * (rate/160) * (businessInfo.overtimeRate || 1.5);
+          
+          return {
+            amount: Math.max(0, (Math.max(1, months || 1) * rate) + overtimePay - latenessDeduction)
+          };
+        }
+        
+        case 'one-off':
+        default:
+          // One-off payment is just the specified amount (no overtime or lateness affects)
+          return {
+            amount: rate
+          };
+      }
+    };
+    
+    // Generate payrolls for all employees
+    const generatePayrolls = () => {
+      const generatedPayrolls = employees.map(employee => {
+        const calculation = calculateEmployeePay(employee, payrollStartDate, payrollEndDate);
+        
+        return {
+          id: `P-${Math.floor(10000 + Math.random() * 90000)}`, // Generate a random payroll ID
+          employeeId: employee.id,
+          employeeName: employee.name,
+          department: employee.department,
+          contractType: employee.contractType || 'hourly',
+          startDate: payrollStartDate,
+          endDate: payrollEndDate,
+          hoursWorked: calculation.hoursWorked,
+          amount: calculation.amount,
+          status: 'draft',
+          date: new Date().toISOString().split('T')[0]
+        } as PayrollItem;
+      });
+      
+      setPayrolls(generatedPayrolls);
+      setPayrollsGenerated(true);
+      
+      Swal.fire({
+        title: 'Payrolls Generated',
+        text: `Successfully generated payrolls for ${generatedPayrolls.length} employees.`,
+        icon: 'success',
+        confirmButtonColor: '#4f46e5'
+      });
+    };
   
+    // Export payrolls as CSV or JSON
+    const exportPayrolls = (format: 'csv' | 'json') => {
+      if (payrolls.length === 0) {
+        Swal.fire({
+          title: 'No Data',
+          text: 'There are no payrolls to export.',
+          icon: 'info',
+          confirmButtonColor: '#4f46e5'
+        });
+        return;
+      }
+  
+      const exportData = payrolls.map(payroll => {
+        const employee = employees.find(emp => emp.id === payroll.employeeId);
+        
+        return {
+          id: payroll.id,
+          employeeName: payroll.employeeName,
+          employeeId: payroll.employeeId,
+          department: payroll.department,
+          position: employee?.position || 'Not specified',
+          contractType: payroll.contractType,
+          payPeriod: `${new Date(payroll.startDate).toLocaleDateString()} to ${new Date(payroll.endDate).toLocaleDateString()}`,
+          hoursWorked: payroll.hoursWorked ? payroll.hoursWorked.toFixed(1) : 'N/A',
+          amount: `$${payroll.amount.toFixed(2)}`,
+          status: payroll.status,
+          generatedDate: payroll.date
+        };
+      });
+  
+      if (format === 'csv') {
+        exportAsCSV(exportData, `payrolls-${new Date().toISOString().split('T')[0]}`);
+      } else {
+        exportAsJSON(exportData, `payrolls-${new Date().toISOString().split('T')[0]}`);
+      }
+      
+      Swal.fire({
+        title: 'Export Successful',
+        text: `Payrolls have been exported as ${format.toUpperCase()}.`,
+        icon: 'success',
+        timer: 2000,
+        timerProgressBar: true,
+        showConfirmButton: false
+      });
+    };
+  
+    // Replace the dummy payroll data loading in useEffect
+    useEffect(() => {
+      // Don't load dummy payroll data anymore - we'll generate them based on employees
+      // This can stay empty or be removed
+    }, []);
+  
+  // Add state for payrolls
+  const [payrolls, setPayrolls] = useState<PayrollItem[]>([]);
+  const [payrollSearchQuery, setPayrollSearchQuery] = useState<string>('');
+  const [payrollDepartmentFilter, setPayrollDepartmentFilter] = useState<string>('');
+  const [payrollsExportOpen, setPayrollsExportOpen] = useState(false);
+  const [payrollStartDate, setPayrollStartDate] = useState<string>(
+    new Date(new Date().setDate(1)).toISOString().split('T')[0] // First day of current month
+  );
+  const [payrollEndDate, setPayrollEndDate] = useState<string>(
+    new Date().toISOString().split('T')[0] // Current day
+  );
+  const [payrollsGenerated, setPayrollsGenerated] = useState<boolean>(false);
+
   // Check if the password is already set
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1325,7 +1540,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                   }}
                 />
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-400 transform transition-transform ${showDropdown ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
                 </svg>
               </div>
               
@@ -1381,7 +1596,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                     ) : (
                       <div className="px-4 py-6 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 006 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                         <p className="text-gray-400">No employees found matching your search</p>
@@ -2046,7 +2261,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
           </div>
         ) : (
           <div className="py-12 text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-400 h-14 w-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/2000/svg" className="mx-auto mb-4 text-gray-400 h-14 w-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
             <p className="text-gray-500">No employees found matching your criteria</p>
@@ -2264,7 +2479,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
               </svg>
             </div>
           </div>
@@ -2449,7 +2664,9 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
     workStartTime: "09:00",
     workEndTime: "17:00",
     workDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    established: "2023"
+    established: "2023",
+    overtimeRate: businessInfo.overtimeRate || 1.5,
+    latenessDeduction: businessInfo.latenessDeduction || 0.0
   });
   
   // Check if we've completed onboarding before
@@ -2599,7 +2816,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                       </div>
                       <div className="flex items-start">
                         <svg xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 w-5 h-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+                          <path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4zM7 5h2v2H7V5zm2 3H7v2h2V8zm2-3h2v2h-2V5zm2 3h-2v2h2V8z" clipRule="evenodd" />
                         </svg>
                         <div>
                           <p className="font-medium text-purple-700 dark:text-purple-300">Modifying Business Information</p>
@@ -2691,7 +2908,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                 <div className="bg-amber-200/30 dark:bg-amber-700/20 px-4 py-2.5 border-b border-amber-300/30 flex items-center">
                   <div className="p-1.5 rounded-full bg-amber-400/20 mr-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M9 6a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Your Data Privacy & Security</h3>
@@ -2792,7 +3009,7 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
                           </svg>
                         </div>
                       </div>
@@ -2854,6 +3071,71 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
                           className={`w-full p-3 bg-${darkMode ? 'gray-700' : 'white'} border border-${darkMode ? 'gray-600' : 'gray-300'} text-${darkMode ? 'gray-200' : 'gray-700'} rounded-lg focus:ring-2 focus:ring-${theme.primary} focus:border-${theme.primary} transition-all duration-200 text-sm`}
                           required
                         />
+                      </div>
+                    </div>
+                    
+                    {/* NEW FIELDS: Overtime Rate & Lateness Penalty */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className={`block text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'} mb-1`}>
+                          <div className="flex items-center">
+                            <span>Overtime Rate</span>
+                            <div className="relative ml-1 group">
+                              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                              <div className={`absolute bottom-full mb-2 w-48 p-2 rounded-md text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} shadow-lg z-10 hidden group-hover:block`}>
+                                Multiplier for overtime pay (e.g., 1.5 means time and a half)
+                              </div>
+                            </div>
+                          </div>
+                        </label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            name="overtimeRate"
+                            step="0.1"
+                            min="1" 
+                            title="Overtime rate multiplier"
+                            value={businessFormData.overtimeRate || 1.5}
+                            onChange={handleBusinessFormChange}
+                            className={`w-full p-3 bg-${darkMode ? 'gray-700' : 'white'} border border-${darkMode ? 'gray-600' : 'gray-300'} text-${darkMode ? 'gray-200' : 'gray-700'} rounded-lg focus:ring-2 focus:ring-${theme.primary} focus:border-${theme.primary} transition-all duration-200 text-sm pr-8`}
+                          />
+                          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>×</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className={`block text-sm font-medium text-${darkMode ? 'gray-200' : 'gray-700'} mb-1`}>
+                          <div className="flex items-center">
+                            <span>Lateness Penalty</span>
+                            <div className="relative ml-1 group">
+                              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-${darkMode ? 'gray-400' : 'gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                              <div className={`absolute bottom-full mb-2 w-48 p-2 rounded-md text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700'} shadow-lg z-10 hidden group-hover:block`}>
+                                Amount to deduct per minute of lateness (0.0 for no penalty)
+                              </div>
+                            </div>
+                          </div>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>$</span>
+                          </div>
+                          <input 
+                            type="number" 
+                            name="latenessDeduction"
+                            step="0.01"
+                            min="0"
+                            title="Penalty amount per minute late"
+                            value={businessFormData.latenessDeduction || 0}
+                            onChange={handleBusinessFormChange}
+                            className={`w-full pl-7 p-3 bg-${darkMode ? 'gray-700' : 'white'} border border-${darkMode ? 'gray-600' : 'gray-300'} text-${darkMode ? 'gray-200' : 'gray-700'} rounded-lg focus:ring-2 focus:ring-${theme.primary} focus:border-${theme.primary} transition-all duration-200 text-sm`}
+                          />
+                        </div>
                       </div>
                     </div>
                     
@@ -2997,7 +3279,296 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       )}
     </AnimatePresence>
   );
+
   
+  const renderPayrolls = () => {
+    const uniqueDepartments = [...new Set(employees.map(emp => emp.department))];
+
+    // Filter payrolls based on search query and department filter
+    const filteredPayrolls = payrolls.filter(payroll => {
+      const matchesSearch = !payrollSearchQuery ||
+        payroll.employeeName.toLowerCase().includes(payrollSearchQuery.toLowerCase());
+
+      const matchesDepartment = !payrollDepartmentFilter ||
+        payroll.department.toLowerCase() === payrollDepartmentFilter.toLowerCase();
+
+      return matchesSearch && matchesDepartment;
+    });
+
+    return (
+      <div className={`bg-${theme.background} p-6 rounded-lg shadow-md border border-${theme.border} transition-colors duration-200`}>
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <h2 className={`text-xl font-semibold text-${theme.text}`}>Payroll Management</h2>
+            <div className="flex gap-2">
+              <div className="relative" ref={employeesDropdownRef}>
+                <button
+                  onClick={() => {
+                    if (passwordVerified) {
+                      setPayrollsExportOpen(!payrollsExportOpen);
+                    } else {
+                      setShowPasswordModal(true);
+                      setPasswordInput("");
+                      setPasswordError("");
+                    }
+                  }}
+                  className={`px-4 py-2 mr-2 text-white transition duration-300 bg-${theme.primary} rounded-md shadow-sm hover:bg-${theme.primary}-700`}
+                  disabled={payrolls.length === 0}
+                >
+                  Export
+                </button>
+                {payrollsExportOpen && (
+                  <div className={`absolute right-0 z-10 w-48 mt-2 bg-${darkMode ? 'gray-800' : 'white'} rounded-md shadow-lg ring-1 ring-black ring-opacity-5`}>
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          exportPayrolls('csv');
+                          setPayrollsExportOpen(false);
+                        }}
+                        className={`flex items-center w-full gap-2 px-4 py-2 text-sm text-left ${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-indigo-100 hover:text-indigo-900'}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Export as CSV
+                      </button>
+                      <button
+                        onClick={() => {
+                          exportPayrolls('json');
+                          setPayrollsExportOpen(false);
+                        }}
+                        className={`flex items-center w-full gap-2 px-4 py-2 text-sm text-left ${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-indigo-100 hover:text-indigo-900'}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 text-${theme.accent}`} viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Export as JSON
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Payroll Period Selection */}
+          <div className={`p-5 mb-6 rounded-lg bg-${darkMode ? 'gray-700/50' : 'gray-50'} border border-${darkMode ? 'gray-600' : 'gray-200'}`}>
+            <h3 className={`mb-4 text-lg font-medium text-${theme.text}`}>Payroll Period</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={`block mb-1 text-sm font-medium text-${darkMode ? 'gray-300' : 'gray-700'}`}>
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+                    darkMode
+                      ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                      : 'border-gray-300 bg-white text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  }`}
+                  value={payrollStartDate}
+                  onChange={(e) => setPayrollStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={`block mb-1 text-sm font-medium text-${darkMode ? 'gray-300' : 'gray-700'}`}>
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  className={`w-full px-3 py-2.5 border rounded-lg transition-colors ${
+                    darkMode
+                      ? 'border-gray-600 bg-gray-700 text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                      : 'border-gray-300 bg-white text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  }`}
+                  value={payrollEndDate}
+                  onChange={(e) => setPayrollEndDate(e.target.value)}
+                  min={payrollStartDate}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={generatePayrolls}
+                className={`px-5 py-2.5 bg-gradient-to-r from-${theme.primary} to-${theme.accent} text-white rounded-lg hover:from-${theme.accent} hover:to-${theme.primary} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${theme.primary} shadow-md transition-all duration-300 flex items-center gap-2`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                Generate Payrolls
+              </button>
+            </div>
+          </div>
+
+          {/* Search and Filter Interface */}
+          {payrolls.length > 0 && (
+            <div className="flex flex-col gap-3 mb-6 sm:flex-row">
+              <div className="relative flex-grow">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  className={`w-full py-2 pl-10 pr-4 transition-all duration-200 border rounded-lg ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                      : 'bg-gray-50 border-gray-200 text-gray-700'
+                  } focus:ring-2 focus:ring-indigo-300 focus:border-transparent`}
+                  placeholder="Search payrolls by employee name..."
+                  value={payrollSearchQuery}
+                  onChange={(e) => setPayrollSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className={`flex items-center w-full px-4 py-2 border rounded-lg sm:w-auto ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-gray-300'
+                  : 'bg-gray-50 border-gray-200 text-gray-700'
+              }`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
+                </svg>
+                <select
+                  aria-label="Filter by department"
+                  title="Department filter"
+                  className={`w-full bg-transparent focus:outline-none ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  value={payrollDepartmentFilter}
+                  onChange={(e) => setPayrollDepartmentFilter(e.target.value)}
+                >
+                  <option value="">All Departments</option>
+                  {uniqueDepartments.map(dep => (
+                    <option key={dep} value={dep}>{dep}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {payrolls.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                <thead className={darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}>
+                  <tr>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Employee</th>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Department</th>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Contract Type</th>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Period</th>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Hours Worked</th>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Amount</th>
+                    <th className={`px-6 py-3 text-xs font-medium tracking-wider text-left ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase`}>Status</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${darkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-200 bg-white'}`}>
+                  {filteredPayrolls.map(payroll => (
+                    <tr key={payroll.id} className={darkMode ? 'hover:bg-gray-700/30' : 'hover:bg-gray-50'}>
+                      <td className={`px-6 py-4 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-900'} whitespace-nowrap`}>
+                        {payroll.employeeName}
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ID: {payroll.employeeId}
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'} whitespace-nowrap`}>
+                        {payroll.department}
+                      </td>
+                      <td className={`px-6 py-4 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'} whitespace-nowrap`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          payroll.contractType === 'hourly' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                          payroll.contractType === 'weekly' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                          payroll.contractType === 'monthly' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300' :
+                          'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
+                        }`}>
+                          {payroll.contractType === 'hourly' ? 'Hourly' :
+                           payroll.contractType === 'weekly' ? 'Weekly' :
+                           payroll.contractType === 'monthly' ? 'Monthly' : 'One-off'}
+                        </span>
+                      </td>
+                      <td className={`px-6 py-4 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'} whitespace-nowrap`}>
+                        {new Date(payroll.startDate).toLocaleDateString()} - {new Date(payroll.endDate).toLocaleDateString()}
+                      </td>
+                      <td className={`px-6 py-4 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'} whitespace-nowrap`}>
+                        {payroll.hoursWorked !== undefined ? `${payroll.hoursWorked.toFixed(1)} hrs` : 'N/A'}
+                      </td>
+                      <td className={`px-6 py-4 text-sm ${darkMode ? 'text-green-400' : 'text-green-600'} whitespace-nowrap font-medium`}>
+                        ${typeof payroll.amount === 'number' ? payroll.amount.toFixed(2) : payroll.amount}
+                      </td>
+                      <td className={`px-6 py-4 text-sm whitespace-nowrap`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                          ${payroll.status === 'paid' ? 
+                            'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 
+                            'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
+                          }`}>
+                          {payroll.status.charAt(0).toUpperCase() + payroll.status.slice(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className={`py-16 text-center rounded-lg border ${darkMode ? 'border-gray-700 bg-gray-800/30' : 'border-gray-200 bg-gray-50'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <p className={`mb-2 text-lg font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>No Payrolls Generated Yet</p>
+              <p className={`mb-6 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Set the payroll period above and generate payrolls to view them here.</p>
+              <button
+                onClick={generatePayrolls}
+                className={`px-5 py-2.5 mx-auto bg-gradient-to-r from-${theme.primary} to-${theme.accent} text-white rounded-lg hover:from-${theme.accent} hover:to-${theme.primary} transition-all duration-300 shadow-md flex items-center gap-2`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                Generate Payrolls
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Payroll Explanations Section */}
+        <div className={`mt-8 p-5 rounded-lg border ${darkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
+          <h3 className={`mb-4 text-lg font-medium text-${theme.text}`}>How Payroll Calculations Work</h3>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-blue-900/20 border border-blue-800/30' : 'bg-blue-50 border border-blue-100'}`}>
+              <h4 className={`flex items-center text-sm font-semibold ${darkMode ? 'text-blue-300' : 'text-blue-700'} mb-2`}>
+                <span className="mr-2">💼</span> Hourly Pay
+              </h4>
+              <p className={`text-xs ${darkMode ? 'text-blue-200' : 'text-blue-600'}`}>
+                Rate × Total hours worked during the selected period. Hours are calculated from clock-in to clock-out times.
+              </p>
+            </div>
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-green-900/20 border border-green-800/30' : 'bg-green-50 border border-green-100'}`}>
+              <h4 className={`flex items-center text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-700'} mb-2`}>
+                <span className="mr-2">📅</span> Weekly Pay
+              </h4>
+              <p className={`text-xs ${darkMode ? 'text-green-200' : 'text-green-600'}`}>
+                Rate × Number of weeks in the selected period. Partial weeks are counted as full weeks.
+              </p>
+            </div>
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-purple-900/20 border border-purple-800/30' : 'bg-purple-50 border border-purple-100'}`}>
+              <h4 className={`flex items-center text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-purple-700'} mb-2`}>
+                <span className="mr-2">📆</span> Monthly Pay
+              </h4>
+              <p className={`text-xs ${darkMode ? 'text-purple-200' : 'text-purple-600'}`}>
+                Rate × Number of months in the selected period. Calculated based on calendar months.
+              </p>
+            </div>
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-amber-900/20 border border-amber-800/30' : 'bg-amber-50 border border-amber-100'}`}>
+              <h4 className={`flex items-center text-sm font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-700'} mb-2`}>
+                <span className="mr-2">💰</span> One-off Payment
+              </h4>
+              <p className={`text-xs ${darkMode ? 'text-amber-200' : 'text-amber-600'}`}>
+                Fixed amount regardless of the period selected. Used for contractors or special projects.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Add the onboarding modal to the component return
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors duration-200`}>
@@ -3031,6 +3602,16 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
             }`}
           >
             Employees
+          </button>
+          <button
+            onClick={() => setActiveTab('payrolls')}
+            className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
+              activeTab === 'payrolls'
+                ? `border-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}`
+                : `border-transparent ${darkMode ? 'text-gray-300 hover:text-gray-100 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
+            }`}
+          >
+            Payrolls
           </button>
         </div>
       </div>
@@ -3104,12 +3685,25 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       >
         Employees
       </button>
+      <button
+        onClick={() => {
+          setActiveTab('payrolls');
+          setIsMobileMenuOpen(false);
+        }}
+        className={`block w-full text-left px-4 py-2 text-base font-medium ${
+          activeTab === 'payrolls'
+            ? `${darkMode ? 'bg-gray-700 text-white' : 'bg-indigo-50 text-indigo-700'} border-l-4 border-indigo-500` 
+            : `${darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'} border-l-4 border-transparent`
+        } transition-colors duration-200`}
+      >
+        Payrolls
+      </button>
     </div>
   </div>
 </nav>
 
       <main className="px-4 py-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
-        {activeTab === 'dashboard' ? renderDashboard() : renderEmployees()}
+        {activeTab === 'dashboard' ? renderDashboard() : activeTab === 'employees' ? renderEmployees() : renderPayrolls()}
       </main>
 
       {showModal && renderModal()}
@@ -3118,4 +3712,6 @@ const isBusinessCurrentlyOpen = (businessInfo: BusinessInfo): boolean => {
       {renderOnboardingModal()}
     </div>
   );
+
+
 }
