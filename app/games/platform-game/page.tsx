@@ -17,6 +17,19 @@ interface GameState {
   isPlaying: boolean;
   lastScorer: 'player' | 'ai' | null;
   waitingForServe: boolean;
+  winner: 'player' | 'ai' | null;
+}
+
+// Interface for balloon objects
+interface Balloon {
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+  speedX: number;
+  speedY: number;
+  rotation: number;
+  rotationSpeed: number;
 }
 
 const PingPongGame = () => {
@@ -35,11 +48,22 @@ const PingPongGame = () => {
     isPlaying: false,
     lastScorer: null,
     waitingForServe: false,
+    winner: null,
   });
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showSideSelection, setShowSideSelection] = useState<boolean>(false);
   const [touchY, setTouchY] = useState<number | null>(null);
   const [touchX, setTouchX] = useState<number | null>(null);
+  const [lastTouchY, setLastTouchY] = useState<number | null>(null);
+  const [lastTouchX, setLastTouchX] = useState<number | null>(null);
+  const [isTouching, setIsTouching] = useState<boolean>(false);
+  const [balloons, setBalloons] = useState<Balloon[]>([]);
+  const [showVictoryModal, setShowVictoryModal] = useState<boolean>(false);
+  const victoryPointsRef = useRef<number>(10); // Points needed to win
+
+  // Sound refs for victory celebration
+  const victorySoundRef = useRef<HTMLAudioElement | null>(null);
+  const balloonPopSoundRef = useRef<HTMLAudioElement | null>(null);
 
   // Available ball colors
   const ballColors = [
@@ -119,6 +143,95 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
   }
 };
 
+  // Function to create victory balloons
+  const createVictoryBalloons = () => {
+    const newBalloons: Balloon[] = [];
+    const balloonColors = ['#f44336', '#2196f3', '#ffeb3b', '#4caf50', '#9c27b0', '#ff9800', '#00bcd4'];
+    
+    // Create 50 balloons of various colors, sizes and speeds
+    for (let i = 0; i < 50; i++) {
+      const canvas = canvasRef.current;
+      if (!canvas) continue;
+      
+      newBalloons.push({
+        x: Math.random() * canvas.width,
+        y: canvas.height + Math.random() * 100, // Start below screen
+        size: Math.random() * 30 + 20,
+        color: balloonColors[Math.floor(Math.random() * balloonColors.length)],
+        speedX: (Math.random() - 0.5) * 2,
+        speedY: -(Math.random() * 3 + 2), // Negative to move upward
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 2,
+      });
+    }
+    
+    setBalloons(newBalloons);
+    playSound(victorySoundRef);
+  };
+
+  // Update balloon positions
+  const updateBalloons = () => {
+    setBalloons(prevBalloons => 
+      prevBalloons
+        .map(balloon => ({
+          ...balloon,
+          x: balloon.x + balloon.speedX,
+          y: balloon.y + balloon.speedY,
+          rotation: balloon.rotation + balloon.rotationSpeed,
+          // Slightly slow down as they rise
+          speedY: balloon.speedY + 0.01,
+        }))
+        // Remove balloons that have gone off the top of the screen
+        .filter(balloon => balloon.y > -100)
+    );
+  };
+
+  // Handle popping a balloon on click
+  const popBalloon = (index: number) => {
+    playSound(balloonPopSoundRef);
+    
+    // Remove the balloon that was clicked
+    setBalloons(prevBalloons => 
+      prevBalloons.filter((_, i) => i !== index)
+    );
+    
+    // Create particles at the position where balloon was popped
+    if (balloons[index]) {
+      createParticles(
+        balloons[index].x, 
+        balloons[index].y, 
+        10, 
+        balloons[index].color
+      );
+    }
+  };
+
+  // Check for victory condition
+  const checkVictory = (playerScore: number, aiScore: number) => {
+    const pointsToWin = victoryPointsRef.current;
+    
+    if (playerScore >= pointsToWin) {
+      setGameState(prev => ({
+        ...prev,
+        isPlaying: false,
+        winner: 'player'
+      }));
+      createVictoryBalloons();
+      setShowVictoryModal(true);
+      return true;
+    } 
+    else if (aiScore >= pointsToWin) {
+      setGameState(prev => ({
+        ...prev,
+        isPlaying: false,
+        winner: 'ai'
+      }));
+      setShowVictoryModal(true);
+      return true;
+    }
+    
+    return false;
+  };
 
   // Game variables - updated to handle both orientations
   const paddleHeight = gameOrientation === 'horizontal' ? 140 : 15;
@@ -163,6 +276,8 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     scoreSoundRef.current = new Audio('/sounds/score1.mp3');
     gameStartSoundRef.current = new Audio('/sounds/game-start.mp3');
     backgroundMusicRef.current = new Audio('/sounds/bg-music2.mp3');
+    victorySoundRef.current = new Audio('/sounds/victory.mp3');
+    balloonPopSoundRef.current = new Audio('/sounds/balloon-pop.mp3');
     
     if (backgroundMusicRef.current) {
       backgroundMusicRef.current.loop = true;
@@ -174,6 +289,8 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     if (wallHitSoundRef.current) wallHitSoundRef.current.volume = 0.3;
     if (scoreSoundRef.current) scoreSoundRef.current.volume = 0.5;
     if (gameStartSoundRef.current) gameStartSoundRef.current.volume = 0.5;
+    if (victorySoundRef.current) victorySoundRef.current.volume = 0.6;
+    if (balloonPopSoundRef.current) balloonPopSoundRef.current.volume = 0.3;
     
     return () => {
       // Clean up and stop all audio
@@ -182,6 +299,8 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
       if (wallHitSoundRef.current) wallHitSoundRef.current.pause();
       if (scoreSoundRef.current) scoreSoundRef.current.pause();
       if (gameStartSoundRef.current) gameStartSoundRef.current.pause();
+      if (victorySoundRef.current) victorySoundRef.current.pause();
+      if (balloonPopSoundRef.current) balloonPopSoundRef.current.pause();
     };
   }, []);
 
@@ -213,6 +332,8 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
       if (scoreSoundRef.current) scoreSoundRef.current.muted = muted;
       if (gameStartSoundRef.current) gameStartSoundRef.current.muted = muted;
       if (backgroundMusicRef.current) backgroundMusicRef.current.muted = muted;
+      if (victorySoundRef.current) victorySoundRef.current.muted = muted;
+      if (balloonPopSoundRef.current) balloonPopSoundRef.current.muted = muted;
     };
     
     setMuted(isMuted);
@@ -223,6 +344,33 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     if (audioRef.current && !isMuted) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(err => console.log("Audio play error:", err));
+    }
+  };
+
+  // Scoring function - modified to check for victory
+  const handleScoring = (scorer: 'player' | 'ai') => {
+    let newPlayerScore = gameState.playerScore;
+    let newAiScore = gameState.aiScore;
+    
+    if (scorer === 'player') {
+      newPlayerScore++;
+      setGameState(prev => ({
+        ...prev,
+        playerScore: newPlayerScore
+      }));
+    } else {
+      newAiScore++;
+      setGameState(prev => ({
+        ...prev,
+        aiScore: newAiScore
+      }));
+    }
+    
+    playSound(scoreSoundRef);
+    
+    // Check if someone won
+    if (!checkVictory(newPlayerScore, newAiScore)) {
+      prepareServe(scorer);
     }
   };
 
@@ -418,7 +566,7 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     }
   };
 
-  // Handle touch events for mobile users - updated for game orientation
+  // Handle touch events for mobile users - updated for swipe-only movement
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!gameState.isPlaying) return;
     e.preventDefault(); // Prevent default to avoid scrolling
@@ -431,10 +579,14 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
       const touchY = e.touches[0].clientY - rect.top;
       const touchX = e.touches[0].clientX - rect.left;
       
+      // Store initial touch position for swipe calculation
+      setLastTouchY(touchY);
+      setLastTouchX(touchX);
       setTouchY(touchY);
       setTouchX(touchX);
+      setIsTouching(true);
       
-      // Also handle serve on touch for mobile
+      // Handle serve on touch for mobile - but don't move paddle
       if (gameState.waitingForServe && gameState.lastScorer === 'ai') {
         serveFromPlayer();
       }
@@ -453,11 +605,14 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
       const currentTouchY = e.touches[0].clientY - rect.top;
       const currentTouchX = e.touches[0].clientX - rect.left;
       
-      // Update player paddle position based on orientation
-      if (gameOrientation === 'horizontal') {
-        updatePlayerPosition(currentTouchY, null);
-      } else {
-        updatePlayerPosition(null, currentTouchX);
+      // Only update paddle position when actually swiping (not just tapping)
+      if (isTouching && (lastTouchY !== null || lastTouchX !== null)) {
+        // Update player paddle position based on orientation
+        if (gameOrientation === 'horizontal') {
+          updatePlayerPosition(currentTouchY, null);
+        } else {
+          updatePlayerPosition(null, currentTouchX);
+        }
       }
       
       setTouchY(currentTouchY);
@@ -466,6 +621,9 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
   };
 
   const handleTouchEnd = () => {
+    setIsTouching(false);
+    setLastTouchY(null);
+    setLastTouchX(null);
     setTouchY(null);
     setTouchX(null);
   };
@@ -497,7 +655,7 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     }
   };
 
-  // Handle canvas click for serving
+  // Handle canvas click for serving - ensure it only serves, doesn't move paddle
   const handleCanvasClick = () => {
     if (gameState.waitingForServe && gameState.lastScorer === 'ai') {
       serveFromPlayer();
@@ -537,7 +695,7 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     setGameOrientation(orientation);
   };
 
-  // Game rendering - updated for both orientations
+  // Game rendering - updated to handle victory balloons
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -574,7 +732,14 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     let animationId: number;
 
     const updateGame = () => {
-      if (!gameState.isPlaying) return;
+      if (!gameState.isPlaying) {
+        // Even if game is not playing, continue updating balloons if they exist
+        if (balloons.length > 0) {
+          updateBalloons();
+          renderGame();
+        }
+        return;
+      }
       const game = gameRef.current;
 
       // Only update ball if not waiting to serve
@@ -744,68 +909,42 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
           }
         }
 
-        // Scoring - adjusted for game orientation
+        // Scoring - adjusted for game orientation and victory condition
         if (gameOrientation === 'horizontal') {
           // Horizontal gameplay - score when ball passes left/right edges
           if (game.ball.x < 0) {
             // Left side scores (player or AI depending on side)
             if (playerSide === 'left') {
               // AI scores
-              setGameState(prev => ({
-                ...prev,
-                aiScore: prev.aiScore + 1
-              }));
+              handleScoring('ai');
               createParticles(0, game.ball.y, 15, '#ef4444'); // Red particles
             } else {
               // Player scores
-              setGameState(prev => ({
-                ...prev,
-                playerScore: prev.playerScore + 1
-              }));
+              handleScoring('player');
               createParticles(0, game.ball.y, 15, '#3b82f6'); // Blue particles
             }
-            playSound(scoreSoundRef);
-            prepareServe(playerSide === 'left' ? 'ai' : 'player');
           } else if (game.ball.x + ballSize > game.canvasWidth) {
             // Right side scores
             if (playerSide === 'left') {
               // Player scores
-              setGameState(prev => ({
-                ...prev,
-                playerScore: prev.playerScore + 1
-              }));
+              handleScoring('player');
               createParticles(game.canvasWidth, game.ball.y, 15, '#3b82f6'); // Blue particles
             } else {
               // AI scores
-              setGameState(prev => ({
-                ...prev,
-                aiScore: prev.aiScore + 1
-              }));
+              handleScoring('ai');
               createParticles(game.canvasWidth, game.ball.y, 15, '#ef4444'); // Red particles
             }
-            playSound(scoreSoundRef);
-            prepareServe(playerSide === 'left' ? 'player' : 'ai');
           }
         } else {
           // Vertical gameplay - score when ball passes top/bottom edges
           if (game.ball.y < 0) {
             // Ball passes top - player scores
-            setGameState(prev => ({
-              ...prev,
-              playerScore: prev.playerScore + 1
-            }));
+            handleScoring('player');
             createParticles(game.ball.x, 0, 15, '#3b82f6'); // Blue particles
-            playSound(scoreSoundRef);
-            prepareServe('player');
           } else if (game.ball.y + ballSize > game.canvasHeight) {
             // Ball passes bottom - AI scores
-            setGameState(prev => ({
-              ...prev,
-              aiScore: prev.aiScore + 1
-            }));
+            handleScoring('ai');
             createParticles(game.ball.x, game.canvasHeight, 15, '#ef4444'); // Red particles
-            playSound(scoreSoundRef);
-            prepareServe('ai');
           }
         }
         
@@ -842,6 +981,11 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
           star.x = Math.random() * game.canvasWidth;
         }
       });
+
+      // Update balloons if we have any
+      if (balloons.length > 0) {
+        updateBalloons();
+      }
 
       // Render game
       renderGame();
@@ -1141,6 +1285,65 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
         context.lineWidth = 2;
         context.stroke();
       }
+
+      // Draw balloons if they exist
+      balloons.forEach((balloon, index) => {
+        context.save();
+        context.translate(balloon.x, balloon.y);
+        context.rotate((balloon.rotation * Math.PI) / 180);
+        
+        // Draw balloon shape
+        context.fillStyle = balloon.color;
+        context.beginPath();
+        context.arc(0, 0, balloon.size/2, 0, Math.PI * 2);
+        context.fill();
+        
+        // Draw balloon string
+        context.beginPath();
+        context.moveTo(0, balloon.size/2);
+        context.lineTo(0, balloon.size);
+        context.strokeStyle = 'white';
+        context.lineWidth = 1;
+        context.stroke();
+        
+        // Add shine to balloon
+        context.beginPath();
+        context.arc(-balloon.size/4, -balloon.size/4, balloon.size/6, 0, Math.PI * 2);
+        context.fillStyle = 'rgba(255,255,255,0.3)';
+        context.fill();
+        
+        context.restore();
+      });
+      
+      // Draw victory message if game ended with a winner
+      if (gameState.winner) {
+        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        context.fillRect(0, 0, game.canvasWidth, game.canvasHeight);
+        
+        context.font = 'bold 36px Arial';
+        context.textAlign = 'center';
+        context.fillStyle = gameState.winner === 'player' ? '#3b82f6' : '#ef4444';
+        context.fillText(
+          gameState.winner === 'player' ? 'YOU WIN!' : 'AI WINS!', 
+          game.canvasWidth / 2, 
+          game.canvasHeight / 2
+        );
+        
+        context.font = '24px Arial';
+        context.fillStyle = '#ffffff';
+        context.fillText(
+          `${gameState.playerScore} - ${gameState.aiScore}`,
+          game.canvasWidth / 2,
+          game.canvasHeight / 2 + 50
+        );
+        
+        context.font = '18px Arial';
+        context.fillText(
+          'Pop the balloons!',
+          game.canvasWidth / 2,
+          game.canvasHeight / 2 + 100
+        );
+      }
     };
 
     const gameLoop = () => {
@@ -1158,8 +1361,30 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [difficulty, gameState.isPlaying, gameState.waitingForServe, gameState.lastScorer, isMuted, playerSide, ballColor, ballDesign, gameSpeed, paddleTheme, gameOrientation]);
+  }, [difficulty, gameState.isPlaying, gameState.waitingForServe, gameState.lastScorer, gameState.winner, isMuted, playerSide, ballColor, ballDesign, gameSpeed, paddleTheme, gameOrientation, balloons]);
 
+  // Handle balloon clicking
+  const handleBalloonClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Check if click hits any balloon
+    balloons.forEach((balloon, index) => {
+      const dx = balloon.x - mouseX;
+      const dy = balloon.y - mouseY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < balloon.size / 2) {
+        popBalloon(index);
+      }
+    });
+  };
+
+  // Restart game with reset scores and clear victory
   const restartGame = () => {
     if (backgroundMusicRef.current) {
       backgroundMusicRef.current.pause();
@@ -1172,7 +1397,11 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
       isPlaying: false,
       lastScorer: null,
       waitingForServe: false,
+      winner: null,
     });
+    
+    setShowVictoryModal(false);
+    setBalloons([]);
   };
 
   const toggleMute = () => {
@@ -1633,20 +1862,26 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
               {isMuted ? <FaVolumeMute size={20} /> : <FaVolumeUp size={20} />}
             </motion.button>
             
-            <canvas
-              ref={canvasRef}
-              onMouseMove={handleMouseMove}
-              onClick={handleCanvasClick}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              className="w-full h-[65vh] lg:h-[550px] bg-slate-900 rounded-xl"
-              style={{ touchAction: 'none' }}
-            />
+            {/* Canvas with balloon click layer */}
+            <div 
+              className="relative w-full h-[65vh] lg:h-[550px]"
+              onClick={handleBalloonClick}
+            >
+              <canvas
+                ref={canvasRef}
+                onMouseMove={handleMouseMove}
+                onClick={handleCanvasClick}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                className="absolute inset-0 w-full h-full bg-slate-900 rounded-xl"
+                style={{ touchAction: 'none' }}
+              />
+            </div>
             
             {/* Game overlay when not playing */}
             <AnimatePresence>
-              {!gameState.isPlaying && (
+              {!gameState.isPlaying && !gameState.winner && (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1, backdropFilter: "blur(8px)" }}
@@ -1661,6 +1896,7 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
                     transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     className="w-11/12 max-w-lg p-6 border shadow-2xl rounded-2xl bg-gradient-to-br from-slate-800/90 to-slate-900/90 border-indigo-500/30 backdrop-blur-md"
                   >
+                    {/* Welcome screen content */}
                     <motion.div 
                       className="flex justify-center mb-4"
                       initial={{ y: -20, opacity: 0 }}
@@ -1793,6 +2029,86 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
                 </motion.div>
               )}
             </AnimatePresence>
+            
+            {/* Victory Modal */}
+            <AnimatePresence>
+              {showVictoryModal && gameState.winner && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    className="w-11/12 max-w-md p-6 text-center border shadow-xl rounded-xl bg-gradient-to-br from-slate-800/95 to-slate-900/95 border-indigo-500/30 backdrop-blur-md"
+                  >
+                    <motion.div 
+                      initial={{ y: -20 }}
+                      animate={{ y: 0 }}
+                    >
+                      {gameState.winner === 'player' ? (
+                        <>
+                          <motion.div
+                            className="flex justify-center mb-4 text-6xl"
+                            animate={{
+                              scale: [1, 1.2, 1],
+                              rotate: [0, 5, 0, -5, 0]
+                            }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                          >
+                            🏆
+                          </motion.div>
+                          <h2 className="mb-4 text-2xl font-bold text-transparent md:text-3xl bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600">
+                            VICTORY!
+                          </h2>
+                          <p className="mb-2 text-xl font-medium text-blue-300">You won the match!</p>
+                          <p className="mb-6 text-3xl font-bold text-white">
+                            {gameState.playerScore} - {gameState.aiScore}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <motion.div
+                            className="flex justify-center mb-4 text-6xl"
+                            animate={{
+                              y: [0, -5, 0]
+                            }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                          >
+                            😢
+                          </motion.div>
+                          <h2 className="mb-4 text-2xl font-bold text-transparent md:text-3xl bg-clip-text bg-gradient-to-r from-red-400 via-red-500 to-orange-600">
+                            DEFEAT
+                          </h2>
+                          <p className="mb-2 text-xl font-medium text-red-300">AI won this time!</p>
+                          <p className="mb-6 text-3xl font-bold text-white">
+                            {gameState.playerScore} - {gameState.aiScore}
+                          </p>
+                        </>
+                      )}
+                    </motion.div>
+                    
+                    <p className="mb-4 text-blue-200 opacity-80">
+                      {balloons.length > 0 ? "Pop the balloons to celebrate!" : "First to 10 points wins the match!"}
+                    </p>
+                    
+                    <div className="flex flex-col gap-3 mt-6 sm:flex-row sm:justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={restartGame}
+                        className="px-6 py-2 font-medium text-white transition duration-200 rounded-lg shadow-lg bg-gradient-to-r from-green-600 to-emerald-700 shadow-emerald-900/30"
+                      >
+                        Play Again
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
           
           {/* Game instructions */}
@@ -1804,9 +2120,9 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
           >
             <p className="text-base text-blue-200">
               {gameOrientation === 'horizontal'
-                ? "Use your mouse or swipe up/down to move the paddle."
-                : "Use your mouse or swipe left/right to move the paddle."}
-              {" First to score 10 points wins!"}
+                ? "Swipe up/down to move the paddle."
+                : "Swipe left/right to move the paddle."}
+              {" First to 10 points wins the match!"}
             </p>
           </motion.div>
           
@@ -1836,6 +2152,8 @@ const createParticles = (x: number, y: number, count: number, color: string) => 
           <audio ref={scoreSoundRef} src="/sounds/score1.mp3" preload="auto" />
           <audio ref={gameStartSoundRef} src="/sounds/game-start.mp3" preload="auto" />
           <audio ref={backgroundMusicRef} src="/sounds/bg-music2.mp3" preload="auto" loop />
+          <audio ref={victorySoundRef} src="/sounds/victory.mp3" preload="auto" />
+          <audio ref={balloonPopSoundRef} src="/sounds/balloon-pop.mp3" preload="auto" />
         </div>
       </motion.div>
       
